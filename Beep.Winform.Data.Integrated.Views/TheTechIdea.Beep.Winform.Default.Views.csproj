@@ -1,0 +1,102 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<Nullable>enable</Nullable>
+		<UseWindowsForms>true</UseWindowsForms>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<LangVersion>12.0</LangVersion>
+		<Authors>The Tech Idea</Authors>
+		<Company>The Tech Idea</Company>
+		<Copyright>2022</Copyright>
+		<PackageIcon>SimpleODM.png</PackageIcon>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<IncludeSymbols>False</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+		<PackageId>TheTechIdea.Beep.Winform.Default.Views</PackageId>
+		<Title>TheTechIdea.Beep.Winform.Default.Views</Title>
+		<Product>TheTechIdea.Beep.Winform.Default.Views</Product>
+		<AssemblyName>TheTechIdea.Beep.Winform.Default.Views</AssemblyName>
+       
+		<Version>1.0.1</Version>
+		<GenerateDocumentationFile>True</GenerateDocumentationFile>
+		<NoWarn>CS1591</NoWarn>
+	</PropertyGroup>
+	<PropertyGroup>
+		<!-- Don’t pack on design-time builds -->
+		<GeneratePackageOnBuild Condition="'$(DesignTimeBuild)' != 'true'">True</GeneratePackageOnBuild>
+	</PropertyGroup>
+	<Target Name="CopyPackage" AfterTargets="Pack" Condition="'$(DesignTimeBuild)' != 'true'">
+		<PropertyGroup>
+			<_PkgName>$(PackageId).$(PackageVersion).nupkg</_PkgName>
+			<!-- Pack writes to $(PackageOutputPath); default is bin\<Configuration>\ -->
+			<_PkgPath>$(PackageOutputPath)\$(_PkgName)</_PkgPath>
+			<_Dest>$(ProjectDir)..\..\..\LocalNugetFiles</_Dest>
+		</PropertyGroup>
+
+		<!-- Ensure destination exists -->
+		<MakeDir Directories="$(_Dest)" Condition="!Exists('$(_Dest)')" />
+
+		<!-- Copy only if the package exists -->
+		<Copy SourceFiles="$(_PkgPath)" DestinationFolder="$(_Dest)" SkipUnchangedFiles="true" Condition="Exists('$(_PkgPath)')" />
+	</Target>
+	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
+		<Copy SourceFiles="$(TargetDir)$(Assemblyname).dll" DestinationFolder="$(ProjectDir)..\..\outputDLL\$(Assemblyname)\$(TargetFramework)" SkipUnchangedFiles="false" />
+	</Target>
+	<ItemGroup>
+	  <None Remove="GFX\SVG\cancel.svg" />
+	  <None Remove="GFX\SVG\createlocaldb.svg" />
+	  <None Remove="GFX\SVG\createlocaldbbutton.svg" />
+	  <None Remove="GFX\SVG\databaseadd.svg" />
+	  <None Remove="GFX\SVG\databasesave.svg" />
+	  <None Remove="GFX\SVG\drivers.svg" />
+	  <None Remove="GFX\SVG\entityeditor.svg" />
+	  <None Remove="GFX\SVG\fileconnections.svg" />
+	  <None Remove="GFX\SVG\localconnections.svg" />
+	  <None Remove="GFX\SVG\rdbmsConnections.svg" />
+	</ItemGroup>
+	<ItemGroup>
+	  <EmbeddedResource Include="GFX\SVG\cancel.svg" />
+	  <EmbeddedResource Include="GFX\SVG\createlocaldb.svg" />
+	  <EmbeddedResource Include="GFX\SVG\createlocaldbbutton.svg" />
+	  <EmbeddedResource Include="GFX\SVG\databaseadd.svg" />
+	  <EmbeddedResource Include="GFX\SVG\databasesave.svg" />
+	  <EmbeddedResource Include="GFX\SVG\drivers.svg" />
+	  <EmbeddedResource Include="GFX\SVG\entityeditor.svg" />
+	  <EmbeddedResource Include="GFX\SVG\fileconnections.svg" />
+	  <EmbeddedResource Include="GFX\SVG\localconnections.svg" />
+	  <EmbeddedResource Include="GFX\SVG\rdbmsConnections.svg" />
+	</ItemGroup>
+	<ItemGroup>
+		<None Include="..\..\InstallationScripts\LogoGFx\128\SimpleODM.png">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Beep.Desktop\TheTechIdea.Beep.Desktop.Common.Util\TheTechIdea.Beep.Desktop.Common.Util.csproj" />
+    <ProjectReference Include="..\..\Beep.Shared\Beep.Shared\TheTechIdea.Beep.Shared.csproj" />
+    <ProjectReference Include="..\..\Beep.Shared\TheTechIdea.Beep.Fonts\TheTechIdea.Beep.Fonts.csproj" />
+    <ProjectReference Include="..\..\Beep.Shared\TheTechIdea.Beep.Icons\TheTechIdea.Beep.Icons.csproj" />
+    <ProjectReference Include="..\..\Beep.ViewModels\TheTechIdea.Beep.MVVM\TheTechIdea.Beep.MVVM.csproj" />
+    <ProjectReference Include="..\..\Beep.Winform\TheTechIdea.Beep.Vis.Modules2.0\TheTechIdea.Beep.Vis.Modules.csproj" />
+    <ProjectReference Include="..\..\Beep.Winform\TheTechIdea.Beep.Winform.Controls.Design.Server\TheTechIdea.Beep.Winform.Controls.Design.Server.csproj" />
+    <ProjectReference Include="..\..\Beep.Winform\TheTechIdea.Beep.Winform.Controls\TheTechIdea.Beep.Winform.Controls.csproj" />
+    <ProjectReference Include="..\Beep.Winform.Data.Integrated.Controls\TheTechIdea.Beep.Winform.Controls.Integrated.csproj" />
+    <!-- Ensure the designer-only assembly is available at design-time so UITypeEditors can be created -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="CRUD\" />
+    <Folder Include="ETL\" />
+    <Folder Include="DDL\" />
+    <Folder Include="docs\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="NuGet.Protocol" Version="7.6.0" />
+  </ItemGroup>
+
+</Project>

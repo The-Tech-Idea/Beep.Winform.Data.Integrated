@@ -1,0 +1,147 @@
+2026-02-10 20:38:49.812 +03:00 [INF] Logger Initialized
+2026-02-10 20:38:49.816 +03:00 [INF] Initialization Values and Lists
+2026-02-10 20:38:49.819 +03:00 [INF] InitializeLoadedAssemblies: Loaded 34 assemblies
+2026-02-10 20:38:49.822 +03:00 [INF] DMEEditor initialized
+2026-02-10 20:38:49.848 +03:00 [INF] LoadFolderAssemblies: Scanning subfolder: Mysql
+2026-02-10 20:38:49.850 +03:00 [INF] GetDrivers: Scanning assembly BeepShell for drivers
+2026-02-10 20:38:49.850 +03:00 [INF] GetDrivers: Scanning assembly Dapper for drivers
+2026-02-10 20:38:49.850 +03:00 [INF] GetDrivers: Scanning assembly DuckDB.NET.Bindings for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly DuckDB.NET.Data for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly ExcelDataReader for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly ExcelDataReader.DataSet for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly Newtonsoft.Json for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly NuGet.Common for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly NuGet.Configuration for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly NuGet.Frameworks for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly NuGet.Packaging for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly NuGet.Protocol for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly NuGet.Versioning for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly Polly for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly Polly.Core for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly Serilog for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly Serilog.Sinks.Console for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly Serilog.Sinks.Debug for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly Serilog.Sinks.File for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly Spectre.Console for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly Assembly_helpers for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly DataManagementEngine for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly DataManagementModels for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly DMLogger for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly DuckDBDataSourceCore for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly JsonFileLoader for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly RDBDataSource for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly SqliteDatasourceCore for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly TxtXlsCSVFileSourceCore for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly TheTechIdea.Beep.Vis.Modules for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly BeepShell.Shared for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly mscorlib for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly netstandard for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly WindowsBase for drivers
+2026-02-10 20:38:49.854 +03:00 [INF] GetDrivers: Scanning assembly MySqlConnector for drivers
+2026-02-10 20:38:49.855 +03:00 [INF] AddEngineDefaultDrivers: Adding default drivers
+2026-02-10 20:38:49.856 +03:00 [INF] CheckDriverAlreadyExistinList: Removed duplicates, 0 unique drivers remain
+2026-02-10 20:38:49.856 +03:00 [INF] Scanning assembly: BeepShell, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.856 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ClassCreatorShellCommands
+2026-02-10 20:38:49.856 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ConfigShellCommands
+2026-02-10 20:38:49.856 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ConnectionShellCommands
+2026-02-10 20:38:49.856 +03:00 [INF] Discovered shell command type: BeepShell.Commands.DataManagementShellCommands
+2026-02-10 20:38:49.856 +03:00 [INF] Discovered shell command type: BeepShell.Commands.DataSourceShellCommands
+2026-02-10 20:38:49.856 +03:00 [INF] Discovered shell command type: BeepShell.Commands.DriverShellCommands
+2026-02-10 20:38:49.856 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ETLShellCommands
+2026-02-10 20:38:49.856 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ImportShellCommands
+2026-02-10 20:38:49.856 +03:00 [INF] Discovered shell command type: BeepShell.Commands.LocalDBShellCommands
+2026-02-10 20:38:49.856 +03:00 [INF] Discovered shell command type: BeepShell.Commands.MappingShellCommands
+2026-02-10 20:38:49.856 +03:00 [INF] Discovered shell command type: BeepShell.Commands.NuGetShellCommands
+2026-02-10 20:38:49.856 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ProfileShellCommands
+2026-02-10 20:38:49.856 +03:00 [INF] Discovered shell command type: BeepShell.Commands.QueryShellCommands
+2026-02-10 20:38:49.856 +03:00 [INF] Discovered shell command type: BeepShell.Commands.SyncShellCommands
+2026-02-10 20:38:49.856 +03:00 [INF] Scanning assembly: Dapper, Version=2.0.0.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.857 +03:00 [INF] Scanning assembly: DuckDB.NET.Bindings, Version=1.3.2.0, Culture=neutral, PublicKeyToken=1d0aa5325e915c3b
+2026-02-10 20:38:49.857 +03:00 [INF] Scanning assembly: DuckDB.NET.Data, Version=1.3.2.0, Culture=neutral, PublicKeyToken=1d0aa5325e915c3b
+2026-02-10 20:38:49.857 +03:00 [INF] Scanning assembly: ExcelDataReader, Version=3.6.0.0, Culture=neutral, PublicKeyToken=93517dbe6a4012fa
+2026-02-10 20:38:49.857 +03:00 [INF] Scanning assembly: ExcelDataReader.DataSet, Version=3.6.0.0, Culture=neutral, PublicKeyToken=93517dbe6a4012fa
+2026-02-10 20:38:49.857 +03:00 [INF] Scanning assembly: Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed
+2026-02-10 20:38:49.857 +03:00 [INF] Scanning assembly: NuGet.Common, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:49.857 +03:00 [INF] Scanning assembly: NuGet.Configuration, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:49.857 +03:00 [INF] Scanning assembly: NuGet.Frameworks, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:49.857 +03:00 [INF] Scanning assembly: NuGet.Packaging, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:49.857 +03:00 [INF] Scanning assembly: NuGet.Protocol, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:49.857 +03:00 [INF] Scanning assembly: NuGet.Versioning, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:49.857 +03:00 [INF] Scanning assembly: Polly, Version=8.0.0.0, Culture=neutral, PublicKeyToken=c8a3ffc3f8f825cc
+2026-02-10 20:38:49.857 +03:00 [INF] Scanning assembly: Polly.Core, Version=8.0.0.0, Culture=neutral, PublicKeyToken=c8a3ffc3f8f825cc
+2026-02-10 20:38:49.857 +03:00 [INF] Scanning assembly: Serilog, Version=4.3.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10
+2026-02-10 20:38:49.858 +03:00 [INF] Scanning assembly: Serilog.Sinks.Console, Version=6.0.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10
+2026-02-10 20:38:49.858 +03:00 [INF] Scanning assembly: Serilog.Sinks.Debug, Version=3.0.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10
+2026-02-10 20:38:49.858 +03:00 [INF] Scanning assembly: Serilog.Sinks.File, Version=7.0.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10
+2026-02-10 20:38:49.858 +03:00 [INF] Scanning assembly: Spectre.Console, Version=0.0.0.0, Culture=neutral, PublicKeyToken=170fe27f8af98a30
+2026-02-10 20:38:49.858 +03:00 [INF] Scanning assembly: Assembly_helpers, Version=2.0.24.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.858 +03:00 [INF] Scanning assembly: DataManagementEngine, Version=2.0.70.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.858 +03:00 [INF] Scanning assembly: DataManagementModels, Version=2.0.125.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.858 +03:00 [INF] Scanning assembly: DMLogger, Version=2.0.3.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.858 +03:00 [INF] Scanning assembly: DuckDBDataSourceCore, Version=1.0.45.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.858 +03:00 [INF] Scanning assembly: JsonFileLoader, Version=2.0.4.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.858 +03:00 [INF] Scanning assembly: RDBDataSource, Version=2.0.16.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.858 +03:00 [INF] Scanning assembly: SqliteDatasourceCore, Version=1.0.56.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.858 +03:00 [INF] Scanning assembly: TxtXlsCSVFileSourceCore, Version=1.0.13.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.858 +03:00 [INF] Error scanning assembly TxtXlsCSVFileSourceCore, Version=1.0.13.0, Culture=neutral, PublicKeyToken=null: Unable to load one or more of the requested types.
+Could not load type 'TheTechIdea.IDataSource' from assembly 'DataManagementModels, Version=2.0.125.0, Culture=neutral, PublicKeyToken=null'.
+2026-02-10 20:38:49.859 +03:00 [INF]   Loader exception: Could not load type 'TheTechIdea.IDataSource' from assembly 'DataManagementModels, Version=2.0.125.0, Culture=neutral, PublicKeyToken=null'.
+2026-02-10 20:38:49.859 +03:00 [INF] Scanning assembly: TheTechIdea.Beep.Vis.Modules, Version=2.0.7.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.859 +03:00 [INF] Scanning assembly: BeepShell.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.859 +03:00 [INF] Scanning assembly: mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089
+2026-02-10 20:38:49.859 +03:00 [INF] Scanning assembly: netstandard, Version=2.1.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51
+2026-02-10 20:38:49.859 +03:00 [INF] Scanning assembly: WindowsBase, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:49.859 +03:00 [INF] Scanning assembly: MySqlConnector, Version=2.0.0.0, Culture=neutral, PublicKeyToken=d33d3e53aa5f8c92
+2026-02-10 20:38:49.863 +03:00 [INF] Scanning assembly: BeepShell, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.863 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ClassCreatorShellCommands
+2026-02-10 20:38:49.863 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ConfigShellCommands
+2026-02-10 20:38:49.863 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ConnectionShellCommands
+2026-02-10 20:38:49.863 +03:00 [INF] Discovered shell command type: BeepShell.Commands.DataManagementShellCommands
+2026-02-10 20:38:49.863 +03:00 [INF] Discovered shell command type: BeepShell.Commands.DataSourceShellCommands
+2026-02-10 20:38:49.863 +03:00 [INF] Discovered shell command type: BeepShell.Commands.DriverShellCommands
+2026-02-10 20:38:49.863 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ETLShellCommands
+2026-02-10 20:38:49.863 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ImportShellCommands
+2026-02-10 20:38:49.863 +03:00 [INF] Discovered shell command type: BeepShell.Commands.LocalDBShellCommands
+2026-02-10 20:38:49.863 +03:00 [INF] Discovered shell command type: BeepShell.Commands.MappingShellCommands
+2026-02-10 20:38:49.863 +03:00 [INF] Discovered shell command type: BeepShell.Commands.NuGetShellCommands
+2026-02-10 20:38:49.863 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ProfileShellCommands
+2026-02-10 20:38:49.863 +03:00 [INF] Discovered shell command type: BeepShell.Commands.QueryShellCommands
+2026-02-10 20:38:49.863 +03:00 [INF] Discovered shell command type: BeepShell.Commands.SyncShellCommands
+2026-02-10 20:38:49.863 +03:00 [INF] Scanning assembly: Dapper, Version=2.0.0.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.863 +03:00 [INF] Scanning assembly: DuckDB.NET.Bindings, Version=1.3.2.0, Culture=neutral, PublicKeyToken=1d0aa5325e915c3b
+2026-02-10 20:38:49.863 +03:00 [INF] Scanning assembly: DuckDB.NET.Data, Version=1.3.2.0, Culture=neutral, PublicKeyToken=1d0aa5325e915c3b
+2026-02-10 20:38:49.863 +03:00 [INF] Scanning assembly: ExcelDataReader, Version=3.6.0.0, Culture=neutral, PublicKeyToken=93517dbe6a4012fa
+2026-02-10 20:38:49.863 +03:00 [INF] Scanning assembly: ExcelDataReader.DataSet, Version=3.6.0.0, Culture=neutral, PublicKeyToken=93517dbe6a4012fa
+2026-02-10 20:38:49.863 +03:00 [INF] Scanning assembly: Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed
+2026-02-10 20:38:49.864 +03:00 [INF] Scanning assembly: NuGet.Common, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:49.864 +03:00 [INF] Scanning assembly: NuGet.Configuration, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:49.864 +03:00 [INF] Scanning assembly: NuGet.Frameworks, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:49.864 +03:00 [INF] Scanning assembly: NuGet.Packaging, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:49.864 +03:00 [INF] Scanning assembly: NuGet.Protocol, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:49.864 +03:00 [INF] Scanning assembly: NuGet.Versioning, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:49.864 +03:00 [INF] Scanning assembly: Polly, Version=8.0.0.0, Culture=neutral, PublicKeyToken=c8a3ffc3f8f825cc
+2026-02-10 20:38:49.864 +03:00 [INF] Scanning assembly: Polly.Core, Version=8.0.0.0, Culture=neutral, PublicKeyToken=c8a3ffc3f8f825cc
+2026-02-10 20:38:49.864 +03:00 [INF] Scanning assembly: Serilog, Version=4.3.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10
+2026-02-10 20:38:49.865 +03:00 [INF] Scanning assembly: Serilog.Sinks.Console, Version=6.0.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10
+2026-02-10 20:38:49.865 +03:00 [INF] Scanning assembly: Serilog.Sinks.Debug, Version=3.0.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10
+2026-02-10 20:38:49.865 +03:00 [INF] Scanning assembly: Serilog.Sinks.File, Version=7.0.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10
+2026-02-10 20:38:49.865 +03:00 [INF] Scanning assembly: Spectre.Console, Version=0.0.0.0, Culture=neutral, PublicKeyToken=170fe27f8af98a30
+2026-02-10 20:38:49.865 +03:00 [INF] Scanning assembly: Assembly_helpers, Version=2.0.24.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.865 +03:00 [INF] Scanning assembly: DataManagementEngine, Version=2.0.70.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.865 +03:00 [INF] Scanning assembly: DataManagementModels, Version=2.0.125.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.865 +03:00 [INF] Scanning assembly: DMLogger, Version=2.0.3.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.865 +03:00 [INF] Scanning assembly: DuckDBDataSourceCore, Version=1.0.45.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.865 +03:00 [INF] Scanning assembly: JsonFileLoader, Version=2.0.4.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.865 +03:00 [INF] Scanning assembly: RDBDataSource, Version=2.0.16.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.865 +03:00 [INF] Scanning assembly: SqliteDatasourceCore, Version=1.0.56.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.865 +03:00 [INF] Scanning assembly: TxtXlsCSVFileSourceCore, Version=1.0.13.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.865 +03:00 [INF] Error scanning assembly TxtXlsCSVFileSourceCore, Version=1.0.13.0, Culture=neutral, PublicKeyToken=null: Unable to load one or more of the requested types.
+Could not load type 'TheTechIdea.IDataSource' from assembly 'DataManagementModels, Version=2.0.125.0, Culture=neutral, PublicKeyToken=null'.
+2026-02-10 20:38:49.866 +03:00 [INF]   Loader exception: Could not load type 'TheTechIdea.IDataSource' from assembly 'DataManagementModels, Version=2.0.125.0, Culture=neutral, PublicKeyToken=null'.
+2026-02-10 20:38:49.866 +03:00 [INF] Scanning assembly: TheTechIdea.Beep.Vis.Modules, Version=2.0.7.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.866 +03:00 [INF] Scanning assembly: BeepShell.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:49.866 +03:00 [INF] Scanning assembly: mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089
+2026-02-10 20:38:49.866 +03:00 [INF] Scanning assembly: netstandard, Version=2.1.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51
+2026-02-10 20:38:49.866 +03:00 [INF] Scanning assembly: WindowsBase, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:49.866 +03:00 [INF] Scanning assembly: MySqlConnector, Version=2.0.0.0, Culture=neutral, PublicKeyToken=d33d3e53aa5f8c92
+2026-02-10 20:38:49.881 +03:00 [INF] Initialized 212 driver(s) from ConnectionHelper

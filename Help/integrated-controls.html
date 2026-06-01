@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integrated Controls — Beep Controls Documentation</title>
+    <link rel="stylesheet" href="sphinx-style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+</head>
+<body>
+    <button class="mobile-menu-toggle" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"><i class="bi bi-sun-fill" id="theme-icon"></i></button>
+
+    <div class="container">
+        <aside class="sidebar" id="sidebar">
+            <div class="logo">
+                <h2 style="font-size:1.1rem;margin:0;padding:0 1.5rem">Integrated Controls</h2>
+                <span style="font-size:.75rem;color:var(--meta);padding:0 1.5rem">Data-Bound Application Framework</span>
+            </div>
+            <nav><ul class="nav-menu">
+                <li><a href="index.html"><i class="bi bi-house"></i> Home</a></li>
+                <li class="has-submenu"><a href="#"><i class="bi bi-puzzle"></i> Integrated Controls</a>
+                    <ul class="submenu">
+                        <li><a href="integrated-controls.html#beep-forms">BeepForms &amp; BeepBlock</a></li>
+                        <li><a href="integrated-controls.html#data-connection">BeepDataConnection</a></li>
+                        <li><a href="integrated-controls.html#app-tree">BeepAppTree</a></li>
+                        <li><a href="integrated-controls.html#forms-shell">Forms Shell Components</a></li>
+                        <li><a href="integrated-controls.html#nuggets">NuggetsManage</a></li>
+                        <li><a href="integrated-controls.html#helpers">Dynamic Helpers</a></li>
+                        <li><a href="integrated-controls.html#block-definition">Block Definition Model</a></li>
+                    </ul>
+                </li>
+            </ul></nav>
+        </aside>
+
+        <main class="content"><div class="content-wrapper">
+            <nav class="breadcrumb-nav">
+                <a href="index.html">Integrated Controls</a>
+                <span>&rsaquo;</span>
+                <span>Overview</span>
+            </nav>
+
+            <div class="page-header">
+                <h1>Integrated Controls</h1>
+                <p class="page-subtitle">Data-bound application framework — BeepForms, BeepBlock, BeepAppTree, BeepDataConnection, and design-time infrastructure</p>
+            </div>
+
+            <div class="note">
+                <strong>Source</strong><br/>
+                <code>Beep.Winform.Data.Integrated/Beep.Winform.Data.Integrated.Controls/</code><br/>
+                <strong>Namespace:</strong> <code>TheTechIdea.Beep.Winform.Controls.Integrated</code>
+            </div>
+
+            <div class="toc">
+                <h3>Table of Contents</h3>
+                <ul>
+                    <li><a href="#beep-forms">BeepForms &amp; BeepBlock</a></li>
+                    <li><a href="#data-connection">BeepDataConnection</a></li>
+                    <li><a href="#app-tree">BeepAppTree</a></li>
+                    <li><a href="#forms-shell">Forms Shell Components</a></li>
+                    <li><a href="#nuggets">NuggetsManage</a></li>
+                    <li><a href="#helpers">Dynamic Helpers</a></li>
+                    <li><a href="#block-definition">Block Definition Model</a></li>
+                </ul>
+            </div>
+
+            <!-- BeepForms & BeepBlock -->
+            <section class="section" id="beep-forms">
+                <h2>BeepForms &amp; BeepBlock — Data-Bound Application Framework</h2>
+                <p><code>BeepForms</code> is the top-level application shell. <code>BeepBlock</code> is the data-bound content panel inside it. Together they provide a zero-code data-entry/CRUD experience driven entirely by <code>BeepBlockDefinition</code> objects.</p>
+
+                <div class="code-example">
+                    <h3>Architecture</h3>
+                    <pre><code class="language-none">BeepForms (application shell)
+  ├── BeepFormsToolbar          ← Save, Refresh, Actions toolbar
+  ├── BeepFormsCommandBar       ← Undo/Redo, Cancel, navigation
+  ├── BeepFormsQueryShelf       ← Filter/search query builder
+  ├── BeepFormsHeader           ← Title, breadcrumb, metadata
+  ├── BeepFormsPersistenceShelf ← Savepoint management
+  ├── BeepFormsStatusStrip      ← Status messages, progress
+  └── BeepBlock (content panel)
+        ├── RecordMode            ← Single-record CRUD form
+        ├── GridMode              ← Multi-row data grid
+        └── QueryMode             ← Query builder + results</code></pre>
+                </div>
+
+                <div class="code-example">
+                    <h3>Rapid setup</h3>
+                    <pre><code class="language-csharp">var forms = new BeepForms();
+forms.SetDefinition(new BeepBlockDefinition
+{
+    BlockName = "CustomerForm",
+    PresentationMode = BeepBlockPresentationMode.Record,
+    Entity = new BeepBlockEntityDefinition
+    {
+        DataSourceName = "northwind.db",
+        EntityName = "Customers"
+    },
+    Fields = new List&lt;BeepFieldDefinition&gt;
+    {
+        new() { FieldName = "CustomerId", ControlType = "BeepTextBox" },
+        new() { FieldName = "CompanyName", ControlType = "BeepTextBox" },
+        new() { FieldName = "ContactTitle", ControlType = "BeepComboBox",
+                LOVDataSource = "northwind.db", LOVEntity = "ContactTitles" }
+    }
+});
+forms.Initialize();</code></pre>
+                </div>
+
+                <div class="note">
+                    <strong>Presentation modes</strong>
+                    <table><thead><tr><th>Mode</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>Record</code></td><td>Single-record form with field presenters (BeepTextBox, BeepComboBox, BeepCheckBox, BeepDatePicker)</td></tr>
+                        <tr><td><code>Grid</code></td><td>Multi-row BeepSimpleGrid with inline editing, sorting, filtering</td></tr>
+                        <tr><td><code>Query</code></td><td>Query builder UI for filtering + grid results</td></tr>
+                    </tbody></table>
+                </div>
+
+                <div class="code-example">
+                    <h3>Field presenters — automatic control binding</h3>
+                    <pre><code class="language-csharp">// BeepBlock auto-creates controls based on BeepFieldDefinition.ControlType:
+// "BeepTextBox"     → TextBeepFieldPresenter    (System.String, numeric)
+// "BeepComboBox"     → ComboBeepFieldPresenter   (LOV datasource bound)
+// "BeepDatePicker"   → DateBeepFieldPresenter    (System.DateTime)
+// "BeepCheckBox"     → CheckboxBeepFieldPresenter(System.Boolean)
+// "BeepNumericUpDown"→ NumericBeepFieldPresenter (numeric types)</code></pre>
+                </div>
+
+                <div class="code-example">
+                    <h3>Trigger system</h3>
+                    <pre><code class="language-csharp">var definition = new BeepBlockDefinition
+{
+    Entity = new BeepBlockEntityDefinition
+    {
+        Triggers = new List&lt;BeepBlockTriggerDefinition&gt;
+        {
+            new()
+            {
+                TriggerField = "Country",
+                ActionType = BeepBlockTriggerActionType.RefreshField,
+                TargetField = "City"
+            }
+        }
+    }
+};</code></pre>
+                </div>
+            </section>
+
+            <!-- BeepDataConnection -->
+            <section class="section" id="data-connection">
+                <h2>BeepDataConnection — Design-Time Connection Manager</h2>
+                <p>A non-visual tray component that manages Beep data connections at design time.</p>
+
+                <div class="code-example">
+                    <h3>Key features</h3>
+                    <pre><code class="language-csharp">[Designer("...BeepDataConnectionDesigner...")]
+public class BeepDataConnection : Component
+{
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
+    public List&lt;ConnectionProperties&gt; DataConnections { get; set; }
+
+    public ConnectionStorageScope StorageScope { get; set; }
+    public string AppRepoName { get; set; }
+}</code></pre>
+                </div>
+
+                <div class="note">
+                    <strong>Storage providers</strong>
+                    <ul>
+                        <li><code>JsonConnectionStorageProvider</code> — persists to JSON files in Beep app repo</li>
+                        <li><code>IConnectionStorageProvider</code> — pluggable interface for custom storage</li>
+                        <li><code>ConnectionSecretProtector</code> — encrypts sensitive connection parameters</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- BeepAppTree -->
+            <section class="section" id="app-tree">
+                <h2>BeepAppTree — Application Navigation Tree</h2>
+                <p>Extends <code>BeepTree</code> with branch-driven navigation from <code>BranchesClasses</code>.</p>
+
+                <div class="code-example">
+                    <h3>Structure</h3>
+                    <pre><code class="language-csharp">public IErrorsInfo CreateRootTree()
+{
+    // Phase 1: Genre branches → category headers
+    foreach (var def in BranchesClasses.Where(b => b.BranchType == Genre))
+        CreateNode(id, activator());
+
+    // Phase 2: Root branches → matched to parent genre
+    foreach (var def in BranchesClasses.Where(b => b.BranchType == Root))
+        AddBranch(parentGenre, activator());
+
+    // Phase 3: CreateChildNodes() builds subtrees recursively
+}
+// Event pipeline: PreShowItem → CreateRootTree → SetConfig → CreateChildNodes</code></pre>
+                </div>
+
+                <div class="code-example">
+                    <h3>Branch handler</h3>
+                    <pre><code class="language-csharp">public interface ITreeBranchHandler
+{
+    IBranch GetBranch(string text);
+    IErrorsInfo AddBranch(IBranch parent, IBranch child);
+    void RemoveNode(IBranch branch);
+    void RefreshTree();
+}</code></pre>
+                </div>
+            </section>
+
+            <!-- Forms Shell -->
+            <section class="section" id="forms-shell">
+                <h2>Forms Shell Components</h2>
+                <table>
+                    <thead><tr><th>Component</th><th>Purpose</th><th>Location</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>BeepFormsToolbar</code></td><td>Save, Refresh, Delete, New, Print, Export, View</td><td><code>Forms/BeepFormsToolbar/</code></td></tr>
+                        <tr><td><code>BeepFormsCommandBar</code></td><td>Undo, Redo, Cancel Edit</td><td><code>Forms/BeepFormsCommandBar/</code></td></tr>
+                        <tr><td><code>BeepFormsQueryShelf</code></td><td>Filter/search panel with caption mode</td><td><code>Forms/BeepFormsQueryShelf/</code></td></tr>
+                        <tr><td><code>BeepFormsHeader</code></td><td>Title, breadcrumb, entity metadata</td><td><code>Forms/BeepFormsHeader/</code></td></tr>
+                        <tr><td><code>BeepFormsPersistenceShelf</code></td><td>Savepoint management</td><td><code>Forms/BeepFormsPersistenceShelf/</code></td></tr>
+                        <tr><td><code>BeepFormsStatusStrip</code></td><td>Status bar — messages, progress, validation</td><td><code>Forms/BeepFormsStatusStrip/</code></td></tr>
+                    </tbody>
+                </table>
+
+                <div class="code-example">
+                    <h3>Master-Detail binding</h3>
+                    <pre><code class="language-csharp">var master = new BeepForms();
+var detail = new BeepForms();
+master.Block.SetDefinition(masterDef);
+detail.Block.SetDefinition(detailDef);
+
+master.Block.UnitOfWorkActivity += (s, e) =>
+{
+    if (e.ActivityType == UnitOfWorkActivityType.CurrentChanged)
+        detail.Block.Bind(master.Block.FormsHost, master.Block.BlockName);
+};</code></pre>
+                </div>
+            </section>
+
+            <!-- NuggetsManage -->
+            <section class="section" id="nuggets">
+                <h2>NuggetsManage — NuGet Package Manager</h2>
+                <p>Design-time NuGet package management UI integrated into the Beep ecosystem.</p>
+
+                <div class="code-example">
+                    <h3>Components</h3>
+                    <pre><code class="language-csharp">// NuggetsManageService — Search, install, uninstall, list packages
+// NuggetsStartupBootstrapper — Auto-discovers registered packages
+// NuggetStateStore — Tracks installation state per package
+// uc_NuggetsManage — WinForms user control with search, version selector, log</code></pre>
+                </div>
+            </section>
+
+            <!-- Helpers -->
+            <section class="section" id="helpers">
+                <h2>Dynamic Helpers</h2>
+
+                <div class="code-example">
+                    <h3>DynamicMenuManager</h3>
+                    <pre><code class="language-csharp">// Builds context menus from AssemblyClassDefinition metadata
+DynamicMenuManager.CreateMenuMethods(dmEditor, branch);
+DynamicMenuManager.CreateGlobalMenu(branch);</code></pre>
+                </div>
+
+                <div class="code-example">
+                    <h3>ControlExtensions</h3>
+                    <pre><code class="language-csharp">// Tree node creation helpers
+ControlExtensions.CreateNode(tree, id, branch);
+ControlExtensions.RunMethodFromBranch(tree, branch, methodName);</code></pre>
+                </div>
+            </section>
+
+            <!-- Block Definition -->
+            <section class="section" id="block-definition">
+                <h2>Block Definition Model</h2>
+
+                <div class="code-example">
+                    <h3>BeepBlockDefinition</h3>
+                    <pre><code class="language-csharp">public sealed class BeepBlockDefinition
+{
+    public string Id { get; set; }
+    public string BlockName { get; set; }
+    public BeepBlockPresentationMode PresentationMode { get; set; }
+    public List&lt;BeepFieldDefinition&gt; Fields { get; set; }
+    public BeepBlockEntityDefinition Entity { get; set; }
+    public BeepBlockNavigationDefinition Navigation { get; set; }
+}</code></pre>
+                </div>
+
+                <div class="code-example">
+                    <h3>BeepBlockEntityDefinition</h3>
+                    <pre><code class="language-csharp">public sealed class BeepBlockEntityDefinition
+{
+    public string DataSourceName { get; set; }
+    public string EntityName { get; set; }
+    public string SchemaName { get; set; }
+    public BeepBlockRecordMode RecordMode { get; set; }
+    public List&lt;BeepBlockTriggerDefinition&gt; Triggers { get; set; }
+}</code></pre>
+                </div>
+
+                <div class="code-example">
+                    <h3>BeepFieldDefinition</h3>
+                    <pre><code class="language-csharp">public sealed class BeepFieldDefinition
+{
+    public string FieldName { get; set; }
+    public string ControlType { get; set; }
+    public string Label { get; set; }
+    public bool Required { get; set; }
+    public bool ReadOnly { get; set; }
+    public string DefaultValue { get; set; }
+    public string LOVDataSource { get; set; }
+    public string LOVEntity { get; set; }
+    public string LOVDisplayField { get; set; }
+    public string LOVValueField { get; set; }
+    public Dictionary&lt;string,string&gt; Options { get; set; }
+}</code></pre>
+                </div>
+            </section>
+
+            <footer class="documentation-footer">
+                <div class="footer-content">
+                    <div class="footer-copyright">
+                        <p>&copy; 2024 The Tech Idea — Beep Data Management Engine</p>
+                    </div>
+                    <div class="footer-links">
+                        <a href="index.html">Home</a>
+                    </div>
+                </div>
+            </footer>
+        </div></main>
+    </div>
+
+    <script>
+        // Accordion — toggle submenu
+        document.querySelectorAll('.has-submenu > a').forEach(function(a) {
+            a.addEventListener('click', function(e) {
+                if (this.getAttribute('href') === '#') e.preventDefault();
+                var li = this.parentElement;
+                var wasOpen = li.classList.contains('open');
+                li.classList.toggle('open', !wasOpen);
+            });
+        });
+
+        // Theme toggle
+        function toggleTheme() {
+            var body = document.body;
+            var icon = document.getElementById('theme-icon');
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.removeAttribute('data-theme');
+                icon.className = 'bi bi-sun-fill';
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                icon.className = 'bi bi-moon-fill';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        // Mobile sidebar toggle
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+        }
+
+        // Load saved theme
+        (function() {
+            if (localStorage.getItem('theme') === 'dark') {
+                document.body.setAttribute('data-theme', 'dark');
+                document.getElementById('theme-icon').className = 'bi bi-moon-fill';
+            }
+        })();
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+</body>
+</html>

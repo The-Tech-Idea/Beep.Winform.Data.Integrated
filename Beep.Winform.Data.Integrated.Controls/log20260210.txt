@@ -1,0 +1,68 @@
+2026-02-10 20:38:37.712 +03:00 [INF] Logger Initialized
+2026-02-10 20:38:37.789 +03:00 [INF] Initialization Values and Lists
+2026-02-10 20:38:39.712 +03:00 [INF] InitializeLoadedAssemblies: Loaded 34 assemblies
+2026-02-10 20:38:39.713 +03:00 [INF] Scanning assembly: BeepShell, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:39.715 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ClassCreatorShellCommands
+2026-02-10 20:38:39.715 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ConfigShellCommands
+2026-02-10 20:38:39.715 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ConnectionShellCommands
+2026-02-10 20:38:39.716 +03:00 [INF] Discovered shell command type: BeepShell.Commands.DataManagementShellCommands
+2026-02-10 20:38:39.716 +03:00 [INF] Discovered shell command type: BeepShell.Commands.DataSourceShellCommands
+2026-02-10 20:38:39.716 +03:00 [INF] Discovered shell command type: BeepShell.Commands.DriverShellCommands
+2026-02-10 20:38:39.716 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ETLShellCommands
+2026-02-10 20:38:39.716 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ImportShellCommands
+2026-02-10 20:38:39.716 +03:00 [INF] Discovered shell command type: BeepShell.Commands.LocalDBShellCommands
+2026-02-10 20:38:39.716 +03:00 [INF] Discovered shell command type: BeepShell.Commands.MappingShellCommands
+2026-02-10 20:38:39.716 +03:00 [INF] Discovered shell command type: BeepShell.Commands.NuGetShellCommands
+2026-02-10 20:38:39.716 +03:00 [INF] Discovered shell command type: BeepShell.Commands.ProfileShellCommands
+2026-02-10 20:38:39.716 +03:00 [INF] Discovered shell command type: BeepShell.Commands.QueryShellCommands
+2026-02-10 20:38:39.716 +03:00 [INF] Discovered shell command type: BeepShell.Commands.SyncShellCommands
+2026-02-10 20:38:39.716 +03:00 [INF] Scanning assembly: Dapper, Version=2.0.0.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:39.719 +03:00 [INF] Scanning assembly: DuckDB.NET.Bindings, Version=1.3.2.0, Culture=neutral, PublicKeyToken=1d0aa5325e915c3b
+2026-02-10 20:38:39.719 +03:00 [INF] Scanning assembly: DuckDB.NET.Data, Version=1.3.2.0, Culture=neutral, PublicKeyToken=1d0aa5325e915c3b
+2026-02-10 20:38:39.721 +03:00 [INF] Scanning assembly: ExcelDataReader, Version=3.6.0.0, Culture=neutral, PublicKeyToken=93517dbe6a4012fa
+2026-02-10 20:38:39.722 +03:00 [INF] Scanning assembly: ExcelDataReader.DataSet, Version=3.6.0.0, Culture=neutral, PublicKeyToken=93517dbe6a4012fa
+2026-02-10 20:38:39.722 +03:00 [INF] Scanning assembly: Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed
+2026-02-10 20:38:39.726 +03:00 [INF] Scanning assembly: NuGet.Common, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:39.726 +03:00 [INF] Scanning assembly: NuGet.Configuration, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:39.727 +03:00 [INF] Scanning assembly: NuGet.Frameworks, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:39.728 +03:00 [INF] Scanning assembly: NuGet.Packaging, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:39.732 +03:00 [INF] Scanning assembly: NuGet.Protocol, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:39.739 +03:00 [INF] Scanning assembly: NuGet.Versioning, Version=7.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:39.739 +03:00 [INF] Scanning assembly: Polly, Version=8.0.0.0, Culture=neutral, PublicKeyToken=c8a3ffc3f8f825cc
+2026-02-10 20:38:39.744 +03:00 [INF] Scanning assembly: Polly.Core, Version=8.0.0.0, Culture=neutral, PublicKeyToken=c8a3ffc3f8f825cc
+2026-02-10 20:38:39.746 +03:00 [INF] Scanning assembly: Serilog, Version=4.3.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10
+2026-02-10 20:38:39.747 +03:00 [INF] Scanning assembly: Serilog.Sinks.Console, Version=6.0.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10
+2026-02-10 20:38:39.747 +03:00 [INF] Scanning assembly: Serilog.Sinks.Debug, Version=3.0.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10
+2026-02-10 20:38:39.747 +03:00 [INF] Scanning assembly: Serilog.Sinks.File, Version=7.0.0.0, Culture=neutral, PublicKeyToken=24c2f752a8e58a10
+2026-02-10 20:38:39.747 +03:00 [INF] Scanning assembly: Spectre.Console, Version=0.0.0.0, Culture=neutral, PublicKeyToken=170fe27f8af98a30
+2026-02-10 20:38:39.750 +03:00 [INF] Scanning assembly: Assembly_helpers, Version=2.0.24.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:39.751 +03:00 [INF] Scanning assembly: DataManagementEngine, Version=2.0.70.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:39.765 +03:00 [INF] Scanning assembly: DataManagementModels, Version=2.0.125.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:39.768 +03:00 [INF] Scanning assembly: DMLogger, Version=2.0.3.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:39.768 +03:00 [INF] Scanning assembly: DuckDBDataSourceCore, Version=1.0.45.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:39.768 +03:00 [INF] Scanning assembly: JsonFileLoader, Version=2.0.4.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:39.768 +03:00 [INF] Scanning assembly: RDBDataSource, Version=2.0.16.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:39.769 +03:00 [INF] Scanning assembly: SqliteDatasourceCore, Version=1.0.56.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:39.769 +03:00 [INF] Scanning assembly: TxtXlsCSVFileSourceCore, Version=1.0.13.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:39.771 +03:00 [INF] Error scanning assembly TxtXlsCSVFileSourceCore, Version=1.0.13.0, Culture=neutral, PublicKeyToken=null: Unable to load one or more of the requested types.
+Could not load type 'TheTechIdea.IDataSource' from assembly 'DataManagementModels, Version=2.0.125.0, Culture=neutral, PublicKeyToken=null'.
+2026-02-10 20:38:39.771 +03:00 [INF]   Loader exception: Could not load type 'TheTechIdea.IDataSource' from assembly 'DataManagementModels, Version=2.0.125.0, Culture=neutral, PublicKeyToken=null'.
+2026-02-10 20:38:39.771 +03:00 [INF] Scanning assembly: TheTechIdea.Beep.Vis.Modules, Version=2.0.7.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:39.839 +03:00 [INF] Scanning assembly: BeepShell.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+2026-02-10 20:38:39.840 +03:00 [INF] Scanning assembly: mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089
+2026-02-10 20:38:39.840 +03:00 [INF] Scanning assembly: netstandard, Version=2.1.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51
+2026-02-10 20:38:39.840 +03:00 [INF] Scanning assembly: WindowsBase, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35
+2026-02-10 20:38:39.841 +03:00 [INF] Registered command as singleton: BeepShell.Commands.ClassCreatorShellCommands
+2026-02-10 20:38:39.841 +03:00 [INF] Registered command as singleton: BeepShell.Commands.ConfigShellCommands
+2026-02-10 20:38:39.841 +03:00 [INF] Registered command as singleton: BeepShell.Commands.ConnectionShellCommands
+2026-02-10 20:38:39.841 +03:00 [INF] Registered command as singleton: BeepShell.Commands.DataManagementShellCommands
+2026-02-10 20:38:39.841 +03:00 [INF] Registered command as singleton: BeepShell.Commands.DataSourceShellCommands
+2026-02-10 20:38:39.841 +03:00 [INF] Registered command as singleton: BeepShell.Commands.DriverShellCommands
+2026-02-10 20:38:39.841 +03:00 [INF] Registered command as singleton: BeepShell.Commands.ETLShellCommands
+2026-02-10 20:38:39.841 +03:00 [INF] Registered command as singleton: BeepShell.Commands.ImportShellCommands
+2026-02-10 20:38:39.841 +03:00 [INF] Registered command as singleton: BeepShell.Commands.LocalDBShellCommands
+2026-02-10 20:38:39.841 +03:00 [INF] Registered command as singleton: BeepShell.Commands.MappingShellCommands
+2026-02-10 20:38:39.841 +03:00 [INF] Registered command as singleton: BeepShell.Commands.NuGetShellCommands
+2026-02-10 20:38:39.841 +03:00 [INF] Registered command as singleton: BeepShell.Commands.ProfileShellCommands
+2026-02-10 20:38:39.841 +03:00 [INF] Registered command as singleton: BeepShell.Commands.QueryShellCommands
+2026-02-10 20:38:39.841 +03:00 [INF] Registered command as singleton: BeepShell.Commands.SyncShellCommands
