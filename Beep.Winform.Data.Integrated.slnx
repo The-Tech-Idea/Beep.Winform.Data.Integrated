@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="../../Beep.Winform/TheTechIdea.Beep.Vis.Modules2.0/TheTechIdea.Beep.Vis.Modules.csproj" />
+  <Project Path="../../Beep.Winform/TheTechIdea.Beep.Winform.Controls/TheTechIdea.Beep.Winform.Controls.csproj" />
   <Project Path="../Beep.Winform.Data.Integrated.Controls/TheTechIdea.Beep.Winform.Controls.Integrated.csproj" />
   <Project Path="../Beep.Winform.Data.Integrated.Views/TheTechIdea.Beep.Winform.Default.Views.csproj" />
   <Project Path="Beep.Winform.Data.Integrated.Shared.csproj" />
