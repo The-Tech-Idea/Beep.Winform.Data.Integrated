@@ -7,10 +7,14 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using TheTechIdea.Beep.Editor.Forms.Builtins;
+using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Editor.UOWManager.Interfaces;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Contracts;
+using TheTechIdea.Beep.Winform.Controls.Integrated.Builtins;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
+using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
@@ -30,6 +34,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         private BeepFormsDefinition? _definition;
         private bool _autoCreateBlocksFromDefinition = true;
         private string _formName = string.Empty;
+        private BeepBuiltinsHostAdapter? _builtinsAdapter;
+        private IBeepBuiltins? _builtins;
+        private BeepDataConnection? _dataConnection;
 
         public BeepForms()
         {
@@ -54,6 +61,35 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         [Browsable(false)]
         public string? ActiveBlockName => _viewState.ActiveBlockName;
+
+        /// <summary>
+        /// Phase 5C — Optional <see cref="BeepDataConnection"/> used by <see cref="LogonAsync"/>
+        /// to enumerate connection options in the WinForms logon dialog.
+        /// </summary>
+        [Browsable(false)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public BeepDataConnection? DataConnection
+        {
+            get => _dataConnection;
+            set => _dataConnection = value;
+        }
+
+        [Browsable(false)]
+        public string? ActiveItemName => _viewState.ActiveItemName;
+
+        [Browsable(false)]
+        public IBeepBuiltins? Builtins
+        {
+            get
+            {
+                if (_builtins == null)
+                {
+                    _builtinsAdapter ??= new BeepBuiltinsHostAdapter(this);
+                    _builtins = new BeepBuiltins(_builtinsAdapter);
+                }
+                return _builtins;
+            }
+        }
 
         [Browsable(true)]
         [Category("Behavior")]
@@ -210,6 +246,39 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return true;
         }
 
+        public bool TrySetActiveItem(string blockName, string itemName)
+        {
+            if (string.IsNullOrWhiteSpace(blockName) || string.IsNullOrWhiteSpace(itemName)) return false;
+            if (!TrySetActiveBlock(blockName)) return false;
+            if (!IsItemRegistered(blockName, itemName)) return false;
+            if (!string.Equals(_viewState.ActiveItemName, itemName, StringComparison.OrdinalIgnoreCase))
+            {
+                _viewState.ActiveItemName = itemName;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Raises the host's <see cref="TriggerExecuting"/> event from inside
+        /// the declaring class so external callers (for example
+        /// <see cref="Builtins.BeepBuiltinsHostAdapter"/>) can dispatch a
+        /// synthetic built-in trigger through the same fan-out path used by
+        /// the FormsManager-originated triggers.
+        /// </summary>
+        public void RaiseBuiltinTriggerExecuting(TriggerExecutingEventArgs args)
+        {
+            TriggerExecuting?.Invoke(this, args);
+        }
+
+        /// <summary>
+        /// Raises the host's <see cref="TriggerExecuted"/> event. See
+        /// <see cref="RaiseBuiltinTriggerExecuting"/> for context.
+        /// </summary>
+        public void RaiseBuiltinTriggerExecuted(TriggerExecutedEventArgs args)
+        {
+            TriggerExecuted?.Invoke(this, args);
+        }
+
         public void SyncFromManager()
         {
             _managerAdapter.Sync(_viewState);
@@ -265,6 +334,65 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             BootstrapCompleted?.Invoke(this, new BeepFormsBootstrapEventArgs(
                 allOk ? BootstrapState.Succeeded : BootstrapState.PartialSuccess));
             return allOk;
+        }
+
+        /// <summary>
+        /// Phase 5C — Shows a WinForms logon dialog wrapped around the configured
+        /// <see cref="BeepDataConnection"/>, and on success raises the
+        /// When-New-Form-Instance trigger so forms can bootstrap their initial state.
+        /// </summary>
+        public async Task<BeepLogonContext> LogonAsync(BeepLogonRequest request)
+        {
+            if (request == null)
+            {
+                request = new BeepLogonRequest();
+            }
+
+            IBeepLogonDialog dialog = new BeepLogonDialog(_dataConnection);
+            BeepLogonContext ctx = await dialog.PromptAsync(request).ConfigureAwait(true);
+
+            if (ctx.IsSuccess)
+            {
+                var trigger = new TriggerDefinition(
+                    TriggerType.WhenNewFormInstance,
+                    TriggerScope.Form);
+                var context = new TriggerContext
+                {
+                    Trigger = trigger,
+                    TriggerType = TriggerType.WhenNewFormInstance,
+                    Scope = TriggerScope.Form,
+                    BlockName = string.Empty,
+                    ItemName = string.Empty,
+                    Parameters = new Dictionary<string, object?>
+                    {
+                        ["UserName"] = ctx.Request.UserName,
+                        ["ConnectionName"] = ctx.Request.ConnectionName
+                    }
+                };
+
+                var executing = new TriggerExecutingEventArgs
+                {
+                    Trigger = trigger,
+                    Context = context
+                };
+                RaiseBuiltinTriggerExecuting(executing);
+
+                if (!executing.Cancel)
+                {
+                    var start = DateTime.UtcNow;
+                    var executed = new TriggerExecutedEventArgs
+                    {
+                        Trigger = trigger,
+                        Context = context,
+                        Result = TriggerResult.Success,
+                        StartTime = start,
+                        EndTime = DateTime.UtcNow
+                    };
+                    RaiseBuiltinTriggerExecuted(executed);
+                }
+            }
+
+            return ctx;
         }
 
         private void InitializeComponent()

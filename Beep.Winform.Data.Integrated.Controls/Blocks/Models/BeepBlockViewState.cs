@@ -21,6 +21,6 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Models
         public string LastTriggerText { get; set; } = string.Empty;
         public string LastUnitOfWorkActivityText { get; set; } = string.Empty;
         public BeepBlockEntityDefinition Entity { get; set; } = new();
-        public DataBlockMode Mode { get; set; } = DataBlockMode.Query;
+        public DataBlockMode Mode { get; set; } = DataBlockMode.EnterQuery;
     }
 }

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Windows.Forms;
+using TheTechIdea.Beep.Editor.Forms.Builtins;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts;
@@ -13,6 +14,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Contracts
         string ManagerBlockName { get; }
         bool IsBound { get; }
         IBeepFormsHost? FormsHost { get; }
+        IBeepBuiltins? Builtins { get; }
         BeepBlockDefinition? Definition { get; set; }
         BeepBlockViewState ViewState { get; }
 

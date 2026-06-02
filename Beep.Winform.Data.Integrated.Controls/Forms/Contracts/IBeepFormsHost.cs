@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using TheTechIdea.Beep.Editor;
+using TheTechIdea.Beep.Editor.Forms.Builtins;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Editor.UOWManager.Interfaces;
 using TheTechIdea.Beep.Editor.UOWManager.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Contracts;
+using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
@@ -21,6 +23,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
         // ── Identity / state ──────────────────────────────────────────────────────────
         string FormName { get; set; }
         string? ActiveBlockName { get; }
+        string? ActiveItemName { get; }
 
         /// <summary>
         /// The underlying FormsManager.  Exposed for external wiring (designer, bootstrapper).
@@ -31,6 +34,14 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
         BeepFormsDefinition? Definition { get; set; }
         BeepFormsViewState ViewState { get; }
         IReadOnlyList<IBeepBlockView> Blocks { get; }
+
+        // ── Built-ins ─────────────────────────────────────────────────────────────────
+        /// <summary>
+        /// Oracle Forms-compatible built-in procedures (GO_BLOCK, NEXT_RECORD, COMMIT, …).
+        /// Always non-null after <see cref="InitializeAsync"/>; null during the design-time
+        /// load window.
+        /// </summary>
+        IBeepBuiltins? Builtins { get; }
 
         // ── Events ────────────────────────────────────────────────────────────────────
         event EventHandler? ActiveBlockChanged;
@@ -52,6 +63,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
         bool RegisterBlock(IBeepBlockView blockView);
         bool UnregisterBlock(string blockName);
         bool TrySetActiveBlock(string blockName);
+        bool TrySetActiveItem(string blockName, string itemName);
         void SyncFromManager();
 
         /// <summary>
@@ -67,6 +79,15 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
         /// <summary>Returns true when the block is registered in FormsManager.</summary>
         bool IsBlockRegistered(string blockName);
 
+        /// <summary>Returns true when the item/field is registered in the block.</summary>
+        bool IsItemRegistered(string blockName, string itemName);
+
+        /// <summary>Returns the names of all registered blocks in registration order.</summary>
+        IReadOnlyList<string> GetRegisteredBlockNames();
+
+        /// <summary>Returns the names of all registered items/fields in the block.</summary>
+        IReadOnlyList<string> GetRegisteredItemNames(string blockName);
+
         /// <summary>Returns the DataBlockInfo for the block, or null if unregistered.</summary>
         DataBlockInfo? GetBlockInfo(string blockName);
 
@@ -81,6 +102,15 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
 
         /// <summary>Moves the current-record cursor in FormsManager.</summary>
         void SetBlockCurrentRecordIndex(string blockName, int index);
+
+        /// <summary>Returns the current record count for the block (0 when empty).</summary>
+        int GetBlockRecordCount(string blockName);
+
+        /// <summary>Returns the current <see cref="DataBlockMode"/> for the block.</summary>
+        DataBlockMode GetBlockMode(string blockName);
+
+        /// <summary>Updates the <see cref="DataBlockMode"/> for the block.</summary>
+        void SetBlockMode(string blockName, DataBlockMode mode);
 
         /// <summary>Returns whether query mode is allowed for the block.</summary>
         bool IsBlockQueryAllowed(string blockName);
@@ -119,10 +149,29 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
         // ── Item-properties proxy ─────────────────────────────────────────────────────
         bool IsFieldQueryAllowed(string blockName, string fieldName);
 
+        /// <summary>Returns the value of a named item property, or false if not found.</summary>
+        bool TryGetItemProperty(string blockName, string itemName, string property, out object? value);
+
+        /// <summary>Sets the value of a named item property. Returns true on success.</summary>
+        bool TrySetItemProperty(string blockName, string itemName, string property, object? value);
+
+        /// <summary>Returns the value of a named block property, or false if not found.</summary>
+        bool TryGetBlockProperty(string blockName, string property, out object? value);
+
+        /// <summary>Sets the value of a named block property. Returns true on success.</summary>
+        bool TrySetBlockProperty(string blockName, string property, object? value);
+
         // ── Mutation proxies (used by BeepBlock when host is not a concrete BeepForms) ─
         Task<bool> SaveBlockAsync(string blockName);
         Task<bool> RollbackBlockAsync(string blockName);
         Task<bool> InsertBlockRecordAsync(string blockName);
         Task<bool> DeleteBlockCurrentRecordAsync(string blockName);
+        Task<bool> ExecuteQueryAsync(string blockName, CancellationToken ct = default);
+        Task<bool> ClearBlockAsync(string blockName, CancellationToken ct = default);
+        Task<bool> ClearRecordAsync(string blockName, CancellationToken ct = default);
+
+        // ── Logon flow ───────────────────────────────────────────────────────────
+        /// <summary>Shows the configured logon dialog and, on success, raises the When-New-Form-Instance trigger.</summary>
+        Task<BeepLogonContext> LogonAsync(BeepLogonRequest request);
     }
 }
