@@ -8,9 +8,7 @@ global using TheTechIdea.Beep.Winform.Controls.Models;
 global using TheTechIdea.Beep.Addin;
 global using TheTechIdea.Beep.ConfigUtil;
 global using TheTechIdea.Beep.Container;
-global using TheTechIdea.Beep.Desktop.Common.Helpers;
-global using TheTechIdea.Beep.Desktop.Common.KeyManagement;
-global using TheTechIdea.Beep.Desktop.Common.Util;
+
 global using TheTechIdea.Beep.Services;
 global using TheTechIdea.Beep.Shared;
 global using TheTechIdea.Beep.Tools;

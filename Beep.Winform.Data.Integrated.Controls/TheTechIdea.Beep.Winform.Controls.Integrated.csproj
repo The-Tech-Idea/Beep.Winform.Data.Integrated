@@ -70,11 +70,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <ProjectReference Include="..\..\Beep.Shared\Beep.Shared\TheTechIdea.Beep.Shared.csproj" />
 	  <ProjectReference Include="..\..\Beep.Winform\TheTechIdea.Beep.Winform.Controls\TheTechIdea.Beep.Winform.Controls.csproj" />
 	  <ProjectReference Include="..\..\BeepDM\DataManagementEngineStandard\DataManagementEngine.csproj" />
 	  <ProjectReference Include="..\..\BeepDM\DataManagementModelsStandard\DataManagementModels.csproj" />
-	  <ProjectReference Include="..\..\Beep.Desktop\TheTechIdea.Beep.Desktop.Common.Util\TheTechIdea.Beep.Desktop.Common.Util.csproj" />
-	  <ProjectReference Include="..\..\Beep.Desktop\TheTechIdea.Beep.Desktop.Common\TheTechIdea.Beep.Desktop.Common.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

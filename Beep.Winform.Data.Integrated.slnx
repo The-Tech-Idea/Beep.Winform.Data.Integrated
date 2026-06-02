@@ -1,8 +1,11 @@
 <Solution>
-  <Project Path="../../Beep.Winform/TheTechIdea.Beep.Vis.Modules2.0/TheTechIdea.Beep.Vis.Modules.csproj" />
-  <Project Path="../../Beep.Winform/TheTechIdea.Beep.Winform.Controls.Design.Server/TheTechIdea.Beep.Winform.Controls.Design.Server.csproj" />
-  <Project Path="../../Beep.Winform/TheTechIdea.Beep.Winform.Controls/TheTechIdea.Beep.Winform.Controls.csproj" />
-  <Project Path="../Beep.Winform.Data.Integrated.Controls/TheTechIdea.Beep.Winform.Controls.Integrated.csproj" />
-  <Project Path="../Beep.Winform.Data.Integrated.Views/TheTechIdea.Beep.Winform.Default.Views.csproj" />
-  <Project Path="Beep.Winform.Data.Integrated.Shared.csproj" />
+  <Project Path="../Beep.Desktop/TheTechIdea.Beep.Desktop.Common.Util/TheTechIdea.Beep.Desktop.Common.Util.csproj" />
+  <Project Path="../Beep.Desktop/TheTechIdea.Beep.Desktop.Common/TheTechIdea.Beep.Desktop.Common.csproj" />
+  <Project Path="../Beep.Shared/Beep.Shared/TheTechIdea.Beep.Shared.csproj" />
+  <Project Path="../Beep.Winform/TheTechIdea.Beep.Vis.Modules2.0/TheTechIdea.Beep.Vis.Modules.csproj" />
+  <Project Path="../Beep.Winform/TheTechIdea.Beep.Winform.Controls.Design.Server/TheTechIdea.Beep.Winform.Controls.Design.Server.csproj" />
+  <Project Path="../Beep.Winform/TheTechIdea.Beep.Winform.Controls/TheTechIdea.Beep.Winform.Controls.csproj" />
+  <Project Path="Beep.Winform.Data.Integrated.Controls/TheTechIdea.Beep.Winform.Controls.Integrated.csproj" />
+  <Project Path="Beep.Winform.Data.Integrated.Views/TheTechIdea.Beep.Winform.Default.Views.csproj" />
+  <Project Path="Beep.Winform.Data.Integrated.Shared/Beep.Winform.Data.Integrated.Shared.csproj" />
 </Solution>
