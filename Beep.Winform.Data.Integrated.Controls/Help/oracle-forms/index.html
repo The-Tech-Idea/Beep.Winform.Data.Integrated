@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Oracle Forms Emulation &mdash; BeepForms</title>
+<style>
+  body { font-family: "Segoe UI", Arial, sans-serif; max-width: 960px; margin: 24px auto; padding: 0 16px; color: #1a1a1a; }
+  h1 { border-bottom: 2px solid #1a73e8; padding-bottom: 8px; }
+  h2 { color: #1a73e8; margin-top: 32px; }
+  h3 { color: #444; margin-top: 24px; }
+  code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: Consolas, "Courier New", monospace; }
+  pre { background: #f4f4f4; padding: 12px; border-radius: 6px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #e8f0fe; }
+  .note { background: #fff8e1; border-left: 4px solid #f4b400; padding: 8px 12px; margin: 12px 0; }
+  .done { color: #1b8e3a; font-weight: 600; }
+  .phase { background: #f9fbff; border: 1px solid #d0e0f7; border-radius: 8px; padding: 12px 16px; margin: 12px 0; }
+</style>
+</head>
+<body>
+
+<h1>Oracle Forms Emulation in BeepForms</h1>
+<p>
+  This document describes the Oracle Forms-compatible surface added to
+  <code>TheTechIdea.Beep.Winform.Data.Integrated</code> so that
+  <code>BeepForms</code>, <code>BeepBlock</code>, and <code>BeepDataConnection</code>
+  can host forms authored against the Oracle Forms mental model &mdash; built-ins
+  (<code>GO_BLOCK</code>, <code>COMMIT</code>, <code>ENTER_QUERY</code>, &hellip;),
+  query-by-example mode, a modal logon dialog, and the standard
+  <code>When-New-Form-Instance</code> trigger.
+</p>
+
+<div class="note">
+  <strong>Status:</strong> All planned phases (0, 1, 2, 5C) are implemented and
+  build green: <span class="done">0 errors</span> in
+  <code>BeepDM</code> and <code>Beep.Winform.Data.Integrated.Controls</code>.
+</div>
+
+<h2>Architecture at a glance</h2>
+<pre>
+  ┌─────────────────────────────────────────────────────────────┐
+  │ BeepForms (Coordinator, non-visual control)                 │
+  │   ├─ Builtins   : IBeepBuiltins  (lazy)                     │
+  │   ├─ DataConnection : BeepDataConnection?                  │
+  │   └─ LogonAsync(): shows BeepLogonDialog, raises           │
+  │                     WhenNewFormInstance on success         │
+  └─────────────────────────────────────────────────────────────┘
+                ▲
+                │ (BeepBuiltinsHostAdapter)
+                │
+  ┌─────────────────────────────────────────────────────────────┐
+  │ BeepBuiltins   (in Beep.Winform.Data.Integrated)            │
+  │   implements IBeepBuiltins &amp; depends on IBuiltinHost       │
+  │   - 18 built-ins (GO_*, COMMIT, ROLLBACK, POST,             │
+  │     ENTER_QUERY, EXECUTE_QUERY, EXIT_QUERY, CLEAR_*,        │
+  │     SET_ITEM_PROPERTY, GET_ITEM_PROPERTY, SHOW_LOV)         │
+  └─────────────────────────────────────────────────────────────┘
+                ▲
+                │ (interface lives in BeepDM &mdash; portable)
+                │
+  ┌─────────────────────────────────────────────────────────────┐
+  │ IBeepBuiltins + IBuiltinHost                                │
+  │   namespace TheTechIdea.Beep.Editor.Forms.Builtins          │
+  │   in DataManagementEngineStandard                           │
+  └─────────────────────────────────────────────────────────────┘
+</pre>
+
+<h2>Phase 0 &mdash; Design-time <code>BeepDataConnection</code></h2>
+<div class="phase">
+  <h3>0a &mdash; <code>BeepDataConnectionDesigner</code></h3>
+  <p>
+    New <code>ComponentDesigner</code> in
+    <code>TheTechIdea.Beep.Winform.Controls.Design.Server</code> that
+    satisfies the <code>[Designer]</code> forward reference on
+    <code>BeepDataConnection</code> and, when the control is dropped onto a
+    form, acquires a design-time <code>IBeepService</code> lease via
+    <code>DesignTimeBeepServiceManager.Acquire(component)</code> and calls
+    <code>AttachSharedBeepService(...)</code> so the property grid shows live
+    connections from the host <code>BeepService</code>.
+  </p>
+
+  <h3>0b &mdash; Bare-catch logging</h3>
+  <p>
+    Three <code>catch {}</code> blocks in <code>BeepDataConnection</code>
+    (initialise <code>BeepService</code>, hydrate driver catalog, save) were
+    replaced with logged catches using <code>System.Diagnostics.Trace</code>
+    so designers can see why a connection list failed to load.
+  </p>
+</div>
+
+<h2>Phase 1 &mdash; Built-ins</h2>
+<div class="phase">
+  <h3>1a &mdash; Portable contracts (<code>BeepDM</code>)</h3>
+  <ul>
+    <li><code>IBeepBuiltins</code> &mdash; the 18-entry built-in surface.</li>
+    <li><code>IBuiltinHost</code> &mdash; what a built-in needs from its host
+        (active block/item, mode mutation, property access, trigger
+        fan-out).</li>
+    <li><code>BeepBuiltinException</code> &mdash; 6-arg ctor with
+        <code>errorCode</code>, <code>builtinName</code>, <code>blockName</code>,
+        <code>itemName</code>, <code>message</code>, <code>inner</code>;
+        default <code>FRM-40735</code> on rethrows.</li>
+  </ul>
+
+  <h3>1b &mdash; Concrete impl <code>BeepBuiltins</code></h3>
+  <p>
+    Implements <code>IBeepBuiltins</code> against an <code>IBuiltinHost</code>.
+    Each built-in wraps the call in <code>RunWithTrigger</code> /
+    <code>RunWithTriggerAsync</code> which raises
+    <code>TriggerExecuting</code> / <code>TriggerExecuted</code> so form-level
+    and block-level handlers can intercept.
+  </p>
+  <table>
+    <tr><th>Built-in</th><th>Trigger</th><th>Scope</th></tr>
+    <tr><td><code>GoBlock(name)</code> / <code>FirstBlock</code> / <code>LastBlock</code> / <code>NextBlock</code> / <code>PreviousBlock</code></td><td><code>GoBlock</code></td><td>Form</td></tr>
+    <tr><td><code>GoItem(name)</code></td><td><code>GoItem</code></td><td>Block</td></tr>
+    <tr><td><code>GoRecord(n)</code> / <code>FirstRecord</code> / <code>LastRecord</code> / <code>NextRecord</code> / <code>PreviousRecord</code></td><td><code>Post</code> / <code>KeyCommit</code></td><td>Block</td></tr>
+    <tr><td><code>CommitAsync</code> / <code>RollbackAsync</code> / <code>PostAsync</code></td><td><code>KeyCommit</code> / <code>KeyRollback</code> / <code>Post</code></td><td>Form</td></tr>
+    <tr><td><code>EnterQuery</code> / <code>ExitQuery</code></td><td><code>EnterQuery</code> / <code>ExitQuery</code></td><td>Block</td></tr>
+    <tr><td><code>ExecuteQueryAsync</code></td><td><code>KeyExecuteQuery</code></td><td>Block (transitions EnterQuery &rarr; CRUD)</td></tr>
+    <tr><td><code>ClearBlock</code> / <code>ClearRecord</code> / <code>ClearForm</code></td><td><code>KeyClearBlock</code> / <code>KeyClearRecord</code> / <code>ClearForm</code></td><td>Block / Form</td></tr>
+    <tr><td><code>SetItemProperty</code> / <code>GetItemProperty</code></td><td><code>SetItemProperty</code></td><td>Item</td></tr>
+    <tr><td><code>ShowLov</code></td><td><code>ShowLov</code></td><td>Item (opens <code>LovPickerDialog</code>)</td></tr>
+    <tr><td><code>SetBlockMode</code></td><td><code>SetBlockMode</code></td><td>Block</td></tr>
+  </table>
+
+  <h3>1c &mdash; Host adapter &amp; <code>IBeepFormsHost</code> growth</h3>
+  <p>
+    <code>BeepBuiltinsHostAdapter</code> bridges
+    <code>IBeepFormsHost</code> &harr; <code>IBuiltinHost</code>, casting to
+    <code>BeepForms</code> to raise events. <code>IBeepFormsHost</code> grew
+    14 additive members:
+  </p>
+  <pre>
+ActiveItemName, Builtins,
+IsItemRegistered, GetRegisteredBlockNames, GetRegisteredItemNames,
+GetBlockRecordCount, GetBlockMode, SetBlockMode,
+TryGetItemProperty, TrySetItemProperty, TryGetBlockProperty, TrySetBlockProperty,
+ExecuteQueryAsync, ClearBlockAsync, ClearRecordAsync,
+TrySetActiveItem, RaiseBuiltinTriggerExecuting, RaiseBuiltinTriggerExecuted</pre>
+
+  <h3>1d &mdash; Toolbar <em>Built-ins</em> button</h3>
+  <p>
+    <code>BeepFormsToolbar</code> now ships a third popup button
+    (<code>BeepFormsShellToolbarButtons.Builtins</code>) with
+    <code>BeepFormsBuiltinToolbarActions</code> &mdash; 13 dispatchable
+    actions. Order respects
+    <code>BeepFormsShellToolbarOrder.BuiltinsFirst</code>.
+  </p>
+</div>
+
+<h2>Phase 2 &mdash; Enter-Query mode</h2>
+<div class="phase">
+  <h3>2a &mdash; <code>DataBlockMode</code> extended</h3>
+  <p>
+    The enum was extended from 2 values to 6 &mdash; additive, source-compatible
+    with serialised blocks:
+  </p>
+  <pre>
+public enum DataBlockMode
+{
+    Normal     = 0,   // default CRUD / data-display
+    EnterQuery = 1,   // user is typing criteria (example record)
+    Query      = 2,   // transitional (kept for legacy)
+    CRUD       = 3,   // explicit alias of Normal (preserved)
+    ReadOnly   = 4,
+    Insert     = 5
+}</pre>
+
+  <h3>2b &mdash; Example-record presenter</h3>
+  <p>
+    <code>BeepBlockViewState.IsQueryMode</code> is now
+    <code>Mode == EnterQuery || Mode == Query</code>. The lifecycle:
+  </p>
+  <ol>
+    <li><code>ENTER_QUERY</code> &rarr; <code>Mode = EnterQuery</code>, the block
+        enters the example-record criterion state.</li>
+    <li><code>EXECUTE_QUERY</code> &rarr; runs the query, on success
+        transitions <code>EnterQuery &rarr; CRUD</code>.</li>
+    <li><code>EXIT_QUERY</code> &rarr; <code>EnterQuery &rarr; CRUD</code> without
+        running the query.</li>
+  </ol>
+</div>
+
+<h2>Phase 5C &mdash; Logon dialog</h2>
+<div class="phase">
+  <h3>WinForms <code>BeepLogonDialog</code></h3>
+  <p>
+    A <code>Form</code> that hosts a <code>BeepLogin</code> control
+    (themable, 9 view types &mdash; Simple, Compact, Modern, Social, Avatar, &hellip;)
+    for the credentials surface, plus a connection
+    <code>ComboBox</code> driven by <code>BeepDataConnection.GetConnectionsSnapshot</code>
+    and a Test / OK / Cancel button row.
+  </p>
+  <p>
+    <code>BeepLogonDialog</code> implements <code>IBeepLogonDialog</code>
+    which exposes:
+  </p>
+  <pre>
+public interface IBeepLogonDialog
+{
+    event EventHandler&lt;BeepLogonContext&gt; LoggedIn;
+    BeepLogonContext? LastContext { get; }
+    Task&lt;BeepLogonContext&gt; PromptAsync(BeepLogonRequest request);
+}</pre>
+
+  <h3>Wiring into <code>BeepForms</code></h3>
+  <p>
+    <code>BeepForms.LogonAsync(request)</code> instantiates the dialog, awaits
+    the result, and on success raises the
+    <code>TriggerType.WhenNewFormInstance</code> form-level trigger with
+    <code>UserName</code> and <code>ConnectionName</code> in
+    <code>TriggerContext.Parameters</code>.
+  </p>
+  <pre>
+var ctx = await myBeepForms.LogonAsync(new BeepLogonRequest {
+    ConnectionName  = "northwind",
+    Title           = "Sign in to Northwind",
+    Prompt          = "Use your domain account"
+});</pre>
+
+  <h3>Per-click hooks: <code>OnLogin</code> event</h3>
+  <p>
+    The dialog forwards the underlying <code>BeepLogin.LoginClick</code>
+    signal as a cancellable <code>OnLogin</code> event. Subscribers receive
+    a <code>BeepLogonEventArgs</code> that wraps a fully-populated
+    <code>BeepLogonContext</code> (assembled from the live form values &mdash;
+    no <code>Password</code> round-trip, no commit). Set
+    <code>args.Cancel = true</code> to keep the dialog open &mdash; the
+    status label is updated to <em>"Login cancelled by handler."</em>
+  </p>
+  <p>
+    The embedded <code>BeepLogin</code> is also exposed via
+    <code>BeepLogonDialog.LoginControl</code> for advanced subscribers that
+    want to wire social-login buttons, theming callbacks, or other
+    <code>BeepLogin</code>-level events.
+  </p>
+  <pre>
+var dialog = new BeepLogonDialog(myDataConnection);
+dialog.OnLogin += (sender, args) => {
+    var c = args.Context.Request;
+    Trace.WriteLine($"Login attempt: {c.UserName} on {c.ConnectionName}");
+    if (LooksLikeBot(c.UserName)) args.Cancel = true;
+};</pre>
+</div>
+
+<h2>Usage examples</h2>
+
+<h3>1. From a button click &mdash; built-ins</h3>
+<pre>
+private async void btnQuery_Click(object? sender, EventArgs e)
+{
+    if (myBeepForms.Builtins is { } b)
+    {
+        b.EnterQuery();
+    }
+}
+
+private async void btnExecuteQuery_Click(object? sender, EventArgs e)
+{
+    if (myBeepForms.Builtins is { } b)
+    {
+        bool ok = await b.ExecuteQueryAsync();
+        if (!ok) Trace.WriteLine("Query failed");
+    }
+}</pre>
+
+<h3>2. Logon at form open</h3>
+<pre>
+protected override async void OnShown(EventArgs e)
+{
+    base.OnShown(e);
+    var ctx = await myBeepForms.LogonAsync(new BeepLogonRequest {
+        Title = "Sign in to " + myBeepForms.FormName
+    });
+    if (!ctx.IsSuccess) { Close(); return; }
+
+    await myBeepForms.InitializeAsync();
+}</pre>
+
+  <h3>3. Property mutation</h3>
+<pre>
+myBeepForms.Builtins.SetItemProperty("ORDERS", "STATUS", "ENABLED", "PROPERTY_FALSE");
+myBeepForms.Builtins.SetBlockMode("ORDERS", DataBlockMode.Insert);</pre>
+
+<h3>4. LOV picker</h3>
+<p>
+  <code>ShowLov(block, field)</code> loads the records for the field's
+  <code>LOVDefinition</code>, then opens a modal
+  <code>LovPickerDialog</code> for selection. The picker:
+</p>
+<ul>
+  <li>Honours <code>LOVDefinition.Title</code>, <code>Width</code>,
+      <code>Height</code>, <code>AllowSearch</code>,
+      <code>ShowRowNumbers</code>, <code>AllowMultiSelect</code>,
+      <code>AutoSizeColumns</code>.</li>
+  <li>Resolves visible columns from <code>LOVDefinition.Columns</code>
+      (falls back to property/field names of the first record).</li>
+  <li>Filters records locally by <code>Searchable</code> columns
+      (LIKE&#8201;%needle% via <code>DataView.RowFilter</code>).</li>
+  <li>Double-click on a row, or OK with a row selected, populates
+      <code>LOVSelectionResult.SelectedValue</code> from
+      <code>ReturnField</code> and <code>DisplayValue</code> from
+      <code>DisplayField</code> (or the entire record if either is
+      unset).</li>
+  <li>Cancel returns <code>LOVSelectionResult.Cancelled()</code> and
+      <code>ShowLov</code> yields <code>false</code>.</li>
+</ul>
+<p>
+  Returned record is round-tripped into the block via the existing
+  <code>LOVSelectionResult.RelatedFieldValues</code> dictionary
+  (visible columns &rarr; values).
+</p>
+
+<h2>Files touched in this work</h2>
+<table>
+  <tr><th>Project</th><th>File</th><th>Phase</th></tr>
+  <tr><td>Design.Server</td><td><code>Designers/BeepDataConnectionDesigner.cs</code></td><td>0a</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>DataConnection/BeepDataConnection.cs</code></td><td>0b</td></tr>
+  <tr><td>BeepDM</td><td><code>Editor/Forms/Builtins/IBeepBuiltins.cs</code></td><td>1a</td></tr>
+  <tr><td>BeepDM</td><td><code>Editor/Forms/Builtins/BeepBuiltinException.cs</code></td><td>1a</td></tr>
+  <tr><td>BeepDM</td><td><code>Editor/Forms/Models/TriggerEnums.cs</code></td><td>1d</td></tr>
+  <tr><td>BeepDM</td><td><code>Editor/Forms/Models/DataBlockInfo.cs</code></td><td>2a</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Builtins/BeepBuiltins.cs</code></td><td>1b</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Builtins/BeepBuiltinsHostAdapter.cs</code></td><td>1c</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Forms/Contracts/IBeepFormsHost.cs</code></td><td>1c, 5C</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Forms/BeepForms/BeepForms.cs</code></td><td>1c, 5C</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Forms/BeepForms/BeepForms.BlockProxy.cs</code></td><td>1c</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Forms/Models/BeepFormsViewState.cs</code></td><td>1c</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Forms/Models/BeepFormsToolbarConfiguration.cs</code></td><td>1d</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Forms/BeepFormsToolbar/BeepFormsToolbar.cs</code></td><td>1d</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Forms/BeepFormsToolbar/BeepFormsToolbar.Actions.cs</code></td><td>1d</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Blocks/BeepBlock/BeepBlock.cs</code></td><td>1c</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Blocks/BeepBlock/BeepBlock.QueryMode.cs</code></td><td>2b</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Blocks/Models/BeepBlockViewState.cs</code></td><td>2b</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Blocks/Contracts/IBeepBlockView.cs</code></td><td>1c</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Forms/Logon/BeepLogonTypes.cs</code></td><td>5C</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Forms/Logon/IBeepLogonDialog.cs</code></td><td>5C</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Forms/Logon/BeepLogonDialog.cs</code></td><td>5C</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Forms/Logon/BeepLogonEventArgs.cs</code></td><td>5C</td></tr>
+  <tr><td>Integrated.Controls</td><td><code>Forms/Lov/LovPickerDialog.cs</code></td><td>1b (LOV)</td></tr>
+</table>
+
+<h2>Build status</h2>
+<ul>
+  <li><code>BeepDM/DataManagementEngine</code> &mdash; 0 errors.</li>
+  <li><code>Beep.Winform.Data.Integrated.Controls</code> &mdash; 0 errors, 189 warnings (all pre-existing).</li>
+  <li><code>TheTechIdea.Beep.Winform.Controls.Design.Server</code> &mdash; not buildable due to pre-existing ~25 missing-type errors; the new <code>BeepDataConnectionDesigner.cs</code> compiles in isolation.</li>
+</ul>
+
+</body>
+</html>

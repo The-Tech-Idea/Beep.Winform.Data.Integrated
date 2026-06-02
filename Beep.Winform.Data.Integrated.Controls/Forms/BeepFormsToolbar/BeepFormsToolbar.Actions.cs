@@ -74,6 +74,51 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             }
         }
 
+        private async void BuiltinActionsButton_SelectedItemChanged(object? sender, SelectedItemChangedEventArgs e)
+        {
+            string action = e.SelectedItem?.Value?.ToString() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(action) || _formsHost == null)
+            {
+                ResetToolbarSelection(sender);
+                return;
+            }
+
+            try
+            {
+                var builtins = _formsHost.Builtins;
+                if (builtins == null)
+                {
+                    return;
+                }
+
+                switch (action.ToLowerInvariant())
+                {
+                    case "first_block": builtins.FirstBlock(); break;
+                    case "last_block": builtins.LastBlock(); break;
+                    case "next_block": builtins.NextBlock(); break;
+                    case "previous_block": builtins.PreviousBlock(); break;
+                    case "enter_query": builtins.EnterQuery(); break;
+                    case "execute_query": await builtins.ExecuteQueryAsync().ConfigureAwait(true); break;
+                    case "exit_query": builtins.ExitQuery(); break;
+                    case "post": await builtins.PostAsync().ConfigureAwait(true); break;
+                    case "commit": await builtins.CommitAsync().ConfigureAwait(true); break;
+                    case "rollback": await builtins.RollbackAsync().ConfigureAwait(true); break;
+                    case "clear_block": builtins.ClearBlock(); break;
+                    case "clear_record": builtins.ClearRecord(); break;
+                    case "clear_form": builtins.ClearForm(); break;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"[BeepFormsToolbar.Builtin] {ex.GetType().Name}: {ex.Message}");
+            }
+            finally
+            {
+                ResetToolbarSelection(sender);
+                UpdateCommandStripState();
+            }
+        }
+
         private static void ResetToolbarSelection(object? sender)
         {
             if (sender is BeepButton button)

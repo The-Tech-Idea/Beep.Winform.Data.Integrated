@@ -1,6 +1,7 @@
 
 using System.ComponentModel;
 using System.ComponentModel.Design;
+using System.Diagnostics;
 using System.Drawing.Design;
 using TheTechIdea.Beep.ConfigUtil;
 using TheTechIdea.Beep.Container.Services;
@@ -303,8 +304,9 @@ namespace TheTechIdea.Beep.Winform.Controls
                 _ownsBeepService = true;
                 EnsureDriverCatalogHydrated();
             }
-            catch
+            catch (Exception ex)
             {
+                Trace.WriteLine($"[BeepDataConnection.InitializeBeepService] {ex.GetType().Name}: {ex.Message}");
                 _beepService = null;
                 _ownsBeepService = false;
             }
@@ -378,18 +380,18 @@ namespace TheTechIdea.Beep.Winform.Controls
             {
                 editor.AddAllConnectionConfigurations();
             }
-            catch
+            catch (Exception ex)
             {
-                // Keep design/runtime initialization resilient.
+                Trace.WriteLine($"[BeepDataConnection.EnsureDriverCatalogHydrated] AddAllConnectionConfigurations failed: {ex.GetType().Name}: {ex.Message}");
             }
 
             try
             {
                 configEditor.LoadConnectionDriversConfigValues();
             }
-            catch
+            catch (Exception ex)
             {
-                // Keep design/runtime initialization resilient.
+                Trace.WriteLine($"[BeepDataConnection.EnsureDriverCatalogHydrated] LoadConnectionDriversConfigValues failed: {ex.GetType().Name}: {ex.Message}");
             }
 
             configEditor.DataDriversClasses ??= new List<ConnectionDriversConfig>();
@@ -421,9 +423,9 @@ namespace TheTechIdea.Beep.Winform.Controls
             {
                 configEditor.SaveConnectionDriversConfigValues();
             }
-            catch
+            catch (Exception ex)
             {
-                // Persistence is best-effort; skip on design hosts that do not allow writes.
+                Trace.WriteLine($"[BeepDataConnection.EnsureDriverCatalogHydrated] SaveConnectionDriversConfigValues failed: {ex.GetType().Name}: {ex.Message}");
             }
         }
 

@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Design;
+using TheTechIdea.Beep.Editor.Forms.Builtins;
 using TheTechIdea.Beep.Editor.UOWManager.Models;
 using TheTechIdea.Beep.Winform.Controls.Base;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Contracts;
@@ -64,6 +65,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
         [Browsable(false)]
         public IBeepFormsHost? FormsHost => _formsHost;
+
+        [Browsable(false)]
+        public IBeepBuiltins? Builtins => _formsHost?.Builtins;
 
         [Browsable(true)]
         [Category("Data")]
@@ -195,8 +199,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             SyncRecordBinding(unitOfWork);
 
             _viewState.IsDirty = unitOfWork?.IsDirty ?? false;
-            _viewState.Mode = blockInfo?.Mode ?? DataBlockMode.Query;
-            _viewState.IsQueryMode = _viewState.Mode == DataBlockMode.Query;
+            _viewState.Mode = blockInfo?.Mode ?? DataBlockMode.EnterQuery;
+            _viewState.IsQueryMode = _viewState.Mode == DataBlockMode.EnterQuery || _viewState.Mode == DataBlockMode.Query;
 
             SyncGridFromManager(_formsHost?.FormsManager);
             UpdateRecordViewState(unitOfWork);

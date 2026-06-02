@@ -222,5 +222,192 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             if (string.IsNullOrWhiteSpace(blockName) || _formsManager == null) return false;
             return await _formsManager.DeleteCurrentRecordAsync(blockName).ConfigureAwait(false);
         }
+
+        // ── Built-in supporting proxies (Phase 1) ──────────────────────────────────────
+
+        public bool IsItemRegistered(string blockName, string itemName)
+        {
+            if (string.IsNullOrWhiteSpace(blockName) || string.IsNullOrWhiteSpace(itemName)) return false;
+            return _formsManager?.ItemProperties?.ItemExists(blockName, itemName) ?? false;
+        }
+
+        public IReadOnlyList<string> GetRegisteredBlockNames()
+        {
+            return _blocks
+                .Select(b => b.BlockName)
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .ToList();
+        }
+
+        public IReadOnlyList<string> GetRegisteredItemNames(string blockName)
+        {
+            if (string.IsNullOrWhiteSpace(blockName) || _formsManager == null)
+                return Array.Empty<string>();
+            try
+            {
+                var items = _formsManager.ItemProperties?.GetAllItems(blockName);
+                if (items == null) return Array.Empty<string>();
+                return items.Select(i => i.ItemName).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
+            }
+            catch
+            {
+                return Array.Empty<string>();
+            }
+        }
+
+        public int GetBlockRecordCount(string blockName)
+        {
+            if (string.IsNullOrWhiteSpace(blockName) || _formsManager == null) return 0;
+            try
+            {
+                var uow = _formsManager.GetUnitOfWork(blockName);
+                if (uow == null) return 0;
+                if (uow.TotalItemCount > 0) return uow.TotalItemCount;
+                var dyn = uow.Units as System.Collections.ICollection;
+                return dyn?.Count ?? 0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        public DataBlockMode GetBlockMode(string blockName)
+        {
+            return GetBlockInfo(blockName)?.Mode ?? DataBlockMode.Query;
+        }
+
+        public void SetBlockMode(string blockName, DataBlockMode mode)
+        {
+            if (string.IsNullOrWhiteSpace(blockName) || _formsManager == null) return;
+            var info = _formsManager.GetBlock(blockName);
+            if (info == null) return;
+            info.Mode = mode;
+        }
+
+        public bool TryGetItemProperty(string blockName, string itemName, string property, out object? value)
+        {
+            value = null;
+            if (string.IsNullOrWhiteSpace(blockName) || string.IsNullOrWhiteSpace(itemName) || _formsManager == null)
+                return false;
+            try
+            {
+                value = _formsManager.ItemProperties.GetItemProperty(blockName, itemName, property);
+                return value != null;
+            }
+            catch
+            {
+                value = null;
+                return false;
+            }
+        }
+
+        public bool TrySetItemProperty(string blockName, string itemName, string property, object? value)
+        {
+            if (string.IsNullOrWhiteSpace(blockName) || string.IsNullOrWhiteSpace(itemName) || _formsManager == null)
+                return false;
+            try
+            {
+                _formsManager.ItemProperties.SetItemProperty(blockName, itemName, property, value);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public bool TryGetBlockProperty(string blockName, string property, out object? value)
+        {
+            value = null;
+            if (string.IsNullOrWhiteSpace(blockName) || _formsManager == null) return false;
+            try
+            {
+                var block = _formsManager.GetBlock(blockName);
+                if (block == null) return false;
+                var prop = block.GetType().GetProperty(property);
+                if (prop == null) return false;
+                value = prop.GetValue(block);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public bool TrySetBlockProperty(string blockName, string property, object? value)
+        {
+            if (string.IsNullOrWhiteSpace(blockName) || _formsManager == null) return false;
+            try
+            {
+                var block = _formsManager.GetBlock(blockName);
+                if (block == null) return false;
+                var prop = block.GetType().GetProperty(property);
+                if (prop == null || !prop.CanWrite) return false;
+                prop.SetValue(block, value);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> ExecuteQueryAsync(string blockName, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(blockName) || _formsManager == null) return false;
+            try
+            {
+                var uow = _formsManager.GetUnitOfWork(blockName);
+                if (uow == null) return false;
+                var data = await uow.Get().ConfigureAwait(false);
+                ct.ThrowIfCancellationRequested();
+                return data != null;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> ClearBlockAsync(string blockName, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(blockName) || _formsManager == null) return false;
+            try
+            {
+                var uow = _formsManager.GetUnitOfWork(blockName);
+                if (uow == null) return false;
+                uow.Clear();
+                _formsManager.Locking.SetCurrentRecordIndex(blockName, -1);
+                ct.ThrowIfCancellationRequested();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> ClearRecordAsync(string blockName, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(blockName) || _formsManager == null) return false;
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                var uow = _formsManager.GetUnitOfWork(blockName);
+                if (uow == null) return false;
+                uow.New();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
     }
 }

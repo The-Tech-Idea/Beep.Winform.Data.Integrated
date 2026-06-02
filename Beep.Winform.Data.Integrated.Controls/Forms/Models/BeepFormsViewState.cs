@@ -28,6 +28,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models
         public BeepFormsMessageSeverity AlertSeverity { get; set; }
         public BeepFormsMessageSeverity MessageSeverity { get; set; }
         public string? ActiveBlockName { get; set; }
+        public string? ActiveItemName { get; set; }
         public IReadOnlyList<BeepFormsWorkflowEntry> WorkflowHistory => _workflowHistory;
         internal List<BeepFormsWorkflowEntry> WorkflowHistoryItems => _workflowHistory;
 

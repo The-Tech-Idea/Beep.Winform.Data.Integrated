@@ -135,7 +135,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
         public void EnterQueryMode()
         {
             _viewState.IsQueryMode = true;
-            _viewState.Mode = DataBlockMode.Query;
+            _viewState.Mode = DataBlockMode.EnterQuery;
             RefreshPresentation();
             NotifyViewStateChanged();
         }
@@ -143,7 +143,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
         public void ExitQueryMode()
         {
             _viewState.IsQueryMode = false;
-            if (_viewState.Mode == DataBlockMode.Query)
+            if (_viewState.Mode == DataBlockMode.EnterQuery || _viewState.Mode == DataBlockMode.Query)
             {
                 _viewState.Mode = DataBlockMode.CRUD;
             }

@@ -26,13 +26,16 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         private bool _autoBindFormsHost = true;
         private BeepButton? _savepointActionsButton;
         private BeepButton? _alertPresetsButton;
+        private BeepButton? _builtinActionsButton;
         private BeepFormsShellToolbarButtons _shellToolbarButtons = BeepFormsShellToolbarButtons.All;
         private BeepFormsSavepointToolbarActions _savepointToolbarActions = BeepFormsSavepointToolbarActions.All;
         private BeepFormsAlertToolbarPresets _alertToolbarPresets = BeepFormsAlertToolbarPresets.All;
+        private BeepFormsBuiltinToolbarActions _builtinToolbarActions = BeepFormsBuiltinToolbarActions.All;
         private BeepFormsShellToolbarOrder _shellToolbarOrder = BeepFormsShellToolbarOrder.SavepointsFirst;
         private FlowDirection _shellToolbarFlowDirection = FlowDirection.LeftToRight;
         private string _savepointToolbarCaption = "Savepoints";
         private string _alertToolbarCaption = "Alerts";
+        private string _builtinToolbarCaption = "Built-ins";
 
         public BeepFormsToolbar()
         {
@@ -233,6 +236,45 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             }
         }
 
+        [Browsable(true)]
+        [Category("Toolbar")]
+        [Description("Select which built-in actions (GO_BLOCK, NEXT_RECORD, COMMIT, …) are available from the toolbar popup.")]
+        [DefaultValue(BeepFormsBuiltinToolbarActions.All)]
+        public BeepFormsBuiltinToolbarActions BuiltinToolbarActions
+        {
+            get => _builtinToolbarActions;
+            set
+            {
+                if (_builtinToolbarActions == value)
+                {
+                    return;
+                }
+
+                _builtinToolbarActions = value;
+                RefreshToolbarConfiguration();
+            }
+        }
+
+        [Browsable(true)]
+        [Category("Toolbar")]
+        [Description("Text shown on the built-in actions toolbar button.")]
+        [DefaultValue("Built-ins")]
+        public string BuiltinToolbarCaption
+        {
+            get => _builtinToolbarCaption;
+            set
+            {
+                string normalized = NormalizeToolbarCaption(value, "Built-ins");
+                if (string.Equals(_builtinToolbarCaption, normalized, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _builtinToolbarCaption = normalized;
+                RefreshToolbarConfiguration();
+            }
+        }
+
         protected override void Dispose(bool disposing)
         {
             if (disposing)
@@ -324,15 +366,23 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _commandPanel.Controls.Clear();
             _commandPanel.FlowDirection = ShellToolbarFlowDirection;
 
-            if (ShellToolbarOrder == BeepFormsShellToolbarOrder.SavepointsFirst)
+            switch (ShellToolbarOrder)
             {
-                AddSavepointToolbarButton();
-                AddAlertToolbarButton();
-            }
-            else
-            {
-                AddAlertToolbarButton();
-                AddSavepointToolbarButton();
+                case BeepFormsShellToolbarOrder.SavepointsFirst:
+                    AddSavepointToolbarButton();
+                    AddAlertToolbarButton();
+                    AddBuiltinToolbarButton();
+                    break;
+                case BeepFormsShellToolbarOrder.AlertsFirst:
+                    AddAlertToolbarButton();
+                    AddSavepointToolbarButton();
+                    AddBuiltinToolbarButton();
+                    break;
+                case BeepFormsShellToolbarOrder.BuiltinsFirst:
+                    AddBuiltinToolbarButton();
+                    AddSavepointToolbarButton();
+                    AddAlertToolbarButton();
+                    break;
             }
 
             _commandPanel.Visible = _commandPanel.Controls.Count > 0;
@@ -381,6 +431,27 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _alertPresetsButton = CreateToolbarPopupButton(caption, GetToolbarPopupButtonWidth(caption, 112), alertItems);
             _alertPresetsButton.SelectedItemChanged += AlertPresetsButton_SelectedItemChanged;
             _commandPanel.Controls.Add(_alertPresetsButton);
+        }
+
+        private void AddBuiltinToolbarButton()
+        {
+            if (!ShellToolbarButtons.HasFlag(BeepFormsShellToolbarButtons.Builtins))
+            {
+                _builtinActionsButton = null;
+                return;
+            }
+
+            BindingList<SimpleItem> items = BuildBuiltinToolbarItems();
+            if (items.Count == 0)
+            {
+                _builtinActionsButton = null;
+                return;
+            }
+
+            string caption = string.IsNullOrWhiteSpace(BuiltinToolbarCaption) ? "Built-ins" : BuiltinToolbarCaption;
+            _builtinActionsButton = CreateToolbarPopupButton(caption, GetToolbarPopupButtonWidth(caption, 120), items);
+            _builtinActionsButton.SelectedItemChanged += BuiltinActionsButton_SelectedItemChanged;
+            _commandPanel.Controls.Add(_builtinActionsButton);
         }
 
         private BeepButton CreateToolbarPopupButton(string text, int width, BindingList<SimpleItem> items)
@@ -464,6 +535,78 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return items;
         }
 
+        private BindingList<SimpleItem> BuildBuiltinToolbarItems()
+        {
+            var items = new BindingList<SimpleItem>();
+
+            if (BuiltinToolbarActions.HasFlag(BeepFormsBuiltinToolbarActions.FirstBlock))
+            {
+                items.Add(new SimpleItem { Text = "GO_BLOCK (First)", Name = "first_block", Value = "first_block", Item = "first_block" });
+            }
+
+            if (BuiltinToolbarActions.HasFlag(BeepFormsBuiltinToolbarActions.NextBlock))
+            {
+                items.Add(new SimpleItem { Text = "NEXT_BLOCK", Name = "next_block", Value = "next_block", Item = "next_block" });
+            }
+
+            if (BuiltinToolbarActions.HasFlag(BeepFormsBuiltinToolbarActions.PreviousBlock))
+            {
+                items.Add(new SimpleItem { Text = "PREVIOUS_BLOCK", Name = "previous_block", Value = "previous_block", Item = "previous_block" });
+            }
+
+            if (BuiltinToolbarActions.HasFlag(BeepFormsBuiltinToolbarActions.LastBlock))
+            {
+                items.Add(new SimpleItem { Text = "GO_BLOCK (Last)", Name = "last_block", Value = "last_block", Item = "last_block" });
+            }
+
+            if (BuiltinToolbarActions.HasFlag(BeepFormsBuiltinToolbarActions.EnterQuery))
+            {
+                items.Add(new SimpleItem { Text = "ENTER_QUERY", Name = "enter_query", Value = "enter_query", Item = "enter_query" });
+            }
+
+            if (BuiltinToolbarActions.HasFlag(BeepFormsBuiltinToolbarActions.ExecuteQuery))
+            {
+                items.Add(new SimpleItem { Text = "EXECUTE_QUERY", Name = "execute_query", Value = "execute_query", Item = "execute_query" });
+            }
+
+            if (BuiltinToolbarActions.HasFlag(BeepFormsBuiltinToolbarActions.ExitQuery))
+            {
+                items.Add(new SimpleItem { Text = "EXIT_QUERY", Name = "exit_query", Value = "exit_query", Item = "exit_query" });
+            }
+
+            if (BuiltinToolbarActions.HasFlag(BeepFormsBuiltinToolbarActions.Post))
+            {
+                items.Add(new SimpleItem { Text = "POST", Name = "post", Value = "post", Item = "post" });
+            }
+
+            if (BuiltinToolbarActions.HasFlag(BeepFormsBuiltinToolbarActions.Commit))
+            {
+                items.Add(new SimpleItem { Text = "COMMIT", Name = "commit", Value = "commit", Item = "commit" });
+            }
+
+            if (BuiltinToolbarActions.HasFlag(BeepFormsBuiltinToolbarActions.Rollback))
+            {
+                items.Add(new SimpleItem { Text = "ROLLBACK", Name = "rollback", Value = "rollback", Item = "rollback" });
+            }
+
+            if (BuiltinToolbarActions.HasFlag(BeepFormsBuiltinToolbarActions.ClearRecord))
+            {
+                items.Add(new SimpleItem { Text = "CLEAR_RECORD", Name = "clear_record", Value = "clear_record", Item = "clear_record" });
+            }
+
+            if (BuiltinToolbarActions.HasFlag(BeepFormsBuiltinToolbarActions.ClearBlock))
+            {
+                items.Add(new SimpleItem { Text = "CLEAR_BLOCK", Name = "clear_block", Value = "clear_block", Item = "clear_block" });
+            }
+
+            if (BuiltinToolbarActions.HasFlag(BeepFormsBuiltinToolbarActions.ClearForm))
+            {
+                items.Add(new SimpleItem { Text = "CLEAR_FORM", Name = "clear_form", Value = "clear_form", Item = "clear_form" });
+            }
+
+            return items;
+        }
+
         private void UpdateCommandStripState()
         {
             string blockName = ResolveWorkflowTargetBlockName();
@@ -479,6 +622,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             if (_alertPresetsButton != null)
             {
                 _alertPresetsButton.Enabled = _formsHost?.FormsManager?.AlertProvider != null;
+            }
+
+            if (_builtinActionsButton != null)
+            {
+                _builtinActionsButton.Enabled = _formsHost?.Builtins != null && hasBlockContext;
             }
         }
 
