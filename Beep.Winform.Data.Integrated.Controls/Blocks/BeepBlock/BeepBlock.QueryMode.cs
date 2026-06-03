@@ -196,7 +196,16 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
         private async void ExecuteQueryButton_Click(object? sender, EventArgs e)
         {
-            await ExecuteQueryAsync().ConfigureAwait(true);
+            if (_isExecutingQuery) return;
+            _isExecutingQuery = true;
+            try
+            {
+                await ExecuteQueryAsync().ConfigureAwait(true);
+            }
+            finally
+            {
+                _isExecutingQuery = false;
+            }
         }
 
         private void ClearQueryButton_Click(object? sender, EventArgs e)
@@ -751,8 +760,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
                 comboBox.ListItems = BuildLovItems(lov, result.Records);
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[BeepBlock.QueryMode] LoadQueryLovItemsAsync failed for '{fieldName}': {ex.GetType().Name} - {ex.Message}");
             }
         }
 

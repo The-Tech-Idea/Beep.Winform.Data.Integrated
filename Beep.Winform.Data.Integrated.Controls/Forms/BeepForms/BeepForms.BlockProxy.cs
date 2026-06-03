@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -174,8 +175,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             {
                 return _formsManager.ItemProperties.IsItemQueryAllowed(blockName, fieldName);
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[BeepForms.BlockProxy.IsFieldQueryAllowed] {blockName}.{fieldName}: {ex.GetType().Name} - {ex.Message}");
                 return _formsManager.GetBlock(blockName)
                     ?.FieldMetadata
                     ?.FirstOrDefault(f => string.Equals(f.FieldName, fieldName, StringComparison.OrdinalIgnoreCase))
@@ -249,8 +251,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 if (items == null) return Array.Empty<string>();
                 return items.Select(i => i.ItemName).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[BeepForms.BlockProxy.GetRegisteredItemNames] {blockName}: {ex.GetType().Name} - {ex.Message}");
                 return Array.Empty<string>();
             }
         }
@@ -266,8 +269,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 var dyn = uow.Units as System.Collections.ICollection;
                 return dyn?.Count ?? 0;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[BeepForms.BlockProxy.GetBlockRecordCount] {blockName}: {ex.GetType().Name} - {ex.Message}");
                 return 0;
             }
         }
@@ -295,8 +299,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 value = _formsManager.ItemProperties.GetItemProperty(blockName, itemName, property);
                 return value != null;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[BeepForms.BlockProxy.TryGetItemProperty] {blockName}.{itemName}: {ex.GetType().Name} - {ex.Message}");
                 value = null;
                 return false;
             }
@@ -311,8 +316,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 _formsManager.ItemProperties.SetItemProperty(blockName, itemName, property, value);
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[BeepForms.BlockProxy.TrySetItemProperty] {blockName}.{itemName}: {ex.GetType().Name} - {ex.Message}");
                 return false;
             }
         }
@@ -330,8 +336,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 value = prop.GetValue(block);
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[BeepForms.BlockProxy.TryGetBlockProperty] {blockName}.{property}: {ex.GetType().Name} - {ex.Message}");
                 return false;
             }
         }
@@ -348,8 +355,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 prop.SetValue(block, value);
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[BeepForms.BlockProxy.TrySetBlockProperty] {blockName}.{property}: {ex.GetType().Name} - {ex.Message}");
                 return false;
             }
         }
@@ -369,8 +377,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             {
                 throw;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[BeepForms.BlockProxy.ExecuteQueryAsync] {blockName}: {ex.GetType().Name} - {ex.Message}");
                 return false;
             }
         }
@@ -387,8 +396,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 ct.ThrowIfCancellationRequested();
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[BeepForms.BlockProxy.ClearBlockAsync] {blockName}: {ex.GetType().Name} - {ex.Message}");
                 return false;
             }
         }
@@ -404,8 +414,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 uow.New();
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[BeepForms.BlockProxy.ClearRecordAsync] {blockName}: {ex.GetType().Name} - {ex.Message}");
                 return false;
             }
         }

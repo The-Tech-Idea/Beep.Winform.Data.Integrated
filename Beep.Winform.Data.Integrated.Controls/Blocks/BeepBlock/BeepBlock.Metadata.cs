@@ -44,7 +44,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 PresentationMode = baseDefinition.PresentationMode,
                 Entity = entityDefinition.Clone(),
                 Navigation = baseDefinition.Navigation?.Clone() ?? new BeepBlockNavigationDefinition(),
-                Metadata = new Dictionary<string, string>(baseDefinition.Metadata ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase),
+                Metadata = baseDefinition.Metadata?.Count > 0
+                    ? new Dictionary<string, string>(baseDefinition.Metadata, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
                 Fields = hasExplicitFields
                     ? baseDefinition.Fields
                         .Where(x => x != null)
@@ -112,7 +114,18 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
         private DataBlockInfo? TryGetManagerBlockInfo()
         {
-            if (_formsHost == null || string.IsNullOrWhiteSpace(ManagerBlockName) || !_formsHost.IsBlockRegistered(ManagerBlockName))
+            if (_formsHost == null)
+            {
+                return null;
+            }
+
+            if (string.IsNullOrWhiteSpace(ManagerBlockName))
+            {
+                System.Diagnostics.Debug.WriteLine($"[BeepBlock] ManagerBlockName is empty but block '{BlockName}' is bound. Verify Definition.ManagerBlockName is set.");
+                return null;
+            }
+
+            if (!_formsHost.IsBlockRegistered(ManagerBlockName))
             {
                 return null;
             }

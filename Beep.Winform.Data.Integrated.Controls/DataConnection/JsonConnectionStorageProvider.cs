@@ -3,20 +3,28 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using TheTechIdea.Beep.ConfigUtil;
 using TheTechIdea.Beep.Services;
 
 namespace TheTechIdea.Beep.Winform.Controls
 {
-    public sealed class JsonConnectionStorageProvider : IConnectionStorageProvider
+    public sealed class JsonConnectionStorageProvider : IConnectionStorageProvider, IDisposable
     {
         private readonly IBeepService _beepService;
         private readonly object _syncRoot = new();
+        private readonly SemaphoreSlim _asyncLock = new(1, 1);
         private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
         public JsonConnectionStorageProvider(IBeepService beepService)
         {
             _beepService = beepService ?? throw new ArgumentNullException(nameof(beepService));
+        }
+
+        public void Dispose()
+        {
+            _asyncLock?.Dispose();
         }
 
         public IReadOnlyList<ConnectionProperties> LoadConnections(ConnectionStorageScope scope, string profileName, bool includePrecedenceChain)
@@ -253,6 +261,166 @@ namespace TheTechIdea.Beep.Winform.Controls
                 message = string.Join(Environment.NewLine, actionLog);
                 return true;
             }
+        }
+
+        public async Task<IReadOnlyList<ConnectionProperties>> LoadConnectionsAsync(ConnectionStorageScope scope, string profileName, bool includePrecedenceChain, CancellationToken cancellationToken = default)
+        {
+            await _asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var selectedProfile = NormalizeProfile(profileName);
+                var chain = includePrecedenceChain ? GetReadChain(scope) : new[] { scope };
+                var merged = new Dictionary<string, ConnectionProperties>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var chainScope in chain)
+                {
+                    var records = await ReadScopeRecordsAsync(chainScope, cancellationToken).ConfigureAwait(false);
+                    foreach (var record in records
+                        .Where(r => string.Equals(r.ProfileName, selectedProfile, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        EnsureConnectionDefaults(record.Connection);
+                        var key = GetIdentityKey(record.Connection);
+                        merged[key] = ConnectionSecretProtector.Decrypt(record.Connection);
+                    }
+                }
+
+                return merged.Values.OrderBy(c => c.ConnectionName).ToList();
+            }
+            finally
+            {
+                _asyncLock.Release();
+            }
+        }
+
+        public async Task<bool> SaveConnectionsAsync(ConnectionStorageScope scope, string profileName, IReadOnlyList<ConnectionProperties> connections, CancellationToken cancellationToken = default)
+        {
+            await _asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var selectedProfile = NormalizeProfile(profileName);
+                var records = (await ReadScopeRecordsAsync(scope, cancellationToken).ConfigureAwait(false))
+                    .Where(r => !string.Equals(r.ProfileName, selectedProfile, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                foreach (var connection in connections ?? Array.Empty<ConnectionProperties>())
+                {
+                    var prepared = PrepareForPersist(connection, scope, selectedProfile);
+                    records.Add(prepared);
+                }
+
+                await WriteScopeRecordsAsync(scope, records, cancellationToken).ConfigureAwait(false);
+                return true;
+            }
+            finally
+            {
+                _asyncLock.Release();
+            }
+        }
+
+        public async Task<bool> AddOrUpdateAsync(ConnectionStorageScope scope, string profileName, ConnectionProperties connection, bool persist, CancellationToken cancellationToken = default)
+        {
+            if (connection == null || string.IsNullOrWhiteSpace(connection.ConnectionName))
+            {
+                return false;
+            }
+
+            await _asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var selectedProfile = NormalizeProfile(profileName);
+                var records = await ReadScopeRecordsAsync(scope, cancellationToken).ConfigureAwait(false);
+                var prepared = PrepareForPersist(connection, scope, selectedProfile);
+
+                var existing = records.FirstOrDefault(r =>
+                    string.Equals(r.ProfileName, selectedProfile, StringComparison.OrdinalIgnoreCase) &&
+                    IsSameIdentity(r.Connection, prepared.Connection));
+
+                if (existing != null)
+                {
+                    records.Remove(existing);
+                }
+
+                records.Add(prepared);
+                if (persist)
+                {
+                    await WriteScopeRecordsAsync(scope, records, cancellationToken).ConfigureAwait(false);
+                }
+
+                return true;
+            }
+            finally
+            {
+                _asyncLock.Release();
+            }
+        }
+
+        public async Task<bool> RemoveAsync(ConnectionStorageScope scope, string profileName, string connectionName, bool persist, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(connectionName))
+            {
+                return false;
+            }
+
+            await _asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var selectedProfile = NormalizeProfile(profileName);
+                var records = await ReadScopeRecordsAsync(scope, cancellationToken).ConfigureAwait(false);
+                var existing = records.FirstOrDefault(r =>
+                    string.Equals(r.ProfileName, selectedProfile, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(r.Connection.ConnectionName, connectionName, StringComparison.OrdinalIgnoreCase));
+
+                if (existing == null)
+                {
+                    return false;
+                }
+
+                records.Remove(existing);
+                if (persist)
+                {
+                    await WriteScopeRecordsAsync(scope, records, cancellationToken).ConfigureAwait(false);
+                }
+
+                return true;
+            }
+            finally
+            {
+                _asyncLock.Release();
+            }
+        }
+
+        private async Task<List<ConnectionCatalogRecord>> ReadScopeRecordsAsync(ConnectionStorageScope scope, CancellationToken cancellationToken)
+        {
+            var path = GetCatalogFilePath(scope);
+            if (!File.Exists(path))
+            {
+                return new List<ConnectionCatalogRecord>();
+            }
+
+            try
+            {
+                var json = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
+                var loaded = JsonSerializer.Deserialize<ConnectionCatalogPackage>(json, _jsonOptions);
+                return loaded?.Records ?? new List<ConnectionCatalogRecord>();
+            }
+            catch
+            {
+                return new List<ConnectionCatalogRecord>();
+            }
+        }
+
+        private async Task WriteScopeRecordsAsync(ConnectionStorageScope scope, List<ConnectionCatalogRecord> records, CancellationToken cancellationToken)
+        {
+            var path = GetCatalogFilePath(scope);
+            var package = new ConnectionCatalogPackage
+            {
+                SourceScope = scope.ToString(),
+                Records = records ?? new List<ConnectionCatalogRecord>(),
+                ExportedOnUtc = DateTime.UtcNow
+            };
+
+            var json = JsonSerializer.Serialize(package, _jsonOptions);
+            await File.WriteAllTextAsync(path, json, cancellationToken).ConfigureAwait(false);
         }
 
         private static string NormalizeProfile(string profileName)

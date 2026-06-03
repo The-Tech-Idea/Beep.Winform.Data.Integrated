@@ -173,7 +173,21 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 }
                 else
                 {
-                    action();
+                    var openForm = System.Windows.Forms.Application.OpenForms.Count > 0
+                        ? System.Windows.Forms.Application.OpenForms[0]
+                        : null;
+                    if (openForm != null && openForm.IsHandleCreated)
+                    {
+                        openForm.BeginInvoke(action);
+                    }
+                    else
+                    {
+                        System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                        {
+                            try { action(); }
+                            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepForms.RunOnUiThread] Fallback action failed: {ex}"); }
+                        });
+                    }
                 }
 
                 return;

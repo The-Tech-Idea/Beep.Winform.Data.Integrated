@@ -28,6 +28,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
         private BeepPanel? _gridHostPanel;
         private BeepGridPro? _gridView;
         private BindingSource? _recordBindingSource;
+        private BeepLabel? _loadingLabel;
         private readonly Dictionary<string, Control> _fieldEditors = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, BeepPanel> _fieldRows = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, BeepLabel> _fieldLabels = new(StringComparer.OrdinalIgnoreCase);
@@ -210,18 +211,41 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
             _gridHostPanel.Controls.Add(_gridView);
 
+            _loadingLabel = new BeepLabel
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Text = "Loading...",
+                UseThemeColors = true,
+                Visible = false,
+                Font = new System.Drawing.Font(System.Drawing.FontFamily.GenericSansSerif, 12f, System.Drawing.FontStyle.Italic)
+            };
+
             Controls.Add(_gridHostPanel);
             Controls.Add(_recordHostPanel);
             Controls.Add(_navigationBar);
             Controls.Add(_validationSummaryPanel);
             Controls.Add(_workflowPanel);
             Controls.Add(_headerPanel);
+            Controls.Add(_loadingLabel);
+
+            _loadingLabel.SendToBack();
 
             ResumeLayout(false);
         }
 
         private void RefreshPresentation()
         {
+            if (_loadingLabel != null)
+            {
+                _loadingLabel.Visible = _isLoading;
+                if (_isLoading)
+                {
+                    _loadingLabel.BringToFront();
+                    return;
+                }
+                _loadingLabel.SendToBack();
+            }
             if (_captionLabel != null)
             {
                 _captionLabel.Text = string.IsNullOrWhiteSpace(EffectiveDefinition?.Caption)
