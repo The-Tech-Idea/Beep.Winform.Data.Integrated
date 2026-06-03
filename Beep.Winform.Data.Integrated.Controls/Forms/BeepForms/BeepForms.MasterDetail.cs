@@ -9,7 +9,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
     public partial class BeepForms
     {
-        private bool _masterDetailRefreshInProgress;
+        private volatile bool _masterDetailRefreshInProgress;
 
         private void UpdateMasterDetailShellContext(string? blockName = null)
         {

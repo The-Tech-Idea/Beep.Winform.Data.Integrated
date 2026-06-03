@@ -21,7 +21,7 @@ namespace TheTechIdea.Beep.Winform.Controls
     }
 
     [Designer("TheTechIdea.Beep.Winform.Controls.Design.Server.Designers.BeepDataConnectionDesigner, TheTechIdea.Beep.Winform.Controls.Design.Server")]
-    public class BeepDataConnection : Component
+    public class BeepDataConnection : Component, INotifyPropertyChanged
     {
         private IBeepService? _beepService;
         private BeepConnectionRepository? _connectionRepository;
@@ -30,6 +30,7 @@ namespace TheTechIdea.Beep.Winform.Controls
 
         public IBeepService? BeepService => _beepService;
         public event EventHandler? ConnectionsChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         public BeepDataConnection()
         {
@@ -56,6 +57,7 @@ namespace TheTechIdea.Beep.Winform.Controls
 
                 _appRepoName = normalized;
                 OnStorageConfigurationChanged();
+                OnPropertyChanged(nameof(AppRepoName));
             }
         }
 
@@ -76,6 +78,7 @@ namespace TheTechIdea.Beep.Winform.Controls
 
                 _directoryPath = normalized;
                 OnStorageConfigurationChanged();
+                OnPropertyChanged(nameof(DirectoryPath));
             }
         }
 
@@ -88,8 +91,14 @@ namespace TheTechIdea.Beep.Winform.Controls
             get => _persistenceScope;
             set
             {
+                if (_persistenceScope == value)
+                {
+                    return;
+                }
+
                 _persistenceScope = value;
                 ApplyRepositorySettings();
+                OnPropertyChanged(nameof(PersistenceScope));
             }
         }
 
@@ -102,8 +111,15 @@ namespace TheTechIdea.Beep.Winform.Controls
             get => _activeProfileName;
             set
             {
-                _activeProfileName = string.IsNullOrWhiteSpace(value) ? "Default" : value.Trim();
+                var normalized = string.IsNullOrWhiteSpace(value) ? "Default" : value.Trim();
+                if (string.Equals(_activeProfileName, normalized, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _activeProfileName = normalized;
                 ApplyRepositorySettings();
+                OnPropertyChanged(nameof(ActiveProfileName));
             }
         }
 
@@ -116,8 +132,14 @@ namespace TheTechIdea.Beep.Winform.Controls
             get => _useScopePrecedence;
             set
             {
+                if (_useScopePrecedence == value)
+                {
+                    return;
+                }
+
                 _useScopePrecedence = value;
                 ApplyRepositorySettings();
+                OnPropertyChanged(nameof(UseScopePrecedence));
             }
         }
 
@@ -130,7 +152,7 @@ namespace TheTechIdea.Beep.Winform.Controls
         [Browsable(true)]
         [Category("Connections")]
         [Editor(typeof(CollectionEditor), typeof(UITypeEditor))]
-        public List<ConnectionProperties> DataConnections { get; set; }
+        public List<ConnectionProperties> DataConnections { get; private set; }
 
         [Browsable(true)]
         [Category("Current Connection")]
@@ -199,7 +221,7 @@ namespace TheTechIdea.Beep.Winform.Controls
 
             if (changed)
             {
-                ConnectionsChanged?.Invoke(this, EventArgs.Empty);
+                RaiseConnectionsChanged();
             }
 
             return changed;
@@ -232,7 +254,7 @@ namespace TheTechIdea.Beep.Winform.Controls
 
             if (removed)
             {
-                ConnectionsChanged?.Invoke(this, EventArgs.Empty);
+                RaiseConnectionsChanged();
             }
 
             return removed;
@@ -253,7 +275,7 @@ namespace TheTechIdea.Beep.Winform.Controls
             if (saved)
             {
                 SetLocalConnections(_connectionRepository.LoadConnections());
-                ConnectionsChanged?.Invoke(this, EventArgs.Empty);
+                RaiseConnectionsChanged();
             }
 
             return saved;
@@ -319,9 +341,17 @@ namespace TheTechIdea.Beep.Winform.Controls
                 return false;
             }
 
-            ApplyRepositorySettings();
-            SetLocalConnections(_connectionRepository.LoadConnections());
-            return true;
+            try
+            {
+                ApplyRepositorySettings();
+                SetLocalConnections(_connectionRepository.LoadConnections());
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"[BeepDataConnection.TryLoadFromRepository] Failed to load connections: {ex.GetType().Name}: {ex.Message}");
+                return false;
+            }
         }
 
         private void OnStorageConfigurationChanged()
@@ -362,9 +392,15 @@ namespace TheTechIdea.Beep.Winform.Controls
             _repositoryChangedHandler = (_, _) =>
             {
                 SetLocalConnections(_connectionRepository?.LoadConnections());
-                ConnectionsChanged?.Invoke(this, EventArgs.Empty);
+                RaiseConnectionsChanged();
             };
             _connectionRepository.ConnectionsChanged += _repositoryChangedHandler;
+        }
+
+        private void RaiseConnectionsChanged()
+        {
+            OnPropertyChanged(nameof(DataConnections));
+            RaiseConnectionsChanged();
         }
 
         private void EnsureDriverCatalogHydrated()
@@ -475,6 +511,9 @@ namespace TheTechIdea.Beep.Winform.Controls
             {
                 CurrentConnection = DataConnections.FirstOrDefault();
             }
+
+            OnPropertyChanged(nameof(DataConnections));
+            OnPropertyChanged(nameof(CurrentConnection));
         }
 
         private bool AddOrUpdateLocalConnection(ConnectionProperties connection)
@@ -625,6 +664,11 @@ namespace TheTechIdea.Beep.Winform.Controls
                 ConnectionStoreKind.Shared => ConnectionStorageScope.User,
                 _ => ConnectionStorageScope.Project
             };
+        }
+
+        protected virtual void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
         protected override void Dispose(bool disposing)

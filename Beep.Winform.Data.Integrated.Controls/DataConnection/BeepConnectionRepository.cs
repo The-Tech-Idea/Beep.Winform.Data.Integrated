@@ -14,7 +14,12 @@ namespace TheTechIdea.Beep.Winform.Controls
     {
         private readonly IBeepService _beepService;
         private readonly IConnectionStorageProvider _storageProvider;
-        private readonly object _syncRoot = new();
+        private readonly Dictionary<ConnectionStorageScope, object> _scopeLocks = new()
+        {
+            [ConnectionStorageScope.Project] = new object(),
+            [ConnectionStorageScope.User] = new object(),
+            [ConnectionStorageScope.Machine] = new object()
+        };
 
         public event EventHandler? ConnectionsChanged;
         public ConnectionStorageScope ActiveScope { get; set; } = ConnectionStorageScope.Project;
@@ -29,9 +34,10 @@ namespace TheTechIdea.Beep.Winform.Controls
 
         public IReadOnlyList<ConnectionProperties> LoadConnections()
         {
-            lock (_syncRoot)
+            var scope = ActiveScope;
+            lock (GetScopeLock(scope))
             {
-                return _storageProvider.LoadConnections(ActiveScope, ActiveProfileName, UseScopePrecedence);
+                return _storageProvider.LoadConnections(scope, ActiveProfileName, UseScopePrecedence);
             }
         }
 
@@ -42,10 +48,11 @@ namespace TheTechIdea.Beep.Winform.Controls
                 return false;
             }
 
-            lock (_syncRoot)
+            var scope = ActiveScope;
+            lock (GetScopeLock(scope))
             {
                 EnsureConnectionDefaults(connection);
-                var changed = _storageProvider.AddOrUpdate(ActiveScope, ActiveProfileName, connection, persist);
+                var changed = _storageProvider.AddOrUpdate(scope, ActiveProfileName, connection, persist);
 
                 if (!changed)
                 {
@@ -64,9 +71,10 @@ namespace TheTechIdea.Beep.Winform.Controls
                 return false;
             }
 
-            lock (_syncRoot)
+            var scope = ActiveScope;
+            lock (GetScopeLock(scope))
             {
-                var removed = _storageProvider.Remove(ActiveScope, ActiveProfileName, connectionName, persist);
+                var removed = _storageProvider.Remove(scope, ActiveProfileName, connectionName, persist);
                 if (!removed)
                 {
                     return false;
@@ -79,9 +87,10 @@ namespace TheTechIdea.Beep.Winform.Controls
 
         public bool Save(List<ConnectionProperties> connections)
         {
-            lock (_syncRoot)
+            var scope = ActiveScope;
+            lock (GetScopeLock(scope))
             {
-                var saved = _storageProvider.SaveConnections(ActiveScope, ActiveProfileName, connections ?? new List<ConnectionProperties>());
+                var saved = _storageProvider.SaveConnections(scope, ActiveProfileName, connections ?? new List<ConnectionProperties>());
                 if (!saved)
                 {
                     return false;
@@ -94,9 +103,10 @@ namespace TheTechIdea.Beep.Winform.Controls
 
         public bool Promote(ConnectionStorageScope targetScope, ConnectionConflictPolicy conflictPolicy, out string message)
         {
-            lock (_syncRoot)
+            var sourceScope = ActiveScope;
+            lock (GetScopeLock(sourceScope))
             {
-                var ok = _storageProvider.Promote(ActiveScope, targetScope, ActiveProfileName, conflictPolicy, out message);
+                var ok = _storageProvider.Promote(sourceScope, targetScope, ActiveProfileName, conflictPolicy, out message);
                 if (ok)
                 {
                     ConnectionsChanged?.Invoke(this, EventArgs.Empty);
@@ -108,9 +118,10 @@ namespace TheTechIdea.Beep.Winform.Controls
 
         public bool ExportPackage(string packagePath, bool includeEncryptedSecretsOnly, out string message)
         {
-            lock (_syncRoot)
+            var scope = ActiveScope;
+            lock (GetScopeLock(scope))
             {
-                return _storageProvider.ExportPackage(ActiveScope, ActiveProfileName, packagePath, includeEncryptedSecretsOnly, out message);
+                return _storageProvider.ExportPackage(scope, ActiveProfileName, packagePath, includeEncryptedSecretsOnly, out message);
             }
         }
 
@@ -120,9 +131,10 @@ namespace TheTechIdea.Beep.Winform.Controls
             bool importWhenEmptyOnly,
             out string message)
         {
-            lock (_syncRoot)
+            var scope = ActiveScope;
+            lock (GetScopeLock(scope))
             {
-                var ok = _storageProvider.ImportPackage(ActiveScope, ActiveProfileName, packagePath, conflictPolicy, importWhenEmptyOnly, out message);
+                var ok = _storageProvider.ImportPackage(scope, ActiveProfileName, packagePath, conflictPolicy, importWhenEmptyOnly, out message);
                 if (ok)
                 {
                     ConnectionsChanged?.Invoke(this, EventArgs.Empty);
@@ -130,6 +142,17 @@ namespace TheTechIdea.Beep.Winform.Controls
 
                 return ok;
             }
+        }
+
+        private object GetScopeLock(ConnectionStorageScope scope)
+        {
+            if (!_scopeLocks.TryGetValue(scope, out var lockObj))
+            {
+                lockObj = new object();
+                _scopeLocks[scope] = lockObj;
+            }
+
+            return lockObj;
         }
 
         private static void EnsureConnectionDefaults(ConnectionProperties connection)

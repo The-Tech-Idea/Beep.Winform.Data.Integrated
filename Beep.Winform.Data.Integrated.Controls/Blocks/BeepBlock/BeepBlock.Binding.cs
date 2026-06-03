@@ -708,8 +708,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
                 comboBox.ListItems = BuildLovItems(lov, result.Records);
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[BeepBlock.Binding] {ex.GetType().Name}: {ex.Message}");
             }
         }
 
@@ -903,8 +904,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                     SetFieldError(fieldName, result.ErrorMessage);
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[BeepBlock.Binding] {ex.GetType().Name}: {ex.Message}");
             }
         }
 

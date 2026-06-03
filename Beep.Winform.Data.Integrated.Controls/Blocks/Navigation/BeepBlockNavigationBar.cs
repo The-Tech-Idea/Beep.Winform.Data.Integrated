@@ -93,6 +93,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 {
                     Theme = _block.Theme;
                     _block.ViewStateChanged += Block_ViewStateChanged;
+                    ApplyTheme();
                 }
 
                 SyncFromBlock();
@@ -181,90 +182,97 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
             foreach (var button in _buttons)
             {
-                bool visible = _block.IsNavigatorCommandVisible(button.Key);
-                button.Value.Visible = visible;
-                button.Value.Enabled = visible && _block.IsNavigatorCommandEnabled(button.Key);
+                try
+                {
+                    bool visible = _block.IsNavigatorCommandVisible(button.Key);
+                    button.Value.Visible = visible;
+                    button.Value.Enabled = visible && _block.IsNavigatorCommandEnabled(button.Key);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[BeepBlockNavigationBar.SyncFromBlock] {button.Key}: {ex.GetType().Name} - {ex.Message}");
+                }
             }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && _block != null)
+            {
+                _block.ViewStateChanged -= Block_ViewStateChanged;
+                _block = null;
+            }
+            base.Dispose(disposing);
         }
 
         private async void FirstButton_Click(object? sender, EventArgs e)
         {
-            if (_block != null)
-            {
-                await _block.MoveFirstAsync().ConfigureAwait(true);
-            }
+            if (_block == null) return;
+            try { await _block.MoveFirstAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepBlockNavigationBar.First] {ex.Message}"); }
         }
 
         private async void PreviousButton_Click(object? sender, EventArgs e)
         {
-            if (_block != null)
-            {
-                await _block.MovePreviousAsync().ConfigureAwait(true);
-            }
+            if (_block == null) return;
+            try { await _block.MovePreviousAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepBlockNavigationBar.Previous] {ex.Message}"); }
         }
 
         private async void NextButton_Click(object? sender, EventArgs e)
         {
-            if (_block != null)
-            {
-                await _block.MoveNextAsync().ConfigureAwait(true);
-            }
+            if (_block == null) return;
+            try { await _block.MoveNextAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepBlockNavigationBar.Next] {ex.Message}"); }
         }
 
         private async void LastButton_Click(object? sender, EventArgs e)
         {
-            if (_block != null)
-            {
-                await _block.MoveLastAsync().ConfigureAwait(true);
-            }
+            if (_block == null) return;
+            try { await _block.MoveLastAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepBlockNavigationBar.Last] {ex.Message}"); }
         }
 
         private async void NewButton_Click(object? sender, EventArgs e)
         {
-            if (_block != null)
-            {
-                await _block.NewRecordAsync().ConfigureAwait(true);
-            }
+            if (_block == null) return;
+            try { await _block.NewRecordAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepBlockNavigationBar.New] {ex.Message}"); }
         }
 
         private async void DeleteButton_Click(object? sender, EventArgs e)
         {
-            if (_block != null)
-            {
-                await _block.DeleteCurrentRecordAsync().ConfigureAwait(true);
-            }
+            if (_block == null) return;
+            try { await _block.DeleteCurrentRecordAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepBlockNavigationBar.Delete] {ex.Message}"); }
         }
 
         private async void QueryButton_Click(object? sender, EventArgs e)
         {
-            if (_block != null)
-            {
-                await _block.EnterQueryAsync().ConfigureAwait(true);
-            }
+            if (_block == null) return;
+            try { await _block.EnterQueryAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepBlockNavigationBar.Query] {ex.Message}"); }
         }
 
         private async void ExecuteButton_Click(object? sender, EventArgs e)
         {
-            if (_block != null)
-            {
-                await _block.ExecuteQueryAsync().ConfigureAwait(true);
-            }
+            if (_block == null) return;
+            try { await _block.ExecuteQueryAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepBlockNavigationBar.Execute] {ex.Message}"); }
         }
 
         private async void SaveButton_Click(object? sender, EventArgs e)
         {
-            if (_block != null)
-            {
-                await _block.CommitAsync().ConfigureAwait(true);
-            }
+            if (_block == null) return;
+            try { await _block.CommitAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepBlockNavigationBar.Save] {ex.Message}"); }
         }
 
         private async void RollbackButton_Click(object? sender, EventArgs e)
         {
-            if (_block != null)
-            {
-                await _block.RollbackAsync().ConfigureAwait(true);
-            }
+            if (_block == null) return;
+            try { await _block.RollbackAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepBlockNavigationBar.Rollback] {ex.Message}"); }
         }
     }
 }

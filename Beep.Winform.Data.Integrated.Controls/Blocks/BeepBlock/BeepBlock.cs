@@ -22,10 +22,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
     public partial class BeepBlock : BaseControl, IBeepBlockView
     {
         private readonly BeepBlockViewState _viewState = new();
-        private BeepBlockPresenterRegistry _presenterRegistry = new();
+        private BeepBlockPresenterRegistry _presenterRegistry;
         private string _blockName = string.Empty;
         private BeepBlockDefinition? _definition;
         private IBeepFormsHost? _formsHost;
+        private bool _isExecutingQuery;
 
         public BeepBlock()
         {
@@ -57,6 +58,32 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 }
 
                 return _blockName;
+            }
+        }
+
+        [Browsable(true)]
+        [Category("Data")]
+        [Description("Datasource connection name for this block. Changing this updates the underlying entity definition.")]
+        [TypeConverter(typeof(TheTechIdea.Beep.Winform.Controls.Converters.DataBlockConnectionNameConverter))]
+        [DefaultValue("")]
+        public string ConnectionName
+        {
+            get => _definition?.Entity?.ConnectionName ?? string.Empty;
+            set
+            {
+                var normalized = value?.Trim() ?? string.Empty;
+                EnsureDefinition();
+                if (string.Equals(_definition!.Entity.ConnectionName, normalized, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                if (!string.IsNullOrWhiteSpace(normalized) && !GetAvailableConnectionNames().Contains(normalized, StringComparer.OrdinalIgnoreCase))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[BeepBlock] ConnectionName '{normalized}' set on block '{BlockName}' but the connection is not in the available list. Runtime binding may fail.");
+                }
+
+                _definition.Entity.ConnectionName = normalized;
             }
         }
 
@@ -149,6 +176,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
         {
             DetachFromFormsHost(_formsHost);
             _formsHost = null;
+            UnbindAllControls();
             ResetRecordBinding();
             SyncValidationSubscriptions(null);
             ResetValidationState();
@@ -264,6 +292,18 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
         private void NotifyViewStateChanged()
         {
             ViewStateChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                Unbind();
+                _recordBindingSource?.Dispose();
+                _recordBindingSource = null;
+            }
+
+            base.Dispose(disposing);
         }
     }
 }

@@ -22,36 +22,50 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 UnregisterBlock(blockName);
             }
 
-            _definitionBlockNames.Clear();
-
             if (Definition?.Blocks == null || Definition.Blocks.Count == 0)
             {
+                _definitionBlockNames.Clear();
                 SyncFromManager();
                 return;
             }
 
-            foreach (var blockDefinition in Definition.Blocks)
+            try
             {
-                if (string.IsNullOrWhiteSpace(blockDefinition?.BlockName))
-                {
-                    continue;
-                }
+                _definitionBlockNames.Clear();
 
-                var blockControl = new BeepBlock
+                foreach (var blockDefinition in Definition.Blocks)
                 {
-                    Name = $"BeepBlock_{blockDefinition.BlockName}",
-                    BlockName = blockDefinition.BlockName,
-                    Definition = blockDefinition,
-                    Dock = DockStyle.Top
-                };
+                    if (string.IsNullOrWhiteSpace(blockDefinition?.BlockName))
+                    {
+                        continue;
+                    }
 
-                if (RegisterBlock(blockControl))
-                {
-                    _definitionBlockNames.Add(blockDefinition.BlockName);
+                    var blockControl = new BeepBlock
+                    {
+                        Name = $"BeepBlock_{blockDefinition.BlockName}",
+                        BlockName = blockDefinition.BlockName,
+                        Definition = blockDefinition,
+                        Dock = DockStyle.Top
+                    };
+
+                    if (RegisterBlock(blockControl))
+                    {
+                        _definitionBlockNames.Add(blockDefinition.BlockName);
+                    }
+                    else
+                    {
+                        blockControl.Dispose();
+                    }
                 }
             }
-
-            SyncFromManager();
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BeepForms.RebuildBlocksFromDefinition] {ex.GetType().Name}: {ex.Message}");
+            }
+            finally
+            {
+                SyncFromManager();
+            }
         }
     }
 }
