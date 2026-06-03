@@ -4,11 +4,15 @@ using System.Data;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TheTechIdea.Beep.Addin;
 using TheTechIdea.Beep.ConfigUtil;
 using TheTechIdea.Beep.Icons;
+using TheTechIdea.Beep.SetUp;
+using TheTechIdea.Beep.SetUp.Seeding;
+using TheTechIdea.Beep.SetUp.Steps;
 using TheTechIdea.Beep.Vis;
 using TheTechIdea.Beep.Vis.Modules;
 using TheTechIdea.Beep.Winform.Controls;
@@ -39,8 +43,14 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
         private string _lastRunSummary = "Not executed yet";
         private string _lastDriverProvisionSummary = "No driver package operations recorded.";
 
+        private ISeederRegistry? _seederRegistry;
+        private IReadOnlyList<Type>? _entityTypes;
+        private IReadOnlyList<Assembly>? _extraAssemblies;
+
         public Func<SetupExecutionRequest, IProgress<(int Progress, string Message)>?, Task<SetupExecutionResult>>? SetupExecutor { get; set; }
         public event EventHandler<SetupCompletedEventArgs>? SetupCompleted;
+
+        private CancellationTokenSource? _runCts;
 
         #region IAddinVisSchema
         public string RootNodeName { get; set; } = "Configuration";
@@ -73,6 +83,43 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             InitializeComponent();
             BindDefaults();
             Details.AddinName = "Setup Wizard";
+        }
+
+        public ISeederRegistry? SeederRegistry
+        {
+            get => _seederRegistry;
+            set
+            {
+                _seederRegistry = value;
+                _seedingStepControl?.InitializeStep(_seederRegistry, _extraAssemblies);
+                RefreshReviewStep();
+            }
+        }
+
+        public IReadOnlyList<Type>? EntityTypes
+        {
+            get => _entityTypes;
+            set
+            {
+                _entityTypes = value;
+                if (_schemaStepControl != null)
+                    _schemaStepControl.EntityTypes = _entityTypes;
+                RefreshReviewStep();
+            }
+        }
+
+        public IReadOnlyList<Assembly>? ExtraAssemblies
+        {
+            get => _extraAssemblies;
+            set
+            {
+                _extraAssemblies = value;
+                if (_schemaStepControl != null)
+                    _schemaStepControl.ExtraAssemblies = _extraAssemblies;
+                if (_seedingStepControl != null)
+                    _seedingStepControl.ExtraAssemblies = _extraAssemblies;
+                RefreshReviewStep();
+            }
         }
 
         public override void Configure(Dictionary<string, object> settings)
@@ -196,6 +243,15 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
 
             config.OnComplete = _ => UpdateStatus("Setup completed. Review connection and schema status.");
             config.OnCancel = _ => UpdateStatus("Setup cancelled by user.");
+            config.OnStepChanged = (stepIndex, context) =>
+            {
+                if (_entityTypes != null)
+                    context.SetValue("entityTypes", _entityTypes);
+                if (_extraAssemblies != null)
+                    context.SetValue("extraAssemblies", _extraAssemblies);
+                if (_seederRegistry != null)
+                    context.SetValue("seederRegistry", _seederRegistry);
+            };
 
             return config;
         }
@@ -217,6 +273,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             _driverStepControl = new uc_SetupDriverStep { Dock = DockStyle.Fill };
             _driverStepControl.InitializeStep(_services, Theme);
             _driverStepControl.DriverPackageInstalled += DriverStepControl_DriverPackageInstalled;
+            _driverStepControl.DatasourceSetupCompleted += DriverStepControl_DatasourceSetupCompleted;
 
             return new WizardStep
             {
@@ -225,7 +282,8 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
                 Description = "Discover or install required drivers.",
                 Icon = SvgsUIcons.Logistics.Package,
                 IsOptional = false,
-                Content = _driverStepControl
+                Content = _driverStepControl,
+                OnEnter = _ => SyncDriverStepState()
             };
         }
 
@@ -250,6 +308,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
         private WizardStep CreateSchemaStep()
         {
             _schemaStepControl = new uc_SetupSchemaStep { Dock = DockStyle.Fill };
+            _schemaStepControl.InitializeStep(beepService?.DMEEditor, null, _entityTypes, _extraAssemblies);
 
             return new WizardStep
             {
@@ -258,13 +317,15 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
                 Description = "Plan and apply schema migration actions.",
                 Icon = SvgsUIcons.DataTable.Table,
                 IsOptional = false,
-                Content = _schemaStepControl
+                Content = _schemaStepControl,
+                OnEnter = _ => RefreshSchemaSummary()
             };
         }
 
         private WizardStep CreateSeedingStep()
         {
             _seedingStepControl = new uc_SetupSeedingStep { Dock = DockStyle.Fill };
+            _seedingStepControl.InitializeStep(_seederRegistry, _extraAssemblies);
 
             return new WizardStep
             {
@@ -272,7 +333,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
                 Title = "Seed Initial Data",
                 Description = "Run ordered seeders for baseline data.",
                 Icon = SvgsUIcons.Agriculture.Seedling,
-                IsOptional = true,
+                IsOptional = _seederRegistry == null,
                 Content = _seedingStepControl
             };
         }
@@ -281,7 +342,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
         {
             _reviewStepControl = new uc_SetupReviewRunStep { Dock = DockStyle.Fill };
             _reviewStepControl.ApplyTheme(Theme);
-            _reviewStepControl.RunSetupRequested += async (_, _) => await RunSetupAsync();
+            _reviewStepControl.RunSetupRequested += OnReviewRunSetupRequested;
 
             return new WizardStep
             {
@@ -293,6 +354,73 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
                 Content = _reviewStepControl,
                 OnEnter = _ => RefreshReviewStep()
             };
+        }
+
+        private void OnReviewRunSetupRequested(object? sender, EventArgs e)
+        {
+            // Fire-and-forget but exceptions are routed to status instead of
+            // crashing the wizard (the previous `async void` lambda could
+            // bring down the host process on an unhandled throw).
+            _ = RunSetupSafelyAsync();
+        }
+
+        private async Task RunSetupSafelyAsync()
+        {
+            try
+            {
+                await RunSetupAsync().ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Setup run crashed: {ex.Message}");
+                if (_reviewStepControl != null)
+                {
+                    _reviewStepControl.SetProgress(0, $"Progress: Crashed - {ex.Message}");
+                    _reviewStepControl.SetRunningState(false);
+                }
+            }
+            finally
+            {
+                _isRunInProgress = false;
+            }
+        }
+
+        private void RefreshSchemaSummary()
+        {
+            if (_schemaStepControl == null || beepService?.DMEEditor == null)
+                return;
+
+            var ds = TryGetOpenDataSource();
+            _schemaStepControl.InitializeStep(beepService.DMEEditor, ds, _entityTypes, _extraAssemblies);
+        }
+
+        private void SyncDriverStepState()
+        {
+            _driverStepControl?.ResetPackageState();
+        }
+
+        private IDataSource? TryGetOpenDataSource()
+        {
+            var cp = _connectionStepControl?.GetConnectionProperties();
+            if (cp == null || string.IsNullOrWhiteSpace(cp.ConnectionName))
+                return null;
+
+            var editor = beepService?.DMEEditor;
+            if (editor == null)
+                return null;
+
+            try
+            {
+                var ds = editor.GetDataSource(cp.ConnectionName);
+                if (ds != null && ds.ConnectionStatus == ConnectionState.Open)
+                    return ds;
+            }
+            catch
+            {
+                // datasource not registered yet
+            }
+
+            return null;
         }
 
         private void RefreshReviewStep()
@@ -309,7 +437,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             builder.AppendLine(_schemaStepControl?.GetStepSummary() ?? "Schema: Pending.");
             builder.AppendLine(_seedingStepControl?.GetStepSummary() ?? "Seeding: Pending.");
             builder.AppendLine(SetupExecutor == null
-                ? "Execution: Built-in connection setup mode."
+                ? "Execution: Built-in setup framework (preferred) with connection-persist fallback."
                 : "Execution: External setup executor mode.");
 
             _reviewStepControl.SetSummary(builder.ToString());
@@ -335,7 +463,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             if (review == null)
                 return;
 
-            var cp = _connectionStepControl?.GetConnectionProperties();
+            var cp = _connectionStepControl?.GetConnectionPropertiesForStep();
 
             if (SetupExecutor == null && beepService?.DMEEditor == null)
             {
@@ -360,13 +488,16 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             review.SetProgress(5, "Progress: Starting setup execution...");
             UpdateStatus("Setup run started.");
 
+            _runCts?.Dispose();
+            _runCts = new CancellationTokenSource();
+
             try
             {
                 var progress = new Progress<(int Progress, string Message)>(p => review.SetProgress(p.Progress, p.Message));
 
                 var runResult = SetupExecutor != null
                     ? await ExecuteExternalSetupAsync(cp, progress)
-                    : await ExecuteDefaultSetupAsync(cp, progress);
+                    : await ExecuteDefaultSetupAsync(cp, progress, _runCts.Token);
 
                 _lastExecutionPath = runResult.ExecutionPath;
                 _lastRunSummary = runResult.Message;
@@ -380,6 +511,13 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
                 UpdateStatus(runResult.Success
                     ? "Setup run completed successfully."
                     : $"Setup run failed: {runResult.Message}");
+            }
+            catch (OperationCanceledException)
+            {
+                review.SetProgress(0, "Progress: Cancelled by user.");
+                _lastRunSummary = "Cancelled";
+                review.SetLastRunSummary(_lastRunSummary);
+                UpdateStatus("Setup run cancelled.");
             }
             finally
             {
@@ -416,66 +554,38 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
 
         private async Task<SetupExecutionResult> ExecuteDefaultSetupAsync(
             ConnectionProperties? cp,
-            IProgress<(int Progress, string Message)>? progress)
+            IProgress<(int Progress, string Message)>? progress,
+            CancellationToken cancellationToken)
         {
-            var frameworkResult = await TryExecuteSetupFrameworkAsync(progress);
+            var frameworkResult = await ExecuteSetupFrameworkRunAsync(cp, progress);
             if (frameworkResult != null)
                 return frameworkResult;
 
             if (cp == null || string.IsNullOrWhiteSpace(cp.ConnectionName))
                 return SetupExecutionResult.Fail(0, "Progress: Connection details are incomplete.", "Fallback Connection");
 
-            return await Task.Run(() => ExecuteSetupRun(cp, progress));
+            return await ExecuteDatasourceSetupFallbackAsync(cp, progress, cancellationToken);
         }
 
-        private async Task<SetupExecutionResult?> TryExecuteSetupFrameworkAsync(
+        private async Task<SetupExecutionResult?> ExecuteSetupFrameworkRunAsync(
+            ConnectionProperties? cp,
             IProgress<(int Progress, string Message)>? progress)
         {
-            if (_services == null || beepService?.DMEEditor == null)
+            if (beepService?.DMEEditor == null)
                 return null;
 
-            var setupFactoryType = FindTypeByFullName("TheTechIdea.Beep.SetUp.ISetupWizardFactory");
-            if (setupFactoryType == null)
-                return null;
-
-            var setupFactory = _services.GetService(setupFactoryType);
-            if (setupFactory == null)
-                return null;
-
-            return await Task.Run(() => ExecuteSetupFrameworkRun(setupFactoryType, setupFactory, progress));
-        }
-
-        private SetupExecutionResult ExecuteSetupFrameworkRun(
-            Type setupFactoryType,
-            object setupFactory,
-            IProgress<(int Progress, string Message)>? progress)
-        {
             try
             {
                 progress?.Report((10, "Progress: Preparing setup framework execution..."));
 
-                var createDefault = setupFactoryType.GetMethod("CreateDefault");
-                if (createDefault == null)
-                    return SetupExecutionResult.Fail(0, "Progress: Setup factory does not implement CreateDefault.", "Setup Framework");
-
-                var tupleResult = createDefault.Invoke(setupFactory, new object[] { beepService!.DMEEditor });
-                if (tupleResult == null)
-                    return SetupExecutionResult.Fail(0, "Progress: Setup factory returned no wizard/context.", "Setup Framework");
-
-                var tupleType = tupleResult.GetType();
-                var wizard = tupleType.GetField("Item1")?.GetValue(tupleResult);
-                var context = tupleType.GetField("Item2")?.GetValue(tupleResult);
+                var (wizard, context) = BuildFrameworkWizard(cp);
                 if (wizard == null || context == null)
-                    return SetupExecutionResult.Fail(0, "Progress: Setup factory returned invalid wizard/context payload.", "Setup Framework");
+                {
+                    progress?.Report((15, "Progress: Setup framework unavailable, using fallback."));
+                    return null;
+                }
 
-                var wizardType = wizard.GetType();
-                var contextType = context.GetType();
-
-                progress?.Report((25, "Progress: Running setup framework pipeline..."));
-
-                var runMethod = wizardType.GetMethod("Run", new[] { contextType, typeof(IProgress<PassedArgs>) });
-                if (runMethod == null)
-                    return SetupExecutionResult.Fail(0, "Progress: Setup wizard Run method not found.", "Setup Framework");
+                progress?.Report((25, $"Progress: Running setup framework pipeline ({wizard.Steps.Count} step(s))..."));
 
                 var adapterProgress = new Progress<PassedArgs>(args =>
                 {
@@ -486,21 +596,118 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
                     progress?.Report((pct, msg));
                 });
 
-                var errorsInfo = runMethod.Invoke(wizard, new object?[] { context, adapterProgress });
+                var errorsInfo = await Task.Run(() => wizard.Run(context, adapterProgress));
 
                 var isOk = IsErrorsInfoOk(errorsInfo);
                 var message = GetErrorsInfoMessage(errorsInfo);
 
+                var report = wizard.GetReport();
+                if (report != null)
+                    _reviewStepControl?.SetReport(report);
+
                 if (!isOk)
+                {
+                    progress?.Report((100, $"Progress: Setup framework failed - {message}"));
                     return SetupExecutionResult.Fail(100, $"Progress: Setup framework failed - {message}", "Setup Framework");
+                }
 
                 progress?.Report((100, "Progress: Setup framework execution completed successfully."));
-                return SetupExecutionResult.Ok(100, "Progress: Setup framework execution completed successfully.", "Setup Framework");
+                return SetupExecutionResult.Ok(100,
+                    $"Progress: Setup framework execution completed successfully. Run={report?.RunId}",
+                    "Setup Framework");
             }
             catch (Exception ex)
             {
+                progress?.Report((0, $"Progress: Setup framework execution failed - {ex.Message}"));
                 return SetupExecutionResult.Fail(0, $"Progress: Setup framework execution failed - {ex.Message}", "Setup Framework");
             }
+        }
+
+        private (ISetupWizard? wizard, SetupContext? context) BuildFrameworkWizard(ConnectionProperties? cp)
+        {
+            if (beepService?.DMEEditor == null)
+                return (null, null);
+
+            var context = new SetupContext
+            {
+                Editor = beepService.DMEEditor,
+                Options = new SetupOptions
+                {
+                    SkipSeeding = _seederRegistry == null,
+                    Environment = "Development"
+                },
+                State = new SetupState()
+            };
+
+            if (cp != null)
+            {
+                context.ConnectionProperties = cp;
+                try
+                {
+                    var ds = beepService.DMEEditor.GetDataSource(cp.ConnectionName);
+                    if (ds != null && ds.ConnectionStatus == ConnectionState.Open)
+                        context.DataSource = ds;
+                }
+                catch
+                {
+                    // datasource not yet registered — the ConnectionConfigStep will open it
+                }
+            }
+
+            var builder = new SetupWizardBuilder()
+                .WithId("platform-setup-winform")
+                .WithOptions(context.Options);
+
+            if (cp != null && !string.IsNullOrWhiteSpace(cp.ConnectionName))
+            {
+                // If the user pinned a driver name in the connection step,
+                // ensure the driver is loaded before we try to open the
+                // connection. DriverProvisionStep is a no-op when the
+                // driver is already in-process.
+                if (!string.IsNullOrWhiteSpace(cp.DriverName))
+                {
+                    builder.AddStep(new DriverProvisionStep(new DriverProvisionStepOptions
+                    {
+                        PackageName = cp.DriverName,
+                        Version = string.IsNullOrWhiteSpace(cp.DriverVersion) ? null : cp.DriverVersion
+                    }));
+                }
+
+                builder.AddStep(new ConnectionConfigStep(new ConnectionConfigStepOptions
+                {
+                    ConnectionProperties = cp,
+                    OpenConnection = true
+                }));
+            }
+
+            if (_schemaStepControl != null && _schemaStepControl.IsReadyForSetup())
+            {
+                try
+                {
+                    builder.AddStep(new SchemaSetupStep(_schemaStepControl.BuildStepOptions()));
+                }
+                catch (Exception ex)
+                {
+                    UpdateStatus($"Schema step not added: {ex.Message}");
+                }
+            }
+
+            if (_seedingStepControl != null && _seedingStepControl.IsReadyForSetup())
+            {
+                try
+                {
+                    builder.AddStep(new SeedingStep(_seedingStepControl.BuildStepOptions()));
+                }
+                catch (Exception ex)
+                {
+                    UpdateStatus($"Seeding step not added: {ex.Message}");
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(cp?.ConnectionName))
+                return (null, context);
+
+            return (builder.Build(), context);
         }
 
         private static bool IsErrorsInfoOk(object? errorsInfo)
@@ -523,47 +730,43 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             return string.IsNullOrWhiteSpace(message) ? "Unknown setup error." : message;
         }
 
-        private static Type? FindTypeByFullName(string fullName)
-        {
-            return AppDomain.CurrentDomain
-                .GetAssemblies()
-                .Select(a => a.GetType(fullName, throwOnError: false, ignoreCase: false))
-                .FirstOrDefault(t => t != null);
-        }
-
-        private SetupExecutionResult ExecuteSetupRun(
+        private async Task<SetupExecutionResult> ExecuteDatasourceSetupFallbackAsync(
             ConnectionProperties cp,
-            IProgress<(int Progress, string Message)>? progress)
+            IProgress<(int Progress, string Message)>? progress,
+            CancellationToken cancellationToken)
         {
             var editor = beepService?.DMEEditor;
-            if (editor?.ConfigEditor == null)
-                return SetupExecutionResult.Fail(0, "Progress: Editor configuration services are not available.", "Fallback Connection");
+            if (editor == null)
+                return SetupExecutionResult.Fail(0, "Progress: Editor is not available.", "Fallback Connection");
 
             try
             {
-                var configEditor = editor.ConfigEditor;
-                progress?.Report((20, "Progress: Preparing connection configuration..."));
+                var handler = new DatasourceSetupHandler(editor);
+                var options = new DatasourceSetupOptions
+                {
+                    ConnectionProperties = cp,
+                    ProvisionDriverIfMissing = false,
+                    OpenConnection = true,
+                    SkipWhenAlreadyOpen = false
+                };
 
-                var storedConn = configEditor.DataConnections?
-                    .FirstOrDefault(c => string.Equals(c.ConnectionName, cp.ConnectionName, StringComparison.OrdinalIgnoreCase));
+                var result = await handler.SetupAsync(options, progress, cancellationToken).ConfigureAwait(true);
 
-                progress?.Report((40, "Progress: Persisting connection settings..."));
-                bool persisted = storedConn != null
-                    ? configEditor.UpdateDataConnection(cp, storedConn.GuidID)
-                    : configEditor.AddDataConnection(cp);
+                if (result.Success)
+                {
+                    var driverNote = result.DriverProvisioned ? " Driver was provisioned." : string.Empty;
+                    return SetupExecutionResult.Ok(100,
+                        $"Progress: Setup execution completed successfully ({result.Duration.TotalSeconds:0.00}s).{driverNote}",
+                        "Fallback Connection");
+                }
 
-                if (!persisted)
-                    return SetupExecutionResult.Fail(45, "Progress: Failed to persist connection configuration.", "Fallback Connection");
-
-                configEditor.SaveDataconnectionsValues();
-
-                progress?.Report((70, "Progress: Opening datasource..."));
-                var state = editor.OpenDataSource(cp.ConnectionName);
-                if (state != ConnectionState.Open)
-                    return SetupExecutionResult.Fail(75, $"Progress: Connection open failed (state={state}).", "Fallback Connection");
-
-                progress?.Report((95, "Progress: Finalizing setup execution..."));
-                return SetupExecutionResult.Ok(100, "Progress: Setup execution completed successfully.", "Fallback Connection");
+                return SetupExecutionResult.Fail(100,
+                    $"Progress: Setup execution failed - {result.Message}",
+                    "Fallback Connection");
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -587,8 +790,48 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
                 Style = _viewModel.Style,
                 LastExecutionPath = _lastExecutionPath,
                 LastRunSummary = _lastRunSummary,
-                LastDriverProvisionSummary = _lastDriverProvisionSummary
+                LastDriverProvisionSummary = _lastDriverProvisionSummary,
             };
+        }
+
+        /// <summary>
+        /// Public entry-point that runs the full datasource setup pipeline
+        /// through <see cref="DatasourceSetupHandler"/>: resolve driver →
+        /// provision (if missing) → persist connection → open datasource.
+        /// </summary>
+        /// <remarks>
+        /// Callers that want headless / programmatic setup without driving
+        /// the wizard UI should prefer this method over the framework
+        /// wizard pipeline — it has no UI dependencies and always returns
+        /// a structured <see cref="DatasourceSetupResult"/>.
+        /// </remarks>
+        public async Task<DatasourceSetupResult> RunDatasourceSetupAsync(
+            ConnectionProperties connectionProperties,
+            DatasourceSetupOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (connectionProperties == null) throw new ArgumentNullException(nameof(connectionProperties));
+            var editor = beepService?.DMEEditor;
+            if (editor == null)
+            {
+                return DatasourceSetupResult.Fail(
+                    "Editor is not available.",
+                    Array.Empty<DatasourceSetupStep>(),
+                    TimeSpan.Zero);
+            }
+
+            var handler = new DatasourceSetupHandler(editor);
+            options ??= new DatasourceSetupOptions { ConnectionProperties = connectionProperties };
+            options.ConnectionProperties ??= connectionProperties;
+
+            // Use the review-step progress reporter if the user is watching.
+            var review = _reviewStepControl;
+            var progress = new Progress<(int Percent, string Message)>(p =>
+            {
+                if (review != null) review.SetProgress(p.Percent, $"Progress: {p.Message}");
+            });
+
+            return await handler.SetupAsync(options, progress, cancellationToken).ConfigureAwait(true);
         }
 
         public void ApplySnapshot(SetupWizardSnapshot snapshot)
@@ -627,10 +870,27 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
         private void DriverStepControl_DriverPackageInstalled(object? sender, uc_SetupDriverStep.DriverPackageInstalledEventArgs e)
         {
             _lastDriverProvisionSummary = e.Success
-                ? $"Installed {e.PackageId} {e.Version}" 
+                ? $"Installed {e.PackageId} {e.Version}"
                 : $"Failed install {e.PackageId} {e.Version}: {e.Message}";
 
             UpdateStatus($"Driver package operation: {_lastDriverProvisionSummary}");
+            RefreshReviewStep();
+        }
+
+        private void DriverStepControl_DatasourceSetupCompleted(object? sender, DatasourceSetupResult result)
+        {
+            var details = result.Steps != null && result.Steps.Count > 0
+                ? string.Join(" | ", result.Steps.Select(s => $"{(s.Success ? "OK" : "FAIL")}:{s.Name}"))
+                : "(no steps)";
+
+            _lastDriverProvisionSummary = result.Success
+                ? $"Datasource ready in {result.Duration.TotalSeconds:0.00}s. Steps: {details}"
+                : $"Datasource setup failed: {result.Message}. Steps: {details}";
+
+            UpdateStatus(result.Success
+                ? $"Datasource '{result.DataSource?.DatasourceName ?? "(unknown)"}' ready."
+                : $"Datasource setup failed: {result.Message}");
+
             RefreshReviewStep();
         }
 
