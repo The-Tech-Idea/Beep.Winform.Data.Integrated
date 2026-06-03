@@ -33,6 +33,23 @@ namespace TheTechIdea.Beep.Winform.Controls.MenuBar
         {
             _beepServices = beepServices;
             DMEEditor = _beepServices.DMEEditor;
+            
+        }
+        protected override void OnMenuItemSelected(SimpleItem item)
+        {
+            base.OnMenuItemSelected(item);
+            BeepMenuAppBar_OnMenuItemSelected(item);
+        }
+        private void BeepMenuAppBar_OnMenuItemSelected(SimpleItem item)
+        {
+            if (item != null)
+            {
+                
+                if (item.MethodName != null)
+                {
+                    DynamicFunctionCallingManager.RunFunctionFromExtensions(item, item.MethodName);
+                }
+            }
         }
 
         public BeepMenuAppBar():base()

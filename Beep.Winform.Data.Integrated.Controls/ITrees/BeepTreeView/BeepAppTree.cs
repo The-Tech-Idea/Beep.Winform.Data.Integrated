@@ -238,7 +238,27 @@ namespace TheTechIdea.Beep.Winform.Controls.ITrees.BeepTreeView
 
             //}
             CurrentBranch = GetBranchByGuidID(ClickedNode.GuidId);
+            var provider = SimpleItemFactory.GlobalMenuItemsProvider;
+            SimpleItem item = ClickedNode;
+            var menuItems = provider != null ? provider(item) : null;
+            if (menuItems != null && menuItems.Count > 0)
+            {
+                CurrentMenutems = new BindingList<SimpleItem>(menuItems);
+                TogglePopup();
+            }
 
+        }
+        private void handleclick(IBranch br)
+        {
+            if (br != null)
+            {
+                AssemblyClassDefinition cls = DMEEditor.ConfigEditor.BranchesClasses.Where(x => x.PackageName == br.Name && x.Methods.Where(y => y.DoubleClick == true || y.Click == true).Any()).FirstOrDefault();
+                if (cls != null)
+                {
+                    if (!DynamicFunctionCallingManager.IsMethodApplicabletoNode(cls, br)) return;
+                    RunMethod(br, br.BranchText);
+                }
+            }
         }
         #endregion "Node Clicks Handlers"
         #region "Change Branch Properties"

@@ -78,7 +78,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         public string? ActiveItemName => _viewState.ActiveItemName;
 
         [Browsable(false)]
-        public BeepBuiltins? Builtins
+        public IBeepBuiltins? Builtins
         {
             get
             {

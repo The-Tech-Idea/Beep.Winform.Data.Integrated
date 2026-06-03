@@ -11,10 +11,6 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
                 if (components != null)
                     components.Dispose();
 
-                if (TryGetService(out var svc) && svc is not null)
-                {
-                    // no-op placeholder retained for future partial hooks
-                }
             }
             DisposeEmbeddedControl();
             base.Dispose(disposing);
