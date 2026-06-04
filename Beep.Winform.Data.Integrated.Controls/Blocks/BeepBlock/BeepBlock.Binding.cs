@@ -415,7 +415,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             {
                 return ConvertToTargetType(targetType, value);
             }
-            catch
+            catch (Exception)
             {
                 return value;
             }
@@ -867,7 +867,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
         private async void ComboBox_SelectedItemChanged(object? sender, SelectedItemChangedEventArgs e)
         {
-            if (_isApplyingLovRelatedFieldMappings || sender is not BeepComboBox comboBox || _formsHost == null || string.IsNullOrWhiteSpace(ManagerBlockName))
+            try
+            {
+                if (_isApplyingLovRelatedFieldMappings || sender is not BeepComboBox comboBox || _formsHost == null || string.IsNullOrWhiteSpace(ManagerBlockName))
             {
                 return;
             }
@@ -907,6 +909,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[BeepBlock.Binding] {ex.GetType().Name}: {ex.Message}");
+            }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BeepBlock.ComboBox_SelectedItemChanged] {ex.GetType().Name}: {ex.Message}");
             }
         }
 

@@ -30,6 +30,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Builtins
             "SHOW_LOV", "COMMIT", "ROLLBACK", "POST",
             "ENTER_QUERY", "EXECUTE_QUERY", "EXIT_QUERY",
             "CLEAR_BLOCK", "CLEAR_FORM", "CLEAR_RECORD",
+            "DELETE_RECORD",
+            "COUNT_QUERY",
             "GET_BLOCK_MODE", "SET_BLOCK_MODE"
         };
 
@@ -354,6 +356,31 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Builtins
                 TriggerType.KeyClearRecord, block, null,
                 arguments: null,
                 action: () => Host.ClearRecordAsync(block, ct));
+        }
+
+        // ── Record manipulation ──────────────────────────────────────────────────
+        public bool DeleteRecord() => DeleteRecordAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+        public Task<bool> DeleteRecordAsync(CancellationToken ct = default)
+        {
+            string block = CurrentBlock ?? string.Empty;
+            return RunWithTriggerAsync(
+                TriggerType.KeyDeleteRecord, block, null,
+                arguments: null,
+                action: () => Host.DeleteBlockCurrentRecordAsync(block, ct));
+        }
+
+        public int CountQuery()
+        {
+            string block = CurrentBlock ?? string.Empty;
+            return Host.GetBlockRecordCount(block);
+        }
+
+        public int CountQuery(string blockName)
+        {
+            if (string.IsNullOrWhiteSpace(blockName))
+                return 0;
+            return Host.GetBlockRecordCount(blockName);
         }
 
         // ── Mode ─────────────────────────────────────────────────────────

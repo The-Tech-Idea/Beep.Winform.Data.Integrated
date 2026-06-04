@@ -38,7 +38,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Converters
             if (value is string stringValue && context?.Instance is BeepDataConnection dataConnection)
             {
                 return GetAvailableConnections(dataConnection)
-                    .FirstOrDefault(c => string.Equals(c.ConnectionName, stringValue, StringComparison.OrdinalIgnoreCase));
+                    .FirstOrDefault(c => string.Equals(c.ConnectionName, stringValue, StringComparison.OrdinalIgnoreCase))
+                    ?? dataConnection.CurrentConnection;
             }
 
             return base.ConvertFrom(context, culture, value);

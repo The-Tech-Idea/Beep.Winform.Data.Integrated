@@ -265,18 +265,16 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private async void CommitButton_Click(object? sender, EventArgs e)
         {
-            if (_formsHost != null)
-            {
-                await _formsHost.CommitFormAsync().ConfigureAwait(true);
-            }
+            if (_formsHost == null) return;
+            try { await _formsHost.CommitFormAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsPersistenceShelf.Commit] {ex.Message}"); }
         }
 
         private async void RollbackButton_Click(object? sender, EventArgs e)
         {
-            if (_formsHost != null)
-            {
-                await _formsHost.RollbackFormAsync().ConfigureAwait(true);
-            }
+            if (_formsHost == null) return;
+            try { await _formsHost.RollbackFormAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsPersistenceShelf.Rollback] {ex.Message}"); }
         }
     }
 }

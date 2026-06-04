@@ -15,6 +15,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
     public partial class BeepBlock
     {
         private readonly Dictionary<string, ValidationSurfaceMessage> _fieldValidationStates = new(StringComparer.OrdinalIgnoreCase);
+        private readonly object _validationLock = new();
         private IUnitofWorksManager? _validationOwner;
 
         private sealed class ValidationSurfaceMessage
@@ -76,7 +77,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
         private void ResetValidationState()
         {
-            _fieldValidationStates.Clear();
+            lock (_validationLock) { _fieldValidationStates.Clear(); }
             ClearFieldErrors();
             UpdateValidationSummarySurface();
         }
@@ -107,14 +108,14 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
         private void ApplyRecordValidationResult(RecordValidationResult? result)
         {
-            _fieldValidationStates.Clear();
+            lock (_validationLock) { _fieldValidationStates.Clear(); }
 
             foreach (var itemResult in result?.ItemResults ?? Enumerable.Empty<KeyValuePair<string, ItemValidationResult>>())
             {
                 ValidationSurfaceMessage? message = BuildValidationSurfaceMessage(itemResult.Value);
                 if (message != null)
                 {
-                    _fieldValidationStates[itemResult.Key] = message;
+                lock (_validationLock) { _fieldValidationStates[itemResult.Key] = message; }
                 }
             }
 
@@ -178,7 +179,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 return;
             }
 
-            _fieldValidationStates[fieldName] = new ValidationSurfaceMessage(message, severity);
+            lock (_validationLock) { _fieldValidationStates[fieldName] = new ValidationSurfaceMessage(message, severity); }
             ShowFieldErrors(_fieldValidationStates);
             UpdateValidationSummarySurface();
         }
@@ -190,7 +191,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 return;
             }
 
-            if (_fieldValidationStates.Remove(fieldName))
+            bool removed;
+            lock (_validationLock) { removed = _fieldValidationStates.Remove(fieldName); }
+            if (removed)
             {
                 ShowFieldErrors(_fieldValidationStates);
                 UpdateValidationSummarySurface();

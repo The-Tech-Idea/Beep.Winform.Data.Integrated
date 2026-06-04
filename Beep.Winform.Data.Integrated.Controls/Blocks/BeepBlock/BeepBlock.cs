@@ -299,6 +299,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             if (disposing)
             {
                 Unbind();
+                _fieldContextMenu?.Dispose();
+                _fieldContextMenu = null;
                 _recordBindingSource?.Dispose();
                 _recordBindingSource = null;
             }

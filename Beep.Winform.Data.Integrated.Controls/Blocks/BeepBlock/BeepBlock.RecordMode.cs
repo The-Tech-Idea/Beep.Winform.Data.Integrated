@@ -143,22 +143,32 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                     var presenter = PresenterRegistry.Resolve(field);
                     if (presenter == null)
                     {
+                        System.Diagnostics.Debug.WriteLine($"[BeepBlock.RecordMode] No presenter resolved for field '{field.FieldName}' of type '{field.ControlType}'. Field omitted from layout.");
                         continue;
                     }
 
-                    editor = presenter.CreateEditor(field);
-                    presenter.ApplyMetadata(editor, field);
-                    BindEditorToCurrentRecord(editor, field);
-                    AttachFieldContextMenu(editor, field.FieldName);
-
-                    Control editorHost = CreateRecordEditorHost(editor, field);
-                    rowPanel.Controls.Add(editorHost);
-                    rowPanel.Controls.Add(headerHost);
-                    _recordHostPanel.Controls.Add(rowPanel);
-                    _fieldEditors[field.FieldName] = editor;
-                    _fieldRows[field.FieldName] = rowPanel;
-                    _fieldLabels[field.FieldName] = label;
-                    _fieldStateLabels[field.FieldName] = stateLabel;
+                    try
+                    {
+                        editor = presenter.CreateEditor(field);
+                        presenter.ApplyMetadata(editor, field);
+                        BindEditorToCurrentRecord(editor, field);
+                        if (editor != null)
+                        {
+                            AttachFieldContextMenu(editor, field.FieldName);
+                            Control editorHost = CreateRecordEditorHost(editor, field);
+                            rowPanel.Controls.Add(editorHost);
+                            rowPanel.Controls.Add(headerHost);
+                            _recordHostPanel.Controls.Add(rowPanel);
+                            _fieldEditors[field.FieldName] = editor;
+                            _fieldRows[field.FieldName] = rowPanel;
+                            _fieldLabels[field.FieldName] = label;
+                            _fieldStateLabels[field.FieldName] = stateLabel;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[BeepBlock.RecordMode] Failed to build editor for field '{field.FieldName}': {ex.GetType().Name} - {ex.Message}");
+                    }
                 }
             }
             finally

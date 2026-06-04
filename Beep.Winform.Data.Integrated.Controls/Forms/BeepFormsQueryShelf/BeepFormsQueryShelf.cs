@@ -361,18 +361,16 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private async void EnterQueryButton_Click(object? sender, EventArgs e)
         {
-            if (_formsHost != null)
-            {
-                await _formsHost.EnterQueryAsync().ConfigureAwait(true);
-            }
+            if (_formsHost == null) return;
+            try { await _formsHost.EnterQueryAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsQueryShelf.EnterQuery] {ex.Message}"); }
         }
 
         private async void ExecuteQueryButton_Click(object? sender, EventArgs e)
         {
-            if (_formsHost != null)
-            {
-                await _formsHost.ExecuteQueryAsync().ConfigureAwait(true);
-            }
+            if (_formsHost == null) return;
+            try { await _formsHost.ExecuteQueryAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsQueryShelf.ExecuteQuery] {ex.Message}"); }
         }
     }
 }

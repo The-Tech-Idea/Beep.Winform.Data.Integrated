@@ -270,9 +270,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                         {
                             prop.SetValue(control, Convert.ChangeType(coerced, prop.PropertyType));
                         }
-                        catch
+                        catch (Exception)
                         {
-                            prop.SetValue(control, coerced.ToString());
+                            prop.SetValue(control, coerced?.ToString() ?? string.Empty);
                         }
                     }
                 }

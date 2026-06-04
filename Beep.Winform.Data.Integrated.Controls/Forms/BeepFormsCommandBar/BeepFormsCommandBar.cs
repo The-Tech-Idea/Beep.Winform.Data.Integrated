@@ -331,16 +331,23 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 return;
             }
 
-            string? blockName = e.SelectedItem?.Item?.ToString() ?? e.SelectedItem?.Value?.ToString() ?? e.SelectedItem?.Text;
-            if (string.IsNullOrWhiteSpace(blockName))
+            try
             {
-                return;
-            }
+                string? blockName = e.SelectedItem?.Item?.ToString() ?? e.SelectedItem?.Value?.ToString() ?? e.SelectedItem?.Text;
+                if (string.IsNullOrWhiteSpace(blockName))
+                {
+                    return;
+                }
 
-            bool switched = await _formsHost.SwitchToBlockAsync(blockName).ConfigureAwait(true);
-            if (!switched)
+                bool switched = await _formsHost.SwitchToBlockAsync(blockName).ConfigureAwait(true);
+                if (!switched)
+                {
+                    UpdateCommandStripState();
+                }
+            }
+            catch (Exception ex)
             {
-                UpdateCommandStripState();
+                System.Diagnostics.Debug.WriteLine($"[BeepFormsCommandBar.BlockSelectorButton] {ex.Message}");
             }
         }
 

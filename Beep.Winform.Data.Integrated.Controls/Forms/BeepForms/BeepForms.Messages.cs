@@ -1,4 +1,5 @@
 using System;
+using System.Text.RegularExpressions;
 using TheTechIdea.Beep.ConfigUtil;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts;
@@ -9,6 +10,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
     public partial class BeepForms
     {
         private IBeepFormsNotificationService _notificationService = new Services.BeepFormsMessageService();
+        private readonly object _messageLock = new();
 
         public IBeepFormsNotificationService NotificationService
         {
@@ -38,13 +40,19 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         public void ClearMessages()
         {
-            _notificationService.Clear(_viewState);
+            lock (_messageLock)
+            {
+                _notificationService.Clear(_viewState);
+            }
             ApplyShellStateToUi();
         }
 
         private void ShowMessage(string message, BeepFormsMessageSeverity severity)
         {
-            _notificationService.Publish(_viewState, message, severity);
+            lock (_messageLock)
+            {
+                _notificationService.Publish(_viewState, message, severity);
+            }
             ApplyShellStateToUi();
         }
 
@@ -89,8 +97,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 return BeepFormsMessageSeverity.Warning;
             }
 
-            if (messageType.IndexOf("success", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                messageType.IndexOf("ok", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (Regex.IsMatch(messageType, @"\bsuccess\b", RegexOptions.IgnoreCase) ||
+                Regex.IsMatch(messageType, @"\bok\b", RegexOptions.IgnoreCase))
             {
                 return BeepFormsMessageSeverity.Success;
             }

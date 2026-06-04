@@ -90,12 +90,15 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Models
                 ForeignKeyField = ForeignKeyField
             };
 
-            foreach (var field in Fields)
+            if (Fields != null)
+            {
+                foreach (var field in Fields)
             {
                 if (field != null)
                 {
                     clone.Fields.Add(field.Clone());
                 }
+            }
             }
 
             return clone;

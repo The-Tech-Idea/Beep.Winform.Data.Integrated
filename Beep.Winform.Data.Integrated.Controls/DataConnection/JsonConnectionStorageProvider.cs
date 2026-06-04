@@ -38,7 +38,8 @@ namespace TheTechIdea.Beep.Winform.Controls
                 foreach (var chainScope in chain)
                 {
                     foreach (var record in ReadScopeRecords(chainScope)
-                                 .Where(r => string.Equals(r.ProfileName, selectedProfile, StringComparison.OrdinalIgnoreCase)))
+                                 .Where(r => string.Equals(r.ProfileName, selectedProfile, StringComparison.OrdinalIgnoreCase)
+                                          && r.Connection != null))
                     {
                         EnsureConnectionDefaults(record.Connection);
                         var key = GetIdentityKey(record.Connection);
@@ -276,7 +277,8 @@ namespace TheTechIdea.Beep.Winform.Controls
                 {
                     var records = await ReadScopeRecordsAsync(chainScope, cancellationToken).ConfigureAwait(false);
                     foreach (var record in records
-                        .Where(r => string.Equals(r.ProfileName, selectedProfile, StringComparison.OrdinalIgnoreCase)))
+                        .Where(r => string.Equals(r.ProfileName, selectedProfile, StringComparison.OrdinalIgnoreCase)
+                                 && r.Connection != null))
                     {
                         EnsureConnectionDefaults(record.Connection);
                         var key = GetIdentityKey(record.Connection);
@@ -401,10 +403,11 @@ namespace TheTechIdea.Beep.Winform.Controls
             {
                 var json = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
                 var loaded = JsonSerializer.Deserialize<ConnectionCatalogPackage>(json, _jsonOptions);
-                return loaded?.Records ?? new List<ConnectionCatalogRecord>();
+                return StripNullConnections(loaded?.Records);
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[JsonConnectionStorageProvider.ReadScopeRecords] {scope}: {ex.GetType().Name} - {ex.Message}");
                 return new List<ConnectionCatalogRecord>();
             }
         }
@@ -460,8 +463,9 @@ namespace TheTechIdea.Beep.Winform.Controls
                 var loaded = JsonSerializer.Deserialize<ConnectionCatalogPackage>(File.ReadAllText(path), _jsonOptions);
                 return loaded?.Records ?? new List<ConnectionCatalogRecord>();
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[JsonConnectionStorageProvider.ReadScopeRecords] {scope}: {ex.GetType().Name} - {ex.Message}");
                 return new List<ConnectionCatalogRecord>();
             }
         }
@@ -595,6 +599,14 @@ namespace TheTechIdea.Beep.Winform.Controls
             {
                 Directory.CreateDirectory(directory);
             }
+        }
+
+        private static List<ConnectionCatalogRecord> StripNullConnections(List<ConnectionCatalogRecord>? records)
+        {
+            if (records == null)
+                return new List<ConnectionCatalogRecord>();
+
+            return records.Where(r => r?.Connection != null).ToList();
         }
     }
 }

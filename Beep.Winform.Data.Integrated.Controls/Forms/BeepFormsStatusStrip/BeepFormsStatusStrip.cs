@@ -314,11 +314,21 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private void FormsHost_StateChanged(object? sender, EventArgs e)
         {
+            if (InvokeRequired)
+            {
+                BeginInvoke(() => UpdateFromViewState());
+                return;
+            }
             UpdateFromViewState();
         }
 
         private void FormsHost_Disposed(object? sender, EventArgs e)
         {
+            if (InvokeRequired)
+            {
+                BeginInvoke(() => { FormsHost = null; TryBindFormsHostFromHierarchy(); });
+                return;
+            }
             FormsHost = null;
             TryBindFormsHostFromHierarchy();
         }
@@ -427,6 +437,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private string BuildWorkflowHistoryText(BeepFormsViewState viewState)
         {
+            if (viewState?.WorkflowHistory == null)
+                return string.Empty;
+
             BeepFormsWorkflowEntry[] entries = viewState.WorkflowHistory
                 .Take(WorkflowHistoryVisibleCount)
                 .ToArray();

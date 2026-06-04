@@ -13,7 +13,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Converters
         {
             if (context?.Instance is BeepBlock block)
             {
-                return new StandardValuesCollection(block.GetAvailableConnectionNames().ToList());
+                return new StandardValuesCollection(block.GetAvailableConnectionNames()?.ToList() ?? new List<string>());
             }
 
             return new StandardValuesCollection(Array.Empty<string>());

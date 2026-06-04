@@ -39,6 +39,10 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                         break;
                 }
             }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BeepFormsToolbar.SavepointAction] {action}: {ex.Message}");
+            }
             finally
             {
                 ResetToolbarSelection(sender);
@@ -66,6 +70,10 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 {
                     await _formsHost.ShowAlertAsync(preset.Title, preset.Message, preset.Style).ConfigureAwait(true);
                 }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BeepFormsToolbar.AlertPreset] {action}: {ex.Message}");
             }
             finally
             {

@@ -96,7 +96,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             if (grid == null)
             {
                 try { System.Windows.Forms.Clipboard.SetText(ExportToCsvString()); }
-                catch { }
+                catch (Exception) { }
                 return;
             }
             grid.CopyToClipboard(includeHeaders);

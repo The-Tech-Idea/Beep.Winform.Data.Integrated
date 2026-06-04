@@ -150,6 +150,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Lov
         private void ApplyDefinition()
         {
             _grid.Columns.Clear();
+            if (_grid.DataSource is IDisposable oldDs)
+                oldDs.Dispose();
             _grid.DataSource = null;
 
             var dt = new System.Data.DataTable();
@@ -172,7 +174,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Lov
                     row.TryGetValue(fields[i], out var v);
                     values[i] = v ?? string.Empty;
                 }
-                values[fields.Count] = _records[_rows.IndexOf(row)];
+                var idx = _rows.IndexOf(row);
+                values[fields.Count] = idx >= 0 ? _records[idx] : row;
                 dt.Rows.Add(values);
             }
 
@@ -388,7 +391,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Lov
 
         private static object? ReadField(object record, string fieldName)
         {
-            if (record is IDictionary idict)
+            try
+            {
+                if (record is IDictionary idict)
             {
                 foreach (DictionaryEntry entry in idict)
                 {
@@ -410,6 +415,12 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Lov
             var field = record.GetType().GetField(fieldName,
                 BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
             return field?.GetValue(record);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[LovPickerDialog.ReadField] {fieldName}: {ex.GetType().Name} - {ex.Message}");
+                return null;
+            }
         }
     }
 }

@@ -16,6 +16,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
         private void AttachToFormsHost(IBeepFormsHost formsHost)
         {
+            if (formsHost == null)
+                throw new ArgumentNullException(nameof(formsHost));
+
             formsHost.TriggerExecuting += HandleHostTriggerExecuting;
             formsHost.TriggerExecuted += HandleHostTriggerExecuted;
             formsHost.TriggerRegistered += HandleHostTriggerRegistered;
@@ -39,18 +42,19 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
         private void RefreshTriggerState()
         {
-            if (_formsHost == null || string.IsNullOrWhiteSpace(ManagerBlockName) || !_formsHost.IsBlockRegistered(ManagerBlockName))
+            var host = _formsHost;
+            if (host == null || string.IsNullOrWhiteSpace(ManagerBlockName) || !host.IsBlockRegistered(ManagerBlockName))
             {
                 ResetTriggerState();
                 return;
             }
 
-            TriggerStatisticsInfo? statistics = _formsHost.GetTriggerStatistics(ManagerBlockName);
+            TriggerStatisticsInfo? statistics = host.GetTriggerStatistics(ManagerBlockName);
             _viewState.TriggerCount = statistics?.TotalTriggers ?? 0;
-            _viewState.FormTriggerCount = _formsHost.GetFormLevelTriggers(ManagerBlockName).Count;
-            _viewState.BlockTriggerCount = _formsHost.GetBlockLevelTriggers(ManagerBlockName).Count;
-            _viewState.RecordTriggerCount = _formsHost.GetRecordLevelTriggers(ManagerBlockName).Count;
-            _viewState.ItemTriggerCount = _formsHost.GetItemLevelTriggers(ManagerBlockName).Count;
+            _viewState.FormTriggerCount = host.GetFormLevelTriggers(ManagerBlockName).Count;
+            _viewState.BlockTriggerCount = host.GetBlockLevelTriggers(ManagerBlockName).Count;
+            _viewState.RecordTriggerCount = host.GetRecordLevelTriggers(ManagerBlockName).Count;
+            _viewState.ItemTriggerCount = host.GetItemLevelTriggers(ManagerBlockName).Count;
         }
 
         private void ResetTriggerState()
@@ -230,11 +234,29 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             {
                 if (IsHandleCreated)
                 {
-                    BeginInvoke(action);
+                    BeginInvoke(new Action(() =>
+                    {
+                        try { action(); }
+                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepBlock.TriggerProxy.BeginInvoke] {ex.GetType().Name}: {ex.Message}"); }
+                    }));
                 }
                 else
                 {
-                    action();
+                    var openForm = System.Windows.Forms.Application.OpenForms.Count > 0
+                        ? System.Windows.Forms.Application.OpenForms[0]
+                        : null;
+                    if (openForm != null && openForm.IsHandleCreated)
+                    {
+                        openForm.BeginInvoke(action);
+                    }
+                    else
+                    {
+                        System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                        {
+                            try { action(); }
+                            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepBlock.TriggerProxy.RunOnBlockUiThread] Fallback action failed: {ex}"); }
+                        });
+                    }
                 }
 
                 return;

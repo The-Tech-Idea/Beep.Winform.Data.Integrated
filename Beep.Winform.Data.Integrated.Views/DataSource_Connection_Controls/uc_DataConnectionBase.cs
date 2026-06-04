@@ -789,7 +789,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.DataSource_Connection_Controls
         #endregion
         
         #region Dialog Events
-        private void SavebeepButton_Click(object sender, EventArgs e)
+        private async void SavebeepButton_Click(object sender, EventArgs e)
         {
             RefreshConnectionPreviewAndValidationHints();
             RefreshHeaderStatus();
@@ -811,9 +811,17 @@ namespace TheTechIdea.Beep.Winform.Default.Views.DataSource_Connection_Controls
                     return;
                 }
 
-                var testOk = TestConnectionAsync().GetAwaiter().GetResult();
-                _lastConnectionTestSucceeded = testOk;
-                if (!testOk)
+                try
+                {
+                    _lastConnectionTestSucceeded = await TestConnectionAsync().ConfigureAwait(true);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[uc_DataConnectionBase.Save] Connection test failed: {ex.Message}");
+                    _lastConnectionTestSucceeded = false;
+                }
+
+                if (!_lastConnectionTestSucceeded)
                 {
                     MessageBox.Show(
                         "Save blocked because the connection test did not succeed.",
@@ -824,37 +832,49 @@ namespace TheTechIdea.Beep.Winform.Default.Views.DataSource_Connection_Controls
                 }
             }
 
-            ApplyBestMatchingDriverIfNeeded();
-
-            if (!TryPersistConnection(out var persistError))
+            try
             {
+                ApplyBestMatchingDriverIfNeeded();
+
+                if (!TryPersistConnection(out var persistError))
+                {
+                    MessageBox.Show(
+                        $"Could not save connection.\n\n{persistError}",
+                        "Save Error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                    return;
+                }
+
+                if (_openAfterSaveBeepCheckBox?.CurrentValue == true)
+                {
+                    if (!TryOpenConnectionAfterSave(out var openError))
+                    {
+                        MessageBox.Show(
+                            $"Connection was saved but open failed.\n\n{openError}",
+                            "Open Warning",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning);
+                    }
+                }
+
+                ConnectionSaved?.Invoke(this, new ConnectionSavedEventArgs(ConnectionProperties));
+
+                this.DialogResult = DialogResult.OK;
+                if (this.ParentForm != null)
+                {
+                    this.ParentForm.DialogResult = DialogResult.OK;
+                    this.ParentForm.Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[uc_DataConnectionBase.Save] Save failed: {ex.GetType().Name} - {ex.Message}");
                 MessageBox.Show(
-                    $"Could not save connection.\n\n{persistError}",
+                    $"An unexpected error occurred while saving the connection.\n\n{ex.Message}",
                     "Save Error",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
-                return;
-            }
-
-            if (_openAfterSaveBeepCheckBox?.CurrentValue == true)
-            {
-                if (!TryOpenConnectionAfterSave(out var openError))
-                {
-                    MessageBox.Show(
-                        $"Connection was saved but open failed.\n\n{openError}",
-                        "Open Warning",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning);
-                }
-            }
-
-            ConnectionSaved?.Invoke(this, new ConnectionSavedEventArgs(ConnectionProperties));
-
-            this.DialogResult = DialogResult.OK;
-            if (this.ParentForm != null)
-            {
-                this.ParentForm.DialogResult = DialogResult.OK;
-                this.ParentForm.Close();
             }
         }
         private void CancelbeepButton_Click(object sender, EventArgs e)
@@ -1695,14 +1715,23 @@ namespace TheTechIdea.Beep.Winform.Default.Views.DataSource_Connection_Controls
                     configEditor.DataConnections?.Add(ConnectionProperties);
                 }
 
-                var managerProperty = configEditor.GetType().GetProperty("DataConnectionManager");
-                var dataConnectionManager = managerProperty?.GetValue(configEditor);
-                var addConnectionMethod = dataConnectionManager?.GetType().GetMethod("AddDataConnection");
-                addConnectionMethod?.Invoke(dataConnectionManager, new object[] { ConnectionProperties });
+                try
+                {
+                    var managerProperty = configEditor.GetType().GetProperty("DataConnectionManager");
+                    var dataConnectionManager = managerProperty?.GetValue(configEditor);
+                    var addConnectionMethod = dataConnectionManager?.GetType().GetMethod("AddDataConnection");
+                    addConnectionMethod?.Invoke(dataConnectionManager, new object[] { ConnectionProperties });
 
-                var saveMethod = dataConnectionManager?.GetType().GetMethod("SaveDataConnectionsValues")
-                    ?? dataConnectionManager?.GetType().GetMethod("SaveDataconnectionsValues");
-                saveMethod?.Invoke(dataConnectionManager, Array.Empty<object>());
+                    var saveMethod = dataConnectionManager?.GetType().GetMethod("SaveDataConnectionsValues")
+                        ?? dataConnectionManager?.GetType().GetMethod("SaveDataconnectionsValues");
+                    saveMethod?.Invoke(dataConnectionManager, Array.Empty<object>());
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[uc_DataConnectionBase.TryPersistConnection] Reflection-based save failed: {ex.GetType().Name} - {ex.Message}");
+                    error = $"Failed to persist connection '{ConnectionProperties.ConnectionName}': {ex.Message}";
+                    return false;
+                }
                 return true;
             }
             catch (Exception ex)
@@ -1784,7 +1813,10 @@ namespace TheTechIdea.Beep.Winform.Default.Views.DataSource_Connection_Controls
 
             if (InvokeRequired)
             {
-                BeginInvoke((System.Windows.Forms.MethodInvoker)ApplyCurrentThemeAndStyle);
+                if (IsHandleCreated)
+                {
+                    BeginInvoke((System.Windows.Forms.MethodInvoker)ApplyCurrentThemeAndStyle);
+                }
                 return;
             }
 

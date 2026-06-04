@@ -81,8 +81,9 @@ namespace TheTechIdea.Beep.Winform.Controls
                     var decrypted = ProtectedData.Unprotect(encrypted, null, DataProtectionScope.CurrentUser);
                     prop.SetValue(clone, Encoding.UTF8.GetString(decrypted));
                 }
-                catch
+                catch (Exception ex) when (ex is CryptographicException or FormatException or ArgumentException)
                 {
+                    System.Diagnostics.Debug.WriteLine($"[ConnectionSecretProtector.Decrypt] {ex.GetType().Name}: {ex.Message}");
                     // Keep encrypted value when decryption fails.
                 }
             }
@@ -117,8 +118,11 @@ namespace TheTechIdea.Beep.Winform.Controls
                 {
                     property.SetValue(clone, property.GetValue(source));
                 }
-                catch
+                catch (Exception ex) when (ex is ArgumentException or NotSupportedException or MethodAccessException
+                    or System.Reflection.TargetException or System.Reflection.TargetInvocationException
+                    or System.Reflection.TargetParameterCountException)
                 {
+                    System.Diagnostics.Debug.WriteLine($"[ConnectionSecretProtector.Clone] {property.Name}: {ex.GetType().Name} - {ex.Message}");
                     // Ignore unsupported copy properties.
                 }
             }

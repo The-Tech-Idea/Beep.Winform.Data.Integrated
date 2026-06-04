@@ -400,7 +400,7 @@ namespace TheTechIdea.Beep.Winform.Controls
         private void RaiseConnectionsChanged()
         {
             OnPropertyChanged(nameof(DataConnections));
-            RaiseConnectionsChanged();
+            ConnectionsChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private void EnsureDriverCatalogHydrated()

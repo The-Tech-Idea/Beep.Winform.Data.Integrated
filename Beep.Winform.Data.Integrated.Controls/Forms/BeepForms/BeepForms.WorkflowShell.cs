@@ -139,8 +139,19 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 return false;
             }
 
-            SyncFromManager();
-            await RefreshMasterDetailShellAsync(targetBlockName, $"savepoint rollback '{savepointName}'").ConfigureAwait(true);
+            try
+            {
+                SyncFromManager();
+                await RefreshMasterDetailShellAsync(targetBlockName, $"savepoint rollback '{savepointName}'").ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BeepForms.RollbackToSavepointAsync] Post-rollback refresh failed: {ex.GetType().Name} - {ex.Message}");
+                SetSavepointState($"Rollback succeeded but UI refresh failed for '{targetBlockName}'.", BeepFormsMessageSeverity.Warning);
+                SetWorkflowState($"Rollback succeeded but UI refresh failed for '{targetBlockName}': {ex.Message}", BeepFormsMessageSeverity.Error);
+                ApplyShellStateToUi();
+                return true;
+            }
             UpdateSavepointStateFromManager(targetBlockName, $"Rolled back to savepoint '{savepointName}'", BeepFormsMessageSeverity.Success);
             SetWorkflowState($"Savepoint rollback completed for '{targetBlockName}' -> '{savepointName}'. Hosted blocks were refreshed from manager state.", BeepFormsMessageSeverity.Success);
             ApplyShellStateToUi();
@@ -266,7 +277,14 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             if (wrapperMethod != null)
             {
-                return wrapperMethod.Invoke(_formsManager, new object?[] { blockName, savepointName }) as string;
+                try
+                {
+                    return wrapperMethod.Invoke(_formsManager, new object?[] { blockName, savepointName }) as string;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[BeepForms.TryCreateBlockSavepoint] Reflection invoke failed: {ex.GetType().Name} - {ex.Message}");
+                }
             }
 
             return _formsManager.Savepoints.CreateSavepoint(blockName, savepointName);
@@ -291,13 +309,27 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 return false;
             }
 
-            object? taskObject = wrapperMethod.Invoke(_formsManager, new object?[] { blockName, savepointName, cancellationToken });
-            if (taskObject is Task<bool> typedTask)
+            try
             {
-                return await typedTask.ConfigureAwait(true);
-            }
+                object? taskObject = wrapperMethod.Invoke(_formsManager, new object?[] { blockName, savepointName, cancellationToken });
+                if (taskObject is Task<bool> typedTask)
+                {
+                    return await typedTask.ConfigureAwait(true);
+                }
 
-            return false;
+                if (taskObject is Task untypedTask)
+                {
+                    await untypedTask.ConfigureAwait(true);
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BeepForms.TryRollbackToSavepointViaManagerAsync] Reflection invoke failed: {ex.GetType().Name} - {ex.Message}");
+                return false;
+            }
         }
 
         private void UpdateSavepointStateFromManager(string blockName, string leadText, BeepFormsMessageSeverity severity)

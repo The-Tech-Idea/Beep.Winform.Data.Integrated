@@ -202,6 +202,10 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             {
                 await ExecuteQueryAsync().ConfigureAwait(true);
             }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BeepBlock.ExecuteQueryButton] {ex.Message}");
+            }
             finally
             {
                 _isExecutingQuery = false;
@@ -265,7 +269,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             {
                 return _formsHost.IsFieldQueryAllowed(ManagerBlockName, field.FieldName);
             }
-            catch
+            catch (Exception)
             {
                 var fieldMetadata = blockInfo?.FieldMetadata?
                     .FirstOrDefault(item => string.Equals(item.FieldName, field.FieldName, StringComparison.OrdinalIgnoreCase));
@@ -1182,8 +1186,10 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
         private async void EditQueryListValues(Models.BeepFieldDefinition fieldDefinition, Type? fieldType, QueryListEditor editor)
         {
-            QueryListSelectionOptions? selectionOptions = await ResolveQueryListSelectionOptionsAsync(fieldDefinition, fieldType).ConfigureAwait(true);
-            List<string>? updatedValues = ShowQueryListEntryDialog(
+            try
+            {
+                QueryListSelectionOptions? selectionOptions = await ResolveQueryListSelectionOptionsAsync(fieldDefinition, fieldType).ConfigureAwait(true);
+                List<string>? updatedValues = ShowQueryListEntryDialog(
                 ResolveQueryFieldLabel(fieldDefinition),
                 fieldType,
                 editor.Entries,
@@ -1198,6 +1204,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             criterion.Value = updatedValues.Count > 0 ? updatedValues : null;
             criterion.HasValue = updatedValues.Count > 0;
             UpdateWorkflowSurface();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BeepBlock.QueryMode.EditQueryListValues] {ex.GetType().Name}: {ex.Message}");
+            }
         }
 
         private async Task<QueryListSelectionOptions?> ResolveQueryListSelectionOptionsAsync(Models.BeepFieldDefinition fieldDefinition, Type? fieldType)
@@ -1240,7 +1251,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                                 sourceCaption: "LOV Values");
                         }
                     }
-                    catch
+                    catch (Exception)
                     {
                     }
                 }

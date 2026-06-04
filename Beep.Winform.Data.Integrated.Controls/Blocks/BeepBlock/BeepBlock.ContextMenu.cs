@@ -47,7 +47,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             {
                 Clipboard.SetText(value ?? string.Empty);
             }
-            catch { }
+            catch (Exception) { }
         }
 
         private void PasteCurrentFieldValue()
@@ -65,7 +65,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 ApplyCurrentRecordToEditors();
                 MarkAsDirty();
             }
-            catch { }
+            catch (Exception) { }
         }
 
         private void ClearCurrentFieldValue()
@@ -88,7 +88,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             {
                 Clipboard.SetText(csv);
             }
-            catch { }
+            catch (Exception) { }
         }
 
         private string? GetFieldValue(string fieldName)
@@ -102,7 +102,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 var value = current.GetType().GetProperty(fieldName)?.GetValue(current);
                 return value?.ToString();
             }
-            catch
+            catch (Exception)
             {
                 return null;
             }
@@ -122,7 +122,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                     prop.SetValue(current, ConvertFieldValue(prop.PropertyType, value));
                 }
             }
-            catch { }
+            catch (Exception) { }
         }
 
         private void MarkAsDirty()
@@ -147,7 +147,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             {
                 return Convert.ChangeType(value, targetType);
             }
-            catch
+            catch (Exception)
             {
                 return value;
             }

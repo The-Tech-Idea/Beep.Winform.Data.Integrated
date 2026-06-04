@@ -112,7 +112,14 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
             e.Handled = true;
             e.SuppressKeyPress = true;
-            await OpenLovPickerAsync(comboBox, ResolveLovFieldDefinition(comboBox.DataSourceProperty), comboBox.Text).ConfigureAwait(true);
+            try
+            {
+                await OpenLovPickerAsync(comboBox, ResolveLovFieldDefinition(comboBox.DataSourceProperty), comboBox.Text).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BeepBlock.LovComboBox_KeyDown] {ex.GetType().Name}: {ex.Message}");
+            }
         }
 
         private async Task OpenLovPickerAsync(BeepComboBox comboBox, Models.BeepFieldDefinition? fieldDefinition, string? preloadSearch)
