@@ -25,7 +25,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
     [DisplayName("Beep Forms")]
     [Description("Non-visual BeepForms coordinator that hosts block views over a FormsManager instance.")]
     [Designer("TheTechIdea.Beep.Winform.Controls.Design.Server.Designers.BeepFormsHostDesigner, TheTechIdea.Beep.Winform.Controls.Design.Server")]
-    public partial class BeepForms : Control, IBeepFormsHost
+    public partial class BeepForms : Panel, IBeepFormsHost
     {
         private readonly List<IBeepBlockView> _blocks = new();
         private readonly BeepFormsViewState _viewState = new();
@@ -66,8 +66,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         /// Phase 5C — Optional <see cref="BeepDataConnection"/> used by <see cref="LogonAsync"/>
         /// to enumerate connection options in the WinForms logon dialog.
         /// </summary>
-        [Browsable(false)]
-        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        [Browsable(true)]
+        [Category("Data")]
+        [Description("Optional BeepDataConnection component used by LogonAsync to enumerate connection options.")]
+        [DefaultValue(null)]
+        [TypeConverter(typeof(TheTechIdea.Beep.Winform.Controls.Converters.BeepDataConnectionComponentConverter))]
         public BeepDataConnection? DataConnection
         {
             get => _dataConnection;
