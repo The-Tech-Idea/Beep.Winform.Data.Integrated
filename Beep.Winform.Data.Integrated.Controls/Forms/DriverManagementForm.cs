@@ -144,7 +144,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             _grid.DataSource = dt;
             _grid.ContextMenuStrip = BuildContextMenu();
-            _grid.MouseDown += Grid_MouseDown;
+            
 
             _layout.Controls.Remove(_layout.GetControlFromPosition(0, 1));
             _layout.Controls.Add(_grid, 0, 1);
@@ -162,24 +162,24 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return menu;
         }
 
-        private void Grid_MouseDown(object? sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Right)
-            {
-                var hit = _grid?.HitTest(e.X, e.Y);
-                if (hit?.RowIndex >= 0)
-                {
-                    _grid?.ClearSelection();
-                    _grid?.SelectRow(hit.RowIndex);
-                }
-            }
-        }
+        //private void Grid_MouseDown(object? sender, MouseEventArgs e)
+        //{
+        //    if (e.Button == MouseButtons.Right)
+        //    {
+        //        var hit = _grid?.HitTest(e.X, e.Y);
+        //        if (hit?.RowIndex >= 0)
+        //        {
+        //            _grid?.ClearSelection();
+        //            _grid?.SelectRow(hit.RowIndex);
+        //        }
+        //    }
+        //}
 
         private int GetSelectedRowIndex()
         {
             if (_grid?.SelectedRows == null || _grid.SelectedRows.Count == 0) return -1;
             var row = _grid.SelectedRows[0];
-            return Convert.ToInt32(((System.Data.DataRowView)row)["RowIndex"]);
+            return _grid.CurrentRowIndex;
         }
 
         private void EditSelected()
@@ -421,8 +421,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _layout.Controls.Add(new BeepLabel { Text = string.Empty, Dock = DockStyle.Fill }, 0, 6);
 
             Controls.Add(_layout);
-            AcceptButton = _btnOk;
-            CancelButton = _btnCancel;
+            //AcceptButton = _btnOk;
+            //CancelButton = _btnCancel;
         }
 
         private BeepTextBox CreateField(string label)
@@ -457,7 +457,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 NuggetVersion = _txtNuggetVersion.Text?.Trim() ?? string.Empty,
                 AutoLoad = _chkAutoLoad.CurrentValue,
                 NeedDrivers = true,
-                DatasourceType = Original?.DatasourceType ?? DataSourceType.None,
+                DatasourceType = Original?.DatasourceType ?? DataSourceType.NONE,
                 DatasourceCategory = Original?.DatasourceCategory ?? DatasourceCategory.RDBMS
             };
         }
@@ -571,7 +571,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 if (versions != null && versions.Count > 0)
                 {
                     foreach (var v in versions)
-                        _cmbVersion.ListItems?.Add(new Models.SimpleItem { Text = v, Value = v });
+                        _cmbVersion.ListItems?.Add(new SimpleItem { Text = v, Value = v });
 
                     var preSelect = !string.IsNullOrEmpty(_driver.NuggetVersion) && versions.Contains(_driver.NuggetVersion)
                         ? _driver.NuggetVersion : versions[0];

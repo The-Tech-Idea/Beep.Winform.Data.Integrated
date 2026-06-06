@@ -146,8 +146,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon
             _layout.Controls.Add(buttonPanel, 0, 5);
 
             Controls.Add(_layout);
-            AcceptButton = _btnLogin;
-            CancelButton = _btnCancel;
+            //AcceptButton = _btnLogin;
+            //CancelButton = _btnCancel;
         }
 
         private void Login()
