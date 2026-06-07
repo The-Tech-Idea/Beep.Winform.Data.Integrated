@@ -10,6 +10,7 @@ using TheTechIdea.Beep.Editor.UOWManager.Interfaces;
 using TheTechIdea.Beep.Editor.UOWManager.Models;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.Buttons;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Controls.Models;
 using TheTechIdea.Beep.Winform.Controls.ThemeManagement;
 
@@ -28,7 +29,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 throw new ArgumentNullException(nameof(editor));
             }
 
-            editor.Height = 30;
+            editor.Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this) - 5;
 
             if (editor is not BeepComboBox comboBox || !ShouldUseLovPicker(fieldDefinition))
             {
@@ -43,14 +44,14 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             TableLayoutPanel contentHost = new()
             {
                 Dock = DockStyle.Bottom,
-                Height = 30,
+                Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this) - 5,
                 ColumnCount = 2,
                 RowCount = 1,
                 Margin = new Padding(0),
                 Padding = new Padding(0)
             };
             contentHost.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            contentHost.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 44f));
+            contentHost.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BeepLayoutMetrics.ButtonSmall.ScaleSize(this).Width - 36));
 
             contentHost.Controls.Add(comboBox, 0, 0);
             contentHost.Controls.Add(CreateLovPickerButton(comboBox, fieldDefinition), 1, 0);
@@ -86,7 +87,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 IsChild = true,
                 ShowShadow = false,
                 HideText = false,
-                Margin = new Padding(8, 0, 0, 0),
+                Margin = new Padding(BeepLayoutMetrics.ButtonGap.ScaleValue(this), 0, 0, 0),
                 ToolTipText = $"Show list of values for {fieldLabel} (F9)",
                 Enabled = comboBox.Enabled
             };

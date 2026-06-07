@@ -9,6 +9,7 @@ using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.Base;
 using TheTechIdea.Beep.Winform.Controls.ListBoxs;
 using TheTechIdea.Beep.Winform.Controls.Models;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers
 {
@@ -26,9 +27,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers
             using var inputBox = new BeepTextBox
             {
                 Dock = DockStyle.Top,
-                Height = 30,
+                Height = BeepLayoutMetrics.TextRowHeight.ScaleValue((Control)owner),
                 Text = initialValue ?? string.Empty,
-                Margin = new Padding(0, 0, 0, 8)
+                Margin = new Padding(0, 0, 0, BeepLayoutMetrics.ButtonGap)
             };
 
             using var contentHost = new Panel
@@ -46,7 +47,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers
                 primaryText: "OK",
                 secondaryText: "Cancel",
                 tertiaryText: null,
-                clientSize: new Size(520, 208),
+                clientSize: BeepLayoutMetrics.DialogSmall.ScaleSize((Control)owner),
                 onShown: () => inputBox.Focus(),
                 configureSurface: surface =>
                 {
@@ -103,9 +104,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers
                 primaryText,
                 "Cancel",
                 tertiaryText: null,
-                clientSize: new Size(560, 360),
-                configureSurface: surface =>
-                {
+                clientSize: BeepLayoutMetrics.DialogMedium.ScaleSize((Control)owner),
+                configureSurface: surface =>                {
                     surface.SetTone(BeepFormsDialogTone.Info, "SELECT");
                     surface.DetailsText = "Pick a single item to continue with the current workflow action.";
                     surface.PrimaryButtonEnabled = false;
@@ -149,7 +149,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers
                 primaryText: NormalizeButtonText(button1Text, "OK"),
                 secondaryText: string.IsNullOrWhiteSpace(button2Text) ? null : button2Text,
                 tertiaryText: string.IsNullOrWhiteSpace(button3Text) ? null : button3Text,
-                clientSize: new Size(520, 228),
+                clientSize: BeepLayoutMetrics.DialogSmall.ScaleSize((Control)owner),
                 configureSurface: surface =>
                 {
                     surface.SetSeverity(style);
@@ -230,7 +230,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers
                     primaryText: NormalizeButtonText(primaryText, "Close"),
                     secondaryText: null,
                     tertiaryText: null,
-                    clientSize: new Size(560, 360),
+                    clientSize: BeepLayoutMetrics.DialogMedium.ScaleSize((Control)owner),
                     configureSurface: surface =>
                     {
                         surface.SetTone(BeepFormsDialogTone.Info, "LIST");
@@ -385,7 +385,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers
         public BeepFormsDialogSurface()
         {
             Dock = DockStyle.Fill;
-            Padding = new Padding(12);
+            Padding = BeepLayoutMetrics.DialogPadding;
             ShowTitle = false;
             ShowTitleLine = true;
             UseThemeColors = true;
@@ -393,7 +393,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers
             _headerHost = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 44,
+                Height = BeepLayoutMetrics.TextRowHeight + 9,
                 Margin = new Padding(0),
                 Padding = new Padding(0)
             };
@@ -410,9 +410,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers
             _toneLabel = new BeepLabel
             {
                 Dock = DockStyle.Right,
-                Width = 110,
+                Width = BeepLayoutMetrics.ButtonSmall.Width + 30,
                 TextAlign = ContentAlignment.MiddleCenter,
-                Padding = new Padding(6, 0, 6, 0),
+                Padding = BeepLayoutMetrics.ContainerPadding,
                 UseThemeColors = false,
                 Visible = false
             };
@@ -420,7 +420,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers
             _detailsLabel = new BeepLabel
             {
                 Dock = DockStyle.Top,
-                Height = 24,
+                Height = BeepLayoutMetrics.TextRowHeight - 11,
                 Multiline = true,
                 WordWrap = true,
                 TextAlign = ContentAlignment.MiddleLeft,
@@ -431,16 +431,16 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers
             _contentHost = new Panel
             {
                 Dock = DockStyle.Fill,
-                Padding = new Padding(0, 8, 0, 8)
+                Padding = new Padding(0, BeepLayoutMetrics.ButtonGap, 0, BeepLayoutMetrics.ButtonGap)
             };
 
             _buttonPanel = new FlowLayoutPanel
             {
                 Dock = DockStyle.Bottom,
-                Height = 42,
+                Height = BeepLayoutMetrics.ButtonToolbar.Height + 10,
                 FlowDirection = FlowDirection.RightToLeft,
                 WrapContents = false,
-                Padding = new Padding(0, 6, 0, 0)
+                Padding = new Padding(0, BeepLayoutMetrics.SmallGap + 2, 0, 0)
             };
 
             _primaryButton = CreateButton();

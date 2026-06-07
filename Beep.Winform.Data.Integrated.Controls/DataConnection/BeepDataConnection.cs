@@ -13,13 +13,6 @@ using TheTechIdea.Beep.Winform.Controls.Converters;
 
 namespace TheTechIdea.Beep.Winform.Controls
 {
-    public enum ConnectionStorageScope
-    {
-        Project,
-        User,
-        Machine
-    }
-
     [Designer("TheTechIdea.Beep.Winform.Controls.Design.Server.Designers.BeepDataConnectionDesigner, TheTechIdea.Beep.Winform.Controls.Design.Server")]
     public class BeepDataConnection : Component, INotifyPropertyChanged
     {

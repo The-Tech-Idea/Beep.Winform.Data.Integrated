@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.GridX;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Models;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 {
@@ -18,7 +19,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
         private BeepButton? _clearQueryButton;
         private BeepButton? _executeQueryButton;
         private BeepPanel? _validationSummaryPanel;
-        private Panel? _validationSummaryHeaderPanel;
+        private BeepPanel? _validationSummaryHeaderPanel;
         private BeepLabel? _validationSummaryHeadlineLabel;
         private BeepLabel? _validationSummarySeverityLabel;
         private BeepLabel? _validationSummaryDetailsLabel;
@@ -42,8 +43,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             _headerPanel = new BeepPanel
             {
                 Dock = DockStyle.Top,
-                Height = 34,
-                Padding = new Padding(8, 6, 8, 4),
+                Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this) + 10,
+                Padding = BeepLayoutMetrics.HeaderPadding.ScalePadding(this),
                 ShowTitle = false,
                 ShowTitleLine = false,
                 UseThemeColors = true
@@ -72,8 +73,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             _workflowPanel = new BeepPanel
             {
                 Dock = DockStyle.Top,
-                Height = 56,
-                Padding = new Padding(8, 4, 8, 4),
+                Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this) + 28,
+                Padding = BeepLayoutMetrics.HeaderPadding.ScalePadding(this),
                 ShowTitle = false,
                 ShowTitleLine = false,
                 UseThemeColors = true,
@@ -92,22 +93,24 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             _executeQueryButton = new BeepButton
             {
                 Dock = DockStyle.Right,
-                Width = 112,
+                Width = BeepLayoutMetrics.ButtonStandard.ScaleSize(this).Width,
                 Text = "Execute",
+                ToolTipText = "Execute the current query (Ctrl+Enter)",
                 Theme = Theme,
                 ShowShadow = false,
-                Margin = new Padding(8, 0, 0, 0)
+                Margin = new Padding(BeepLayoutMetrics.ButtonGap, 0, 0, 0).ScalePadding(this)
             };
             _executeQueryButton.Click += ExecuteQueryButton_Click;
 
             _clearQueryButton = new BeepButton
             {
                 Dock = DockStyle.Right,
-                Width = 96,
+                Width = BeepLayoutMetrics.ButtonSmall.ScaleSize(this).Width,
                 Text = "Clear",
+                ToolTipText = "Clear query criteria",
                 Theme = Theme,
                 ShowShadow = false,
-                Margin = new Padding(8, 0, 0, 0)
+                Margin = new Padding(BeepLayoutMetrics.ButtonGap, 0, 0, 0).ScalePadding(this)
             };
             _clearQueryButton.Click += ClearQueryButton_Click;
 
@@ -118,20 +121,23 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             _validationSummaryPanel = new BeepPanel
             {
                 Dock = DockStyle.Top,
-                Height = 108,
-                Padding = new Padding(8, 4, 8, 6),
+                Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this) * 4,
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this),
                 ShowTitle = false,
                 ShowTitleLine = false,
                 UseThemeColors = true,
                 Visible = false
             };
 
-            _validationSummaryHeaderPanel = new Panel
+            _validationSummaryHeaderPanel = new BeepPanel
             {
                 Dock = DockStyle.Top,
-                Height = 24,
+                Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this),
                 Margin = new Padding(0),
-                Padding = new Padding(0)
+                Padding = new Padding(0),
+                ShowTitle = false,
+                ShowTitleLine = false,
+                UseThemeColors = true
             };
 
             _validationSummaryHeadlineLabel = new BeepLabel
@@ -144,9 +150,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             _validationSummarySeverityLabel = new BeepLabel
             {
                 Dock = DockStyle.Right,
-                Width = 104,
+                    Width = BeepLayoutMetrics.ButtonSmall.ScaleSize(this).Width,
                 TextAlign = ContentAlignment.MiddleCenter,
-                Padding = new Padding(6, 0, 6, 0),
+                    Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this),
                 UseThemeColors = false,
                 Visible = false
             };
@@ -163,7 +169,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             _validationSummaryHintLabel = new BeepLabel
             {
                 Dock = DockStyle.Bottom,
-                Height = 20,
+                    Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this) - 4,
                 TextAlign = ContentAlignment.MiddleLeft,
                 UseThemeColors = true,
                 Visible = false
@@ -179,7 +185,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             _navigationBar = new BeepBlockNavigationBar
             {
                 Dock = DockStyle.Bottom,
-                Height = 38,
+                Height = BeepLayoutMetrics.ButtonToolbar.ScaleSize(this).Height + 6,
                 Block = this,
                 Theme = Theme
             };
@@ -190,13 +196,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
                 AutoScroll = true,
-                Padding = new Padding(8)
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this)
             };
 
             _gridHostPanel = new BeepPanel
             {
                 Dock = DockStyle.Fill,
-                Padding = new Padding(8),
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this),
                 Visible = false,
                 ShowTitle = false,
                 ShowTitleLine = false,
@@ -217,8 +223,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 TextAlign = ContentAlignment.MiddleCenter,
                 Text = "Loading...",
                 UseThemeColors = true,
-                Visible = false,
-                Font = new System.Drawing.Font(System.Drawing.FontFamily.GenericSansSerif, 12f, System.Drawing.FontStyle.Italic)
+                Visible = false
             };
 
             Controls.Add(_gridHostPanel);

@@ -13,6 +13,7 @@ using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.CheckBoxes;
 using TheTechIdea.Beep.Winform.Controls.ComboBoxes;
 using TheTechIdea.Beep.Winform.Controls.GridX;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
@@ -42,7 +43,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             Text = "Driver Management";
             StartPosition = FormStartPosition.CenterParent;
-            Size = new Size(1000, 600);
+            Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this);
 
             _layout = new TableLayoutPanel
             {
@@ -89,14 +90,15 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private BeepButton CreateToolbarButton(string text, string icon)
         {
-            return new BeepButton
+            var btn = new BeepButton
             {
                 Text = $"{icon} {text}",
-                Width = 130,
-                Height = 32,
+                Width = BeepLayoutMetrics.ButtonToolbar.ScaleSize(this).Width,
+                Height = BeepLayoutMetrics.ButtonToolbar.ScaleSize(this).Height,
                 UseThemeColors = true,
                 Margin = new Padding(0, 0, 8, 0)
             };
+            return btn;
         }
 
         private void LoadDrivers()
@@ -369,7 +371,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition = FormStartPosition.CenterParent;
-            Size = new Size(420, 380);
+            Size = BeepLayoutMetrics.DialogMedium.ScaleSize(this);
             MaximizeBox = false;
             MinimizeBox = false;
 
@@ -378,7 +380,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
                 RowCount = 8,
-                Padding = new Padding(16)
+                Padding = BeepLayoutMetrics.HeaderPadding.ScalePadding(this)
             };
             for (int i = 0; i < 7; i++) _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
             _layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -392,7 +394,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             {
                 Text = "Auto-load on startup",
                 Dock = DockStyle.Fill,
-                Height = 36,
+                Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this),
                 CurrentValue = true
             };
 
@@ -400,13 +402,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             {
                 Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.RightToLeft,
-                Padding = new Padding(0, 8, 0, 0)
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this)
             };
 
-            _btnOk = new BeepButton { Text = "Save", Width = 100, Height = 32 };
+            _btnOk = new BeepButton { Text = "Save", Width = BeepLayoutMetrics.ButtonStandard.ScaleSize(this).Width, Height = BeepLayoutMetrics.ButtonStandard.ScaleSize(this).Height };
             _btnOk.Click += (_, _) => { Commit(); DialogResult = DialogResult.OK; Close(); };
 
-            _btnCancel = new BeepButton { Text = "Cancel", Width = 100, Height = 32 };
+            _btnCancel = new BeepButton { Text = "Cancel", Width = BeepLayoutMetrics.ButtonStandard.ScaleSize(this).Width, Height = BeepLayoutMetrics.ButtonStandard.ScaleSize(this).Height };
             _btnCancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
 
             btnPanel.Controls.Add(_btnOk);
@@ -441,7 +443,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             panel.Controls.Add(lbl, 0, 0);
             panel.Controls.Add(txt, 0, 1);
 
-            var wrapper = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 0, 0, 4) };
+            var wrapper = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 0, 0, BeepLayoutMetrics.SmallGap.ScaleValue(this)) };
             wrapper.Controls.Add(panel);
             _layout?.Controls.Add(wrapper);
             return txt;
@@ -490,7 +492,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             Text = $"Download: {_driver.PackageName}";
             StartPosition = FormStartPosition.CenterParent;
-            Size = new Size(420, 280);
+            Size = BeepLayoutMetrics.DialogMedium.ScaleSize(this);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -543,10 +545,10 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 FlowDirection = FlowDirection.RightToLeft
             };
 
-            _btnDownload = new BeepButton { Text = "⬇ Download", Width = 110, Height = 32, Enabled = false };
+            _btnDownload = new BeepButton { Text = "⬇ Download", Width = BeepLayoutMetrics.ButtonStandard.ScaleSize(this).Width, Height = BeepLayoutMetrics.ButtonStandard.ScaleSize(this).Height, Enabled = false };
             _btnDownload.Click += (_, _) => _ = DownloadAsync();
 
-            _btnClose = new BeepButton { Text = "Close", Width = 90, Height = 32 };
+            _btnClose = new BeepButton { Text = "Close", Width = BeepLayoutMetrics.ButtonSmall.ScaleSize(this).Width, Height = BeepLayoutMetrics.ButtonSmall.ScaleSize(this).Width };
             _btnClose.Click += (_, _) => Close();
 
             btnPanel.Controls.Add(_btnDownload);

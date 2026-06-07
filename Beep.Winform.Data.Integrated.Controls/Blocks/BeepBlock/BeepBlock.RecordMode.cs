@@ -2,6 +2,7 @@ using System.Linq;
 using System.Windows.Forms;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Models;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 {
@@ -41,8 +42,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 {
                     _recordHostPanel.Controls.Add(new BeepLabel
                     {
-                        Width = System.Math.Max(200, _recordHostPanel.ClientSize.Width - 24),
-                        Height = 36,
+                        Width = System.Math.Max(200, _recordHostPanel.ClientSize.Width - BeepLayoutMetrics.TextRowHeight.ScaleValue(this)),
+                        Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this),
                         Text = "FormsManager has not exposed any queryable items for this block.",
                         UseThemeColors = true,
                         Multiline = true,
@@ -55,9 +56,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 {
                     BeepPanel rowPanel = new()
                     {
-                        Width = System.Math.Max(200, _recordHostPanel.ClientSize.Width - 24),
-                        Height = ViewState.IsQueryMode ? 64 : 56,
-                        Margin = new Padding(0, 0, 0, 8),
+                        Width = System.Math.Max(200, _recordHostPanel.ClientSize.Width - BeepLayoutMetrics.TextRowHeight.ScaleValue(this)),
+                        Height = ViewState.IsQueryMode ? BeepLayoutMetrics.TextRowHeight.ScaleValue(this) * 2 : BeepLayoutMetrics.TextRowHeight.ScaleValue(this) + 20,
+                        Margin = new Padding(0, 0, 0, BeepLayoutMetrics.ButtonGap.ScaleValue(this)),
                         ShowTitle = false,
                         ShowTitleLine = false,
                         UseThemeColors = true
@@ -73,9 +74,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                     var stateLabel = new BeepLabel
                     {
                         Dock = DockStyle.Right,
-                        Width = 92,
+                        Width = BeepLayoutMetrics.ButtonSmall.ScaleSize(this).Width,
                         TextAlign = ContentAlignment.MiddleCenter,
-                        Padding = new Padding(6, 0, 6, 0),
+                        Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this),
                         UseThemeColors = false,
                         Visible = false
                     };
@@ -83,7 +84,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                     var headerHost = new Panel
                     {
                         Dock = DockStyle.Top,
-                        Height = 20,
+                        Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this) - 4,
                         Margin = new Padding(0),
                         Padding = new Padding(0)
                     };
@@ -96,7 +97,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                         var queryOperatorEditor = CreateQueryOperatorEditor(field);
                         var queryEditorGroup = CreateQueryEditorGroup(field);
                         editor = queryEditorGroup.PrimaryEditor;
-                        editor.Height = 30;
+                        editor.Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this) - 5;
 
                         var contentHost = new TableLayoutPanel
                         {
@@ -106,9 +107,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                             Margin = new Padding(0),
                             Padding = new Padding(0)
                         };
-                        contentHost.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 128f));
+                        contentHost.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BeepLayoutMetrics.ButtonSmall.ScaleSize(this).Width + 48));
                         contentHost.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-                        contentHost.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 74f));
+                        contentHost.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BeepLayoutMetrics.ButtonSmall.ScaleSize(this).Width - 6));
 
                         var clearFieldButton = new BeepButton
                         {
@@ -116,11 +117,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                             Text = "Reset",
                             Theme = Theme,
                             ShowShadow = false,
-                            Margin = new Padding(8, 0, 0, 0)
+                            Margin = new Padding(BeepLayoutMetrics.ButtonGap.ScaleValue(this), 0, 0, 0)
                         };
                         clearFieldButton.Click += (_, _) => ClearQueryCriterion(field.FieldName);
 
-                        queryOperatorEditor.Margin = new Padding(0, 0, 8, 0);
+                        queryOperatorEditor.Margin = new Padding(0, 0, BeepLayoutMetrics.ButtonGap.ScaleValue(this), 0);
                         queryEditorGroup.Host.Margin = new Padding(0);
 
                         contentHost.Controls.Add(queryOperatorEditor, 0, 0);

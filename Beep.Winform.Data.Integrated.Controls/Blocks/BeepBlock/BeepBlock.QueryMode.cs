@@ -11,6 +11,7 @@ using TheTechIdea.Beep.Editor.UOWManager.Models;
 using TheTechIdea.Beep.Report;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Controls.ListBoxs;
 using TheTechIdea.Beep.Winform.Controls.Models;
 using TheTechIdea.Beep.Winform.Controls.Numerics;
@@ -70,7 +71,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 Margin = new Padding(0);
                 Padding = new Padding(0);
                 ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-                ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86f));
+                ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BeepLayoutMetrics.ButtonSmall.ScaleSize(this).Width + 6));
 
                 _summaryLabel = new BeepLabel
                 {
@@ -87,7 +88,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                     Text = "Edit...",
                     ShowShadow = false,
                     UseThemeColors = true,
-                    Margin = new Padding(8, 0, 0, 0)
+                    Margin = new Padding(BeepLayoutMetrics.ButtonGap.ScaleValue(this), 0, 0, 0)
                 };
                 _editButton.Click += (_, _) => EditRequested?.Invoke(this, EventArgs.Empty);
 
@@ -1290,12 +1291,12 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             BeepLabel descriptionLabel = new()
             {
                 Dock = DockStyle.Top,
-                Height = 46,
+                Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this) + 10,
                 Multiline = true,
                 WordWrap = true,
                 Text = BuildQueryListDialogDescription(fieldLabel, fieldType, selectionOptions, allowManualEntry),
                 UseThemeColors = true,
-                Margin = new Padding(12, 12, 12, 8)
+                Margin = BeepLayoutMetrics.DialogPadding.ScalePadding(this)
             };
 
             TableLayoutPanel contentLayout = new()
@@ -1304,7 +1305,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 ColumnCount = 1,
                 RowCount = 1,
                 Margin = new Padding(0),
-                Padding = new Padding(12, 0, 12, 8)
+                Padding = BeepLayoutMetrics.DialogPadding.ScalePadding(this)
             };
             contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
@@ -1327,7 +1328,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                     MultiSelect = true,
                     SelectionMode = SelectionModeEnum.MultiSimple,
                     ListBoxType = ListBoxType.MultiSelectionTeal,
-                    Margin = new Padding(0, 0, 0, 8)
+                    Margin = new Padding(0, 0, 0, BeepLayoutMetrics.ButtonGap.ScaleValue(this))
                 };
 
                 AddContentRow(new BeepLabel
@@ -1367,13 +1368,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 Dock = DockStyle.Top,
                 ColumnCount = 3,
                 RowCount = 1,
-                Height = 36,
-                Margin = new Padding(0, 0, 0, 8),
+                Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this),
+                Margin = new Padding(0, 0, 0, BeepLayoutMetrics.ButtonGap.ScaleValue(this)),
                 Padding = new Padding(0)
             };
             entryPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            entryPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88f));
-            entryPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88f));
+            entryPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BeepLayoutMetrics.ButtonStandard.ScaleSize(this).Width - 12));
+            entryPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BeepLayoutMetrics.ButtonStandard.ScaleSize(this).Width - 12));
 
             BeepTextBox inputBox = new()
             {
@@ -1424,21 +1425,21 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             FlowLayoutPanel buttonsPanel = new()
             {
                 Dock = DockStyle.Bottom,
-                Height = 42,
+                Height = BeepLayoutMetrics.ButtonToolbar.ScaleSize(this).Height + 10,
                 FlowDirection = FlowDirection.RightToLeft,
-                Padding = new Padding(12, 6, 12, 6)
+                Padding = BeepLayoutMetrics.DialogPadding.ScalePadding(this)
             };
 
             BeepButton okButton = new()
             {
-                Width = 96,
+                Width = BeepLayoutMetrics.ButtonStandard.ScaleSize(this).Width,
                 Text = "OK",
                 Theme = Theme,
                 ShowShadow = false
             };
             BeepButton cancelButton = new()
             {
-                Width = 96,
+                Width = BeepLayoutMetrics.ButtonStandard.ScaleSize(this).Width,
                 Text = "Cancel",
                 Theme = Theme,
                 ShowShadow = false

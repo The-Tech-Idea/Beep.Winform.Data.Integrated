@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 
 using TheTechIdea.Beep.Winform.Controls;
-
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon
 {
     public class BeepLogonDialog : Form, IBeepLogonDialog
@@ -258,15 +258,15 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon
             MinimizeBox = false;
             MaximizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(440, 360);
-            Font = new Font("Segoe UI", 9F);
+            ClientSize = BeepLayoutMetrics.DialogMedium.ScaleSize(this);
+            Font = new Font("Segoe UI", BeepLayoutMetrics.BodyFontSize);
 
             _layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
                 RowCount = 4,
-                Padding = new Padding(12)
+                Padding = BeepLayoutMetrics.DialogPadding.ScalePadding(this)
             };
             _layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
             _layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -280,7 +280,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon
                 Text = "Connection:",
                 AutoSize = true,
                 Anchor = AnchorStyles.Left,
-                Margin = new Padding(0, 8, 0, 0)
+                Margin = new Padding(0, BeepLayoutMetrics.ButtonGap.ScaleValue(this), 0, 0)
             };
             _connectionCombo = new ComboBox
             {
@@ -309,15 +309,15 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon
                 Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.RightToLeft,
                 AutoSize = true,
-                Margin = new Padding(0, 8, 0, 0)
+                Margin = new Padding(0, BeepLayoutMetrics.ButtonGap.ScaleValue(this), 0, 0)
             };
 
-            _okButton = new Button { Text = "OK", Width = 80, Margin = new Padding(4, 0, 0, 0) };
+            _okButton = new Button { Text = "OK", Width = BeepLayoutMetrics.ButtonSmall.ScaleSize(this).Width, Margin = new Padding(BeepLayoutMetrics.SmallGap.ScaleValue(this), 0, 0, 0) };
             _okButton.Click += OkButton_Click;
 
-            _cancelButton = new Button { Text = "Cancel", Width = 80, Margin = new Padding(4, 0, 0, 0), DialogResult = DialogResult.Cancel };
+            _cancelButton = new Button { Text = "Cancel", Width = BeepLayoutMetrics.ButtonSmall.ScaleSize(this).Width, Margin = new Padding(BeepLayoutMetrics.SmallGap.ScaleValue(this), 0, 0, 0), DialogResult = DialogResult.Cancel };
 
-            _testButton = new Button { Text = "Test", Width = 80, Margin = new Padding(4, 0, 4, 0) };
+            _testButton = new Button { Text = "Test", Width = BeepLayoutMetrics.ButtonSmall.ScaleSize(this).Width, Margin = new Padding(BeepLayoutMetrics.SmallGap.ScaleValue(this), 0, BeepLayoutMetrics.SmallGap.ScaleValue(this), 0) };
             _testButton.Click += TestButton_Click;
 
             buttonRow.Controls.Add(_okButton);

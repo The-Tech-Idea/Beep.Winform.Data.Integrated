@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using TheTechIdea.Beep.Winform.Controls;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon
 {
@@ -47,14 +48,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
-            Size = new Size(400, 300);
-
+            Size = BeepLayoutMetrics.DialogSmall.ScaleSize(this);
             _layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
                 RowCount = 7,
-                Padding = new Padding(24)
+                Padding = BeepLayoutMetrics.DialogPadding.ScalePadding(this)
             };
             _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
             _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
@@ -95,7 +95,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon
             {
                 Dock = DockStyle.Fill,
                 PlaceholderText = "Username",
-                Height = 36,
+                Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this),
                 UseThemeColors = true
             };
             _txtUsername.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) Login(); };
@@ -105,7 +105,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon
                 Dock = DockStyle.Fill,
                 PlaceholderText = "Password",
                 UseSystemPasswordChar = true,
-                Height = 36,
+                Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this),
                 UseThemeColors = true
             };
             _txtPassword.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) Login(); };
@@ -114,14 +114,14 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon
             {
                 Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.RightToLeft,
-                Padding = new Padding(0, 8, 0, 0)
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this)
             };
 
             _btnLogin = new BeepButton
             {
                 Text = "Login",
-                Width = 120,
-                Height = 36,
+                Width = BeepLayoutMetrics.ButtonLarge.ScaleSize(this).Width,
+                Height = BeepLayoutMetrics.ButtonLarge.ScaleSize(this).Height,
                 UseThemeColors = true
             };
             _btnLogin.Click += (_, _) => Login();
@@ -129,8 +129,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon
             _btnCancel = new BeepButton
             {
                 Text = "Cancel",
-                Width = 100,
-                Height = 36,
+                Width = BeepLayoutMetrics.ButtonStandard.ScaleSize(this).Width,
+                Height = BeepLayoutMetrics.ButtonStandard.ScaleSize(this).Height,
                 UseThemeColors = true
             };
             _btnCancel.Click += (_, _) => Cancel();

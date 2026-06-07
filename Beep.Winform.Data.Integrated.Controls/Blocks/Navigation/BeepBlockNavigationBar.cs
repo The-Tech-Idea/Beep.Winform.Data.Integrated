@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.Base;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 {
@@ -26,15 +27,15 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             ShowAllBorders = false;
             ShowShadow = false;
             IsRounded = false;
-            Height = 38;
+            Height = BeepLayoutMetrics.ButtonToolbar.ScaleSize(this).Height + 6;
             Padding = new Padding(0);
+            UseThemeColors = true;
 
             _layoutRoot = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
                 RowCount = 1,
-                BackColor = SystemColors.Control,
                 Margin = new Padding(0),
                 Padding = new Padding(0)
             };
@@ -48,8 +49,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 WrapContents = false,
                 FlowDirection = FlowDirection.LeftToRight,
                 Margin = new Padding(0),
-                Padding = new Padding(6, 4, 6, 4),
-                BackColor = SystemColors.Control
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this)
             };
 
             _positionLabel = new BeepLabel
@@ -103,12 +103,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
         public override void ApplyTheme()
         {
             base.ApplyTheme();
-
             Color chromeBackColor = BackColor.A == 0 ? ParentBackColor : BackColor;
-            if (chromeBackColor.A == 0)
-            {
-                chromeBackColor = SystemColors.Control;
-            }
+            if (chromeBackColor.A == 0) chromeBackColor = BackColor;
 
             _layoutRoot.BackColor = chromeBackColor;
             _commandsPanel.BackColor = chromeBackColor;

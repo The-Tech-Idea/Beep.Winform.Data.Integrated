@@ -7,6 +7,7 @@ using TheTechIdea.Beep.Winform.Controls.Base;
 using TheTechIdea.Beep.Winform.Controls.FontManagement;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
@@ -35,15 +36,15 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             UseThemeColors = true;
             Padding = new Padding(0);
             Margin = new Padding(0);
-            MinimumSize = new Size(0, 54);
-            Height = 54;
+            MinimumSize = new Size(0, BeepLayoutMetrics.ButtonToolbar.ScaleSize(this).Height + 8);
+            Height = BeepLayoutMetrics.ButtonToolbar.ScaleSize(this).Height + 8;
 
             _layoutRoot = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
                 RowCount = 2,
-                Padding = new Padding(8, 4, 8, 4),
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this),
                 Margin = new Padding(0)
             };
             _layoutRoot.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));

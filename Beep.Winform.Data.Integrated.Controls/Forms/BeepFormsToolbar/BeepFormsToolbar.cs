@@ -8,6 +8,7 @@ using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.Base;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Controls.ListBoxs;
 using TheTechIdea.Beep.Winform.Controls.Models;
 
@@ -42,15 +43,15 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             UseThemeColors = true;
             Padding = new Padding(0);
             Margin = new Padding(0);
-            MinimumSize = new Size(0, 36);
-            Height = 36;
+            MinimumSize = new Size(0, BeepLayoutMetrics.ButtonToolbar.ScaleSize(this).Height + 4);
+            Height = BeepLayoutMetrics.ButtonToolbar.ScaleSize(this).Height + 4;
 
             _commandPanel = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 WrapContents = false,
                 AutoScroll = true,
-                Padding = new Padding(8, 4, 8, 4),
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this),
                 Margin = new Padding(0)
             };
 
@@ -469,8 +470,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return new BeepButton
             {
                 Width = width,
-                Height = 28,
-                Margin = new Padding(0, 0, 8, 0),
+                Height = BeepLayoutMetrics.ButtonToolbar.ScaleSize(this).Height,
+                Margin = new Padding(BeepLayoutMetrics.ButtonGap, 0, 0, 0).ScalePadding(this),
                 Text = text,
                 Theme = Theme,
                 ShowShadow = false,

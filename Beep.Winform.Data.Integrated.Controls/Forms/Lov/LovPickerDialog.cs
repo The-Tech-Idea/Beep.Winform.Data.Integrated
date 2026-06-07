@@ -9,7 +9,7 @@ using System.Windows.Forms;
 
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Editor.UOWManager.Models;
-
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Lov
 {
     /// <summary>
@@ -63,9 +63,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Lov
             var topRow = new TableLayoutPanel
             {
                 Dock = DockStyle.Top,
-                Height = 36,
+                Height = BeepLayoutMetrics.TextRowHeight.ScaleValue(this),
                 ColumnCount = 2,
-                Padding = new Padding(8, 8, 8, 0)
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this)
             };
             topRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             topRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -111,17 +111,17 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Lov
             var bottomRow = new FlowLayoutPanel
             {
                 Dock = DockStyle.Bottom,
-                Height = 40,
+                Height = BeepLayoutMetrics.ButtonToolbar.ScaleSize(this).Height + 8,
                 FlowDirection = FlowDirection.RightToLeft,
-                Padding = new Padding(8, 6, 8, 6)
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this)
             };
-            _okButton = new Button { Text = "OK", Width = 80, Margin = new Padding(4, 4, 0, 4) };
+            _okButton = new Button { Text = "OK", Width = BeepLayoutMetrics.ButtonSmall.ScaleSize(this).Width, Margin = new Padding(BeepLayoutMetrics.SmallGap.ScaleValue(this), BeepLayoutMetrics.SmallGap.ScaleValue(this), 0, BeepLayoutMetrics.SmallGap.ScaleValue(this)) };
             _okButton.Click += (_, __) => AcceptSelection();
             _cancelButton = new Button
             {
                 Text = "Cancel",
-                Width = 80,
-                Margin = new Padding(4, 4, 0, 4),
+                Width = BeepLayoutMetrics.ButtonSmall.ScaleSize(this).Width,
+                Margin = new Padding(BeepLayoutMetrics.SmallGap.ScaleValue(this), BeepLayoutMetrics.SmallGap.ScaleValue(this), 0, BeepLayoutMetrics.SmallGap.ScaleValue(this)),
                 DialogResult = DialogResult.Cancel
             };
 
