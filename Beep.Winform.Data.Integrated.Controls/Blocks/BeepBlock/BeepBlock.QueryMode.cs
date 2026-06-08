@@ -1963,7 +1963,70 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 return false;
             }
 
+            // Honor the Oracle Forms QUERY_ALLOWED property at the block level.
+            // A definition-declared false wins over the manager's flag so the
+            // developer can disable Enter-Query from the property grid without
+            // having to re-configure the form.
+            bool? definitionAllowed = EffectiveDefinition?.QueryAllowed;
+            if (definitionAllowed.HasValue && !definitionAllowed.Value)
+            {
+                return false;
+            }
+
             return _formsHost.GetBlockInfo(ManagerBlockName)?.QueryAllowed ?? false;
+        }
+
+        /// <summary>
+        /// Returns whether the block currently allows Enter-Query. Composes
+        /// the definition's <see cref="BeepBlockDefinition.QueryAllowed"/>
+        /// property with the manager-level check. Exposed publicly so
+        /// custom toolbar code can read the same gate the navigation bar uses.
+        /// </summary>
+        public bool IsQueryAllowed()
+        {
+            return IsManagerQueryAllowed();
+        }
+
+        /// <summary>
+        /// Centralised gate for the <c>INSERT_ALLOWED</c> property. Returns
+        /// <c>false</c> when the block has explicitly disabled inserts through
+        /// its definition. Falls back to <c>true</c> when the block is
+        /// unbound so unit tests do not have to mock the host.
+        /// </summary>
+        public bool IsInsertAllowed()
+        {
+            bool? allowed = EffectiveDefinition?.InsertAllowed;
+            if (allowed.HasValue && !allowed.Value)
+            {
+                return false;
+            }
+            return _formsHost != null;
+        }
+
+        /// <summary>
+        /// Centralised gate for the <c>UPDATE_ALLOWED</c> property.
+        /// </summary>
+        public bool IsUpdateAllowed()
+        {
+            bool? allowed = EffectiveDefinition?.UpdateAllowed;
+            if (allowed.HasValue && !allowed.Value)
+            {
+                return false;
+            }
+            return _formsHost != null;
+        }
+
+        /// <summary>
+        /// Centralised gate for the <c>DELETE_ALLOWED</c> property.
+        /// </summary>
+        public bool IsDeleteAllowed()
+        {
+            bool? allowed = EffectiveDefinition?.DeleteAllowed;
+            if (allowed.HasValue && !allowed.Value)
+            {
+                return false;
+            }
+            return _formsHost != null;
         }
     }
 }

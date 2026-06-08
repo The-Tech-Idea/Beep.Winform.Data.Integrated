@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
+using TheTechIdea.Beep.Editor.UOWManager.Models;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.Base;
 using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
+using TheTechIdea.Beep.Winform.Controls.ToolTips;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 {
@@ -19,6 +21,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
         private readonly TableLayoutPanel _layoutRoot;
         private readonly FlowLayoutPanel _commandsPanel;
         private readonly BeepLabel _positionLabel;
+        private readonly BeepLabel _recordStatusLabel;
         private readonly Dictionary<string, BeepButton> _buttons = new(StringComparer.OrdinalIgnoreCase);
         private BeepBlock? _block;
 
@@ -34,12 +37,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             _layoutRoot = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 2,
+                ColumnCount = 3,
                 RowCount = 1,
                 Margin = new Padding(0),
                 Padding = new Padding(0)
             };
             _layoutRoot.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            _layoutRoot.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 32f));
             _layoutRoot.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120f));
 
             _commandsPanel = new FlowLayoutPanel
@@ -52,6 +56,19 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this)
             };
 
+            _recordStatusLabel = new BeepLabel
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                UseThemeColors = false,
+                Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold),
+                Text = string.Empty,
+                BackColor = Color.Transparent,
+                ToolTipText = "Record status (Oracle Forms :SYSTEM.RECORD_STATUS)",
+                TooltipType = ToolTipType.Info,
+                Margin = new Padding(0)
+            };
+
             _positionLabel = new BeepLabel
             {
                 Dock = DockStyle.Fill,
@@ -62,7 +79,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             };
 
             _layoutRoot.Controls.Add(_commandsPanel, 0, 0);
-            _layoutRoot.Controls.Add(_positionLabel, 1, 0);
+            _layoutRoot.Controls.Add(_recordStatusLabel, 1, 0);
+            _layoutRoot.Controls.Add(_positionLabel, 2, 0);
             Controls.Add(_layoutRoot);
 
             CreateButtons();
@@ -166,6 +184,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             if (_block == null)
             {
                 _positionLabel.Text = "0 / 0";
+                ResetRecordStatus();
                 foreach (var button in _buttons.Values)
                 {
                     button.Enabled = false;
@@ -175,6 +194,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             }
 
             _positionLabel.Text = _block.GetNavigatorPositionText();
+            ApplyRecordStatus(_block.ViewState.RecordStatus);
 
             foreach (var button in _buttons)
             {
@@ -189,6 +209,52 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                     System.Diagnostics.Debug.WriteLine($"[BeepBlockNavigationBar.SyncFromBlock] {button.Key}: {ex.GetType().Name} - {ex.Message}");
                 }
             }
+        }
+
+        /// <summary>
+        /// Render the Oracle Forms <c>:SYSTEM.RECORD_STATUS</c> as a small
+        /// colored chip between the command bar and the position label.
+        /// Mirrors the well-known Forms convention where an asterisk signals
+        /// "unsaved changes" and a yellow background signals query criteria.
+        /// </summary>
+        private void ApplyRecordStatus(BeepRecordStatus status)
+        {
+            bool showIndicator = _block?.Definition?.ShowRecordStatusIndicator ?? true;
+            if (!showIndicator || _block == null)
+            {
+                ResetRecordStatus();
+                return;
+            }
+
+            switch (status)
+            {
+                case BeepRecordStatus.New:
+                case BeepRecordStatus.Insert:
+                case BeepRecordStatus.Changed:
+                    _recordStatusLabel.Text = "*";
+                    _recordStatusLabel.ForeColor = Color.FromArgb(196, 18, 18);
+                    _recordStatusLabel.BackColor = Color.FromArgb(255, 235, 235);
+                    _recordStatusLabel.ToolTipText = $"Record status: {status.ToFormsString()} (unsaved changes)";
+                    break;
+                case BeepRecordStatus.QueryCriteria:
+                    _recordStatusLabel.Text = "Q";
+                    _recordStatusLabel.ForeColor = Color.FromArgb(102, 85, 0);
+                    _recordStatusLabel.BackColor = Color.FromArgb(255, 248, 196);
+                    _recordStatusLabel.ToolTipText = "Record status: QUERY (Enter-Query criteria)";
+                    break;
+                case BeepRecordStatus.Query:
+                default:
+                    ResetRecordStatus();
+                    break;
+            }
+        }
+
+        private void ResetRecordStatus()
+        {
+            _recordStatusLabel.Text = string.Empty;
+            _recordStatusLabel.ForeColor = ForeColor;
+            _recordStatusLabel.BackColor = Color.Transparent;
+            _recordStatusLabel.ToolTipText = "Record status: QUERY (no changes)";
         }
 
         protected override void Dispose(bool disposing)

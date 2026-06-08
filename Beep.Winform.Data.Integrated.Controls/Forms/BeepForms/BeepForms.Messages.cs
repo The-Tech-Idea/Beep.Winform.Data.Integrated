@@ -1,6 +1,10 @@
 using System;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 using TheTechIdea.Beep.ConfigUtil;
+using TheTechIdea.Beep.Editor.Forms.Builtins;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
@@ -232,6 +236,101 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             return string.IsNullOrWhiteSpace(status) ||
                    string.Equals(status.Trim(), "Ready", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // ── Oracle Forms MESSAGE / ALERT built-ins ─────────────────────────────
+
+        /// <summary>
+        /// Implementation of the Oracle Forms <c>MESSAGE</c> built-in.
+        /// Translates the Forms severity levels (0/5/10/15) into the
+        /// Beep message service's severity and publishes through the same
+        /// notification service the rest of the shell uses.
+        /// </summary>
+        public void PublishBuiltinMessage(string message, int messageLevel, BeepBuiltinMessageSeverity severity)
+        {
+            if (string.IsNullOrEmpty(message))
+            {
+                ClearBuiltinMessage();
+                return;
+            }
+
+            BeepFormsMessageSeverity mapped = severity switch
+            {
+                BeepBuiltinMessageSeverity.Hint => BeepFormsMessageSeverity.Info,
+                BeepBuiltinMessageSeverity.Warning => BeepFormsMessageSeverity.Warning,
+                BeepBuiltinMessageSeverity.Error => BeepFormsMessageSeverity.Error,
+                _ => BeepFormsMessageSeverity.Info
+            };
+
+            // Forms treats messageLevel >= 25 as "no message" — honor that.
+            if (messageLevel >= 25)
+            {
+                return;
+            }
+
+            ShowMessage(message, mapped);
+        }
+
+        public void ClearBuiltinMessage()
+        {
+            ClearMessages();
+        }
+
+        /// <summary>
+        /// Implementation of the Oracle Forms <c>ALERT</c> built-in. Maps
+        /// the Forms <c>ALERT_MESSAGE</c> style constants to a WinForms
+        /// <see cref="MessageBox"/> icon and returns the Forms-style
+        /// 1-based button index.
+        /// </summary>
+        public Task<int> ShowBuiltinAlertAsync(
+            string title,
+            string message,
+            BeepBuiltinAlertStyle style,
+            string button1,
+            string? button2,
+            string? button3,
+            CancellationToken ct = default)
+        {
+            return Task.Run(() =>
+            {
+                ct.ThrowIfCancellationRequested();
+                MessageBoxIcon icon = style switch
+                {
+                    BeepBuiltinAlertStyle.Caution => MessageBoxIcon.Warning,
+                    BeepBuiltinAlertStyle.Stop => MessageBoxIcon.Stop,
+                    BeepBuiltinAlertStyle.Note => MessageBoxIcon.Information,
+                    _ => MessageBoxIcon.Information
+                };
+
+                // Build the button list. Forms accepted up to 3 buttons.
+                string buttonText = string.IsNullOrEmpty(button1) ? "OK" : button1;
+                if (!string.IsNullOrEmpty(button2) && !string.IsNullOrEmpty(button3))
+                {
+                    DialogResult r = MessageBox.Show(
+                        message,
+                        string.IsNullOrEmpty(title) ? "Alert" : title,
+                        MessageBoxButtons.YesNoCancel,
+                        icon);
+                    if (r == DialogResult.Yes) return 1;
+                    if (r == DialogResult.No) return 2;
+                    return 3;
+                }
+                if (!string.IsNullOrEmpty(button2))
+                {
+                    DialogResult r = MessageBox.Show(
+                        message,
+                        string.IsNullOrEmpty(title) ? "Alert" : title,
+                        MessageBoxButtons.YesNo,
+                        icon);
+                    return r == DialogResult.Yes ? 1 : 2;
+                }
+                MessageBox.Show(
+                    message,
+                    string.IsNullOrEmpty(title) ? "Alert" : title,
+                    MessageBoxButtons.OK,
+                    icon);
+                return 1;
+            }, ct);
         }
     }
 }

@@ -266,6 +266,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             RebuildRecordLayoutFromDefinition();
             ApplyCurrentRecordToEditors();
             ApplyPresentationMode();
+            ApplyQueryModeVisualCue();
             ShowFieldErrors(_fieldValidationStates);
             UpdateWorkflowSurface();
             UpdateValidationSummarySurface();
@@ -295,6 +296,41 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             if (_gridHostPanel != null)
             {
                 _gridHostPanel.Visible = showGrid;
+            }
+        }
+
+        /// <summary>
+        /// When the block is in query mode (Enter-Query or Query), tint the
+        /// background to the Oracle Forms yellow. This is the iconic "you're
+        /// typing criteria, not data" signal Forms developers rely on.
+        /// <para>
+        /// Skipped for blocks in <see cref="BeepBlockPresentationMode.Grid"/>
+        /// because the grid already supplies its own row-level visual cue.
+        /// </para>
+        /// </summary>
+        private void ApplyQueryModeVisualCue()
+        {
+            if (_recordHostPanel == null)
+            {
+                return;
+            }
+
+            if (ViewState.IsQueryMode && EffectiveDefinition?.PresentationMode == BeepBlockPresentationMode.Record)
+            {
+                if (_recordHostPanel.BackColor != BeepLayoutMetrics.QueryModeBackground)
+                {
+                    _recordHostPanel.BackColor = BeepLayoutMetrics.QueryModeBackground;
+                }
+            }
+            else
+            {
+                // Restore to the default WinForms control color so the theme
+                // can take over again. We avoid `Color.Empty` (which evaluates
+                // to #000000) and let the panel inherit from its parent.
+                if (_recordHostPanel.BackColor != SystemColors.Control)
+                {
+                    _recordHostPanel.BackColor = SystemColors.Control;
+                }
             }
         }
 

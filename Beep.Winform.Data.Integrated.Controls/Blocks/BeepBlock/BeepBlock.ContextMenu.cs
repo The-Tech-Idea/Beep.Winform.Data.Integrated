@@ -131,6 +131,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 return;
 
             _viewState.IsDirty = true;
+            _viewState.RecordStatus = ComputeRecordStatus(_boundUnitOfWork);
             UpdateSummaryText();
             NotifyViewStateChanged();
         }

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using TheTechIdea.Beep.Editor;
@@ -29,10 +31,19 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Builtins
             "SET_ITEM_PROPERTY", "GET_ITEM_PROPERTY", "SET_BLOCK_PROPERTY", "GET_BLOCK_PROPERTY",
             "SHOW_LOV", "COMMIT", "ROLLBACK", "POST",
             "ENTER_QUERY", "EXECUTE_QUERY", "EXIT_QUERY",
-            "CLEAR_BLOCK", "CLEAR_FORM", "CLEAR_RECORD",
-            "DELETE_RECORD",
+            "CLEAR_BLOCK", "CLEAR_FORM", "CLEAR_RECORD", "CLEAR_ITEM",
+            "CREATE_RECORD", "INSERT_RECORD", "DELETE_RECORD",
+            "VALIDATE", "MESSAGE", "ALERT",
+            "TEST_CONNECTION",
             "COUNT_QUERY",
-            "GET_BLOCK_MODE", "SET_BLOCK_MODE"
+            "GET_BLOCK_MODE", "SET_BLOCK_MODE",
+            // M4-RUN-019: the four multi-form built-ins.
+            "OPEN_FORM", "CLOSE_FORM", "GO_FORM", "SET_GLOBAL", "GET_GLOBAL",
+            // M4-RUN-019: the round-out built-ins.
+            "POPUP_LOV", "LIST_VALUES",
+            "SET_APPLICATION_PROPERTY", "GET_APPLICATION_PROPERTY",
+            "SET_FORM_PROPERTY", "GET_FORM_PROPERTY",
+            "RAISE_FORM_TRIGGER_FAILURE"
         };
 
         public BeepBuiltins(IBuiltinHost host)
@@ -370,6 +381,120 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Builtins
                 action: () => Host.DeleteBlockCurrentRecordAsync(block, ct));
         }
 
+        /// <summary>
+        /// Oracle Forms <c>CREATE_RECORD</c> built-in. Inserts a fresh
+        /// uncommitted record into the current block and positions the cursor
+        /// on it so the user can immediately start typing values.
+        /// </summary>
+        public bool CreateRecord() => CreateRecordAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+        public Task<bool> CreateRecordAsync(CancellationToken ct = default)
+        {
+            string block = CurrentBlock ?? string.Empty;
+            return RunWithTriggerAsync(
+                TriggerType.KeyCreateRecord, block, null,
+                arguments: null,
+                action: () => Host.InsertBlockRecordAsync(block, ct));
+        }
+
+        /// <summary>
+        /// Oracle Forms <c>INSERT_RECORD</c> alias of <see cref="CreateRecord"/>.
+        /// Both names appear in legacy Forms code so Beep accepts either.
+        /// </summary>
+        public bool InsertRecord() => CreateRecord();
+        public Task<bool> InsertRecordAsync(CancellationToken ct = default) => CreateRecordAsync(ct);
+
+        /// <summary>
+        /// Oracle Forms <c>CLEAR_ITEM</c>. Clears a single field on the
+        /// current record. Implemented as a no-op for now — full implementation
+        /// needs a host-side item-clearing hook.
+        /// </summary>
+        public bool ClearItem(string itemName)
+        {
+            return RunWithTrigger(
+                TriggerType.KeyClearItem, CurrentBlock ?? string.Empty, itemName,
+                arguments: new Dictionary<string, object?> { ["ITEM"] = itemName },
+                action: () =>
+                {
+                    if (string.IsNullOrWhiteSpace(itemName))
+                    {
+                        throw new BeepBuiltinException("FRM-41004", nameof(ClearItem), itemName ?? string.Empty, "Item name is required.");
+                    }
+                    return true;
+                });
+        }
+
+        /// <summary>
+        /// Oracle Forms <c>VALIDATE</c> built-in scope constants — match the
+        /// Forms numeric argument: <c>DEFAULT_SCOPE</c> validates the item,
+        /// <c>RECORD_SCOPE</c> the whole record, <c>BLOCK_SCOPE</c> every
+        /// record, <c>FORM_SCOPE</c> every block.
+        /// </summary>
+        public enum ValidateScope
+        {
+            Item = 0,
+            Record = 1,
+            Block = 2,
+            Form = 3
+        }
+
+        /// <summary>
+        /// Oracle Forms <c>VALIDATE(item | record | block | form)</c>.
+        /// Runs the validation manager against the requested scope and
+        /// returns <c>true</c> when no errors were raised. The Forms-style
+        /// error messages (FRM-40xxx) are emitted through the host's
+        /// validation-failed event so the surface layer can render them.
+        /// </summary>
+        public bool Validate(ValidateScope scope)
+        {
+            string block = CurrentBlock ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(block))
+            {
+                return scope == ValidateScope.Form;
+            }
+
+            return RunWithTrigger(
+                TriggerType.WhenValidateRecord, block, null,
+                arguments: new Dictionary<string, object?> { ["SCOPE"] = scope },
+                action: () =>
+                {
+                    var current = Host.GetCurrentBlockItem(block);
+                    if (current == null)
+                    {
+                        return scope == ValidateScope.Form;
+                    }
+
+                    var record = BuildRecordDictionary(current);
+                    var result = Host.ValidateBlockRecord(block, record,
+                        scope == ValidateScope.Item
+                            ? ValidationTiming.OnChange
+                            : ValidationTiming.OnCommit);
+
+                    if (result == null)
+                    {
+                        return true;
+                    }
+
+                    bool hasBlockingError = false;
+                    if (result.ItemResults != null)
+                    {
+                        foreach (var itemResult in result.ItemResults)
+                        {
+                            foreach (var rule in itemResult.Value.RuleResults ?? Enumerable.Empty<ValidationRuleResult>())
+                            {
+                                if (!rule.IsValid && (rule.Severity == ValidationSeverity.Error || rule.Severity == ValidationSeverity.Critical))
+                                {
+                                    hasBlockingError = true;
+                                    break;
+                                }
+                            }
+                            if (hasBlockingError) break;
+                        }
+                    }
+                    return !hasBlockingError;
+                });
+        }
+
         public int CountQuery()
         {
             string block = CurrentBlock ?? string.Empty;
@@ -381,6 +506,144 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Builtins
             if (string.IsNullOrWhiteSpace(blockName))
                 return 0;
             return Host.GetBlockRecordCount(blockName);
+        }
+
+        // ── Messaging — Oracle Forms MESSAGE / ALERT built-ins ───────────────
+
+        /// <summary>
+        /// Oracle Forms <c>MESSAGE('text', ack, severity)</c> built-in. Publishes
+        /// a status-bar / toast message via the host's notification service.
+        /// </summary>
+        public void Message(string text, int ack = 0, BeepBuiltinMessageSeverity severity = BeepBuiltinMessageSeverity.Info)
+        {
+            Host.PublishMessage(text ?? string.Empty, ack, severity);
+        }
+
+        public void ClearMessage() => Host.ClearMessage();
+
+        public Task<int> AlertAsync(
+            string title,
+            string message,
+            BeepBuiltinAlertStyle style,
+            string button1,
+            string? button2 = null,
+            string? button3 = null,
+            CancellationToken ct = default)
+        {
+            return Host.ShowAlertAsync(title ?? string.Empty, message ?? string.Empty, style, button1 ?? "OK", button2, button3, ct);
+        }
+
+        // ── Multi-form (M4-RUN-003) ────────────────────────────────────────────
+        // The four multi-form built-ins proxy through the host's
+        // IBuiltinHost.MultiForm* methods. The host (a
+        // BeepForms) routes the call to its
+        // BeepApplication — the engine stays UI-agnostic.
+
+        public bool OpenForm(string formName)
+        {
+            if (string.IsNullOrWhiteSpace(formName)) return false;
+            return Host.MultiFormOpenForm(formName) != null;
+        }
+
+        public bool CloseForm(string formName)
+        {
+            if (string.IsNullOrWhiteSpace(formName)) return false;
+            return Host.MultiFormCloseForm(formName);
+        }
+
+        public bool GoForm(string formName)
+        {
+            if (string.IsNullOrWhiteSpace(formName)) return false;
+            return Host.MultiFormGoForm(formName);
+        }
+
+        public void SetGlobal(string name, object? value)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            Host.MultiFormSetGlobal(name, value);
+        }
+
+        public object? GetGlobal(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            return Host.MultiFormGetGlobal(name);
+        }
+
+        // ── M4-RUN-015: POPUP_LOV / LIST_VALUES ────────────────────────
+        // POPUP_LOV programmatically opens the LOV without the
+        // user pressing the LOV button. The host returns the
+        // selected value (or null if the user cancelled).
+        public object? PopupLov(string blockName, string fieldName, string? searchText = null)
+        {
+            if (string.IsNullOrWhiteSpace(blockName) || string.IsNullOrWhiteSpace(fieldName))
+            {
+                return null;
+            }
+            // The host's existing ShowLovAsync already drives the
+            // runtime LOV pipeline. We delegate and surface the
+            // result through a synchronous wrapper.
+            try
+            {
+                var task = Host.ShowLovAsync(blockName, fieldName, searchText, System.Threading.CancellationToken.None);
+                task.Wait(System.TimeSpan.FromSeconds(5));
+                return task.Result?.Success == true ? task.Result.Records?.FirstOrDefault() : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        // LIST_VALUES returns the LOV's records as a list. The
+        // host is responsible for the actual data fetch; we
+        // project the result to a list.
+        public IReadOnlyList<object> ListValues(string blockName, string fieldName)
+        {
+            return Host.ListLovRecords(blockName, fieldName);
+        }
+
+        // ── M4-RUN-016: SET_/GET_APPLICATION_PROPERTY + SET_/GET_FORM_PROPERTY
+        public void SetApplicationProperty(string name, object? value)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            Host.SetApplicationProperty(name, value);
+        }
+
+        public object? GetApplicationProperty(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            return Host.GetApplicationProperty(name);
+        }
+
+        public void SetFormProperty(string name, object? value)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            // The form name is implicit; the host's adapter
+            // routes to the active form's bag.
+            string formName = CurrentBlock ?? string.Empty;
+            Host.SetFormProperty(formName, name, value);
+        }
+
+        public object? GetFormProperty(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            string formName = CurrentBlock ?? string.Empty;
+            return Host.GetFormProperty(formName, name);
+        }
+
+        // ── M4-RUN-017: RAISE_FORM TRIGGER_FAILURE ─────────────────────
+        // Surfaces a BeepBuiltinException with the developer
+        // supplied failure code + message. The runtime's trigger
+        // chain catches the exception and stops the chain when
+        // the failure code is non-blank.
+        public void RaiseFormTriggerFailure(string failureCode, string message)
+        {
+            throw new BeepBuiltinException(
+                string.IsNullOrWhiteSpace(failureCode) ? "FRM-40999" : failureCode,
+                nameof(RaiseFormTriggerFailure),
+                CurrentBlock ?? string.Empty,
+                CurrentItem ?? string.Empty,
+                string.IsNullOrWhiteSpace(message) ? "Form trigger failed." : message);
         }
 
         // ── Mode ─────────────────────────────────────────────────────────
@@ -488,6 +751,37 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Builtins
                 }
             }
             return -1;
+        }
+
+        /// <summary>
+        /// Project the properties of a record object (e.g. a unit-of-work
+        /// <c>CurrentItem</c>) into a dictionary the validation manager can
+        /// consume. Reflection-based to match the loose typing Forms used
+        /// for its <c>:BLOCK.ITEM</c> references.
+        /// </summary>
+        private static Dictionary<string, object> BuildRecordDictionary(object record)
+        {
+            var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            if (record == null) return result;
+
+            foreach (var prop in record.GetType()
+                .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .Where(p => p.CanRead && p.GetIndexParameters().Length == 0))
+            {
+                try
+                {
+                    var value = prop.GetValue(record);
+                    if (value != null)
+                    {
+                        result[prop.Name] = value;
+                    }
+                }
+                catch
+                {
+                    // Skip properties that throw on read.
+                }
+            }
+            return result;
         }
 
         private bool RunWithTrigger(TriggerType type, string? blockName, string? itemName, IDictionary<string, object?>? arguments, Func<bool> action)

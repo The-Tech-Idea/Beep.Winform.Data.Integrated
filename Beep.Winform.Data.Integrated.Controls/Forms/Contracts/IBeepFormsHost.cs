@@ -26,6 +26,16 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
         string? ActiveItemName { get; }
 
         /// <summary>
+        /// M4-RUN-005: the multi-form application that owns
+        /// this form. The host sets the property when it is
+        /// opened through <see cref="BeepApplication.OpenForm"/>;
+        /// test doubles return <c>null</c>. The built-ins
+        /// proxy multi-form calls (OpenForm, CloseForm, GoForm,
+        /// SetGlobal, GetGlobal) through this property.
+        /// </summary>
+        BeepApplication? Application { get; set; }
+
+        /// <summary>
         /// The underlying FormsManager.  Exposed for external wiring (designer, bootstrapper).
         /// BeepBlock must NOT call this property; use the proxy methods below instead.
         /// </summary>

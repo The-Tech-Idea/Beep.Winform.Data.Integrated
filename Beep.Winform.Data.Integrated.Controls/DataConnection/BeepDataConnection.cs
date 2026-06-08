@@ -3,6 +3,8 @@ using System.ComponentModel;
 using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.Drawing.Design;
+using System.Threading;
+using System.Threading.Tasks;
 using TheTechIdea.Beep.ConfigUtil;
 using TheTechIdea.Beep.Container.Services;
 using TheTechIdea.Beep.DriversConfigurations;
@@ -564,6 +566,200 @@ namespace TheTechIdea.Beep.Winform.Controls
         private static bool IsInDesignTime()
         {
             return LicenseManager.UsageMode == LicenseUsageMode.Designtime;
+        }
+
+        /// <summary>
+        /// Mirrors the Oracle Forms <c>TEST_CONNECTION</c> built-in.
+        /// Opens a short-lived <see cref="IDataSource"/> against the named
+        /// connection and reports success / failure with a human-readable
+        /// message. Throws are caught and translated to <c>success=false</c>.
+        /// </summary>
+        public bool TestConnection(string connectionName, out string message)
+        {
+            message = string.Empty;
+            if (string.IsNullOrWhiteSpace(connectionName))
+            {
+                message = "Connection name is required.";
+                return false;
+            }
+
+            var connection = DataConnections.FirstOrDefault(c =>
+                !string.IsNullOrWhiteSpace(c.ConnectionName) &&
+                string.Equals(c.ConnectionName, connectionName, StringComparison.OrdinalIgnoreCase));
+            if (connection == null)
+            {
+                message = $"Connection '{connectionName}' is not registered.";
+                return false;
+            }
+
+            if (_beepService == null)
+            {
+                message = "BeepService is not available — cannot test connection.";
+                return false;
+            }
+
+            try
+            {
+                var ds = _beepService.DMEEditor?.GetDataSource(connectionName);
+                if (ds == null)
+                {
+                    message = $"No data source registered for connection '{connectionName}'.";
+                    return false;
+                }
+
+                // Fire the ON-LOGON trigger equivalent. A handler that
+                // cancels via ConnectionLifecycleEventArgs.Cancel aborts the
+                // open, mirroring the Forms ON-ERROR-after-LOGON path.
+                var lifecycle = new ConnectionLifecycleEventArgs(connectionName, DateTime.UtcNow);
+                RaiseLogonStarting(connectionName);
+                if (lifecycle.Cancel)
+                {
+                    message = $"Connection '{connectionName}' logon cancelled by handler.";
+                    UpdateConnectionState(connectionName, BeepConnectionState.Failed, message);
+                    RaiseLogoffRequested(connectionName, "cancelled by handler");
+                    return false;
+                }
+
+                bool opened;
+                using (ds)
+                {
+                    var rawState = ds.Openconnection();
+                    opened = rawState == System.Data.ConnectionState.Open;
+                }
+                if (opened)
+                {
+                    message = $"Connection '{connectionName}' opened successfully.";
+                    UpdateConnectionState(connectionName, BeepConnectionState.Connected, message);
+                    RaiseLogonCompleted(connectionName, message);
+                    return true;
+                }
+
+                message = $"Connection '{connectionName}' failed to open. Check connection string and credentials.";
+                UpdateConnectionState(connectionName, BeepConnectionState.Failed, message);
+                RaiseLogoffRequested(connectionName, message);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                message = $"Connection '{connectionName}' threw {ex.GetType().Name}: {ex.Message}";
+                UpdateConnectionState(connectionName, BeepConnectionState.Failed, message);
+                RaiseLogoffRequested(connectionName, message);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Asynchronous variant of <see cref="TestConnection"/>. Safe to call
+        /// from UI thread — does not block the message loop.
+        /// </summary>
+        public async Task<bool> TestConnectionAsync(string connectionName, CancellationToken cancellationToken = default)
+        {
+            return await Task.Run(() => TestConnection(connectionName, out _), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        private readonly Dictionary<string, BeepConnectionState> _connectionStates = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, DateTime> _lastConnectedAt = new(StringComparer.OrdinalIgnoreCase);
+        private readonly object _connectionStateLock = new();
+
+        /// <summary>
+        /// Returns the most recently observed connection state for a named
+        /// connection. Defaults to <see cref="BeepConnectionState.Unknown"/> when
+        /// no test or open has been performed.
+        /// </summary>
+        public BeepConnectionState GetConnectionState(string connectionName)
+        {
+            if (string.IsNullOrWhiteSpace(connectionName))
+            {
+                return BeepConnectionState.Unknown;
+            }
+            lock (_connectionStateLock)
+            {
+                return _connectionStates.TryGetValue(connectionName, out var s) ? s : BeepConnectionState.Unknown;
+            }
+        }
+
+        /// <summary>
+        /// Timestamp of the last successful connection open. <c>null</c>
+        /// when the connection has never been opened successfully.
+        /// </summary>
+        public DateTime? GetLastConnectedAt(string connectionName)
+        {
+            if (string.IsNullOrWhiteSpace(connectionName))
+            {
+                return null;
+            }
+            lock (_connectionStateLock)
+            {
+                return _lastConnectedAt.TryGetValue(connectionName, out var t) ? t : (DateTime?)null;
+            }
+        }
+
+        private void UpdateConnectionState(string connectionName, BeepConnectionState state, string? message)
+        {
+            DateTime timestamp = DateTime.UtcNow;
+            lock (_connectionStateLock)
+            {
+                _connectionStates[connectionName] = state;
+                if (state == BeepConnectionState.Connected)
+                {
+                    _lastConnectedAt[connectionName] = timestamp;
+                }
+            }
+            ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs(connectionName, state, message, timestamp));
+        }
+
+        /// <summary>
+        /// Raised whenever <see cref="TestConnection"/> (or the connection
+        /// lifecycle code) reports a new state. Subscribers can update the UI
+        /// to show the green / red indicator Oracle Forms shows next to a
+        /// connection name.
+        /// </summary>
+        public event EventHandler<ConnectionStateChangedEventArgs>? ConnectionStateChanged;
+
+        // ── Oracle Forms ON-LOGON / ON-LOGOFF triggers ──────────────────
+
+        /// <summary>
+        /// Raised immediately before the data source for a named connection
+        /// is opened. Hosts / developers can subscribe to fire the
+        /// <c>ON-LOGON</c> trigger equivalent (typically used to initialize
+        /// per-connection state in Oracle Forms apps). Returning
+        /// <c>false</c> from a handler by setting
+        /// <see cref="ConnectionLifecycleEventArgs.Cancel"/> aborts the
+        /// open.
+        /// </summary>
+        public event EventHandler<ConnectionLifecycleEventArgs>? LogonStarting;
+
+        /// <summary>
+        /// Raised after the data source has been opened successfully.
+        /// Mirrors the <c>POST-LOGON</c> trigger Oracle Forms fires once
+        /// the user is connected.
+        /// </summary>
+        public event EventHandler<ConnectionLifecycleEventArgs>? LogonCompleted;
+
+        /// <summary>
+        /// Raised when the data source for a named connection is closed
+        /// (or fails to open). Mirrors the <c>ON-LOGOFF</c> trigger.
+        /// </summary>
+        public event EventHandler<ConnectionLifecycleEventArgs>? LogoffRequested;
+
+        private void RaiseLogonStarting(string connectionName)
+        {
+            var args = new ConnectionLifecycleEventArgs(connectionName, DateTime.UtcNow);
+            try { LogonStarting?.Invoke(this, args); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepDataConnection.LogonStarting] {ex.Message}"); }
+        }
+
+        private void RaiseLogonCompleted(string connectionName, string? message)
+        {
+            try { LogonCompleted?.Invoke(this, new ConnectionLifecycleEventArgs(connectionName, DateTime.UtcNow, message)); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepDataConnection.LogonCompleted] {ex.Message}"); }
+        }
+
+        private void RaiseLogoffRequested(string connectionName, string? reason)
+        {
+            try { LogoffRequested?.Invoke(this, new ConnectionLifecycleEventArgs(connectionName, DateTime.UtcNow, reason)); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepDataConnection.LogoffRequested] {ex.Message}"); }
         }
 
         public bool PromoteConnections(ConnectionStoreKind source, ConnectionStoreKind target, ConnectionConflictPolicy conflictPolicy, out string message)

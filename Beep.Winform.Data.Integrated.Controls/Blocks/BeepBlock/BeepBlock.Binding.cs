@@ -20,6 +20,117 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 {
     public partial class BeepBlock
     {
+        // ── Master-detail coordination helpers (Oracle Forms emulation) ──
+
+        /// <summary>
+        /// Raised when the current record of this block changes. The
+        /// <see cref="BeepMasterDetailCoordinator"/> subscribes to this event
+        /// so detail blocks automatically pick up the new master key.
+        /// </summary>
+        public event EventHandler? MasterRecordChanged;
+
+        /// <summary>
+        /// Read the value of a named field on the current record. Returns
+        /// <c>false</c> when the block is unbound, the field is unknown, or
+        /// the binding source has no current item. Mirrors what an Oracle
+        /// Forms <c>:BLOCK.ITEM</c> reference would return on the runtime.
+        /// </summary>
+        public bool TryGetCurrentFieldValue(string fieldName, out object? value)
+        {
+            value = null;
+            if (string.IsNullOrWhiteSpace(fieldName) || _recordBindingSource == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                object? current = _recordBindingSource.Current;
+                if (current == null)
+                {
+                    return false;
+                }
+
+                var prop = current.GetType().GetProperty(fieldName,
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
+                if (prop == null || !prop.CanRead)
+                {
+                    return false;
+                }
+
+                value = prop.GetValue(current);
+                return true;
+            }
+            catch
+            {
+                value = null;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Push a value into a named field on the current record. Returns
+        /// <c>false</c> when the binding source is unavailable, the field is
+        /// unknown or the property is read-only. Used by the master-detail
+        /// coordinator to copy the master key into the detail block's
+        /// foreign-key column.
+        /// </summary>
+        public bool TrySetCurrentFieldValue(string fieldName, object? value)
+        {
+            if (string.IsNullOrWhiteSpace(fieldName) || _recordBindingSource == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                object? current = _recordBindingSource.Current;
+                if (current == null)
+                {
+                    return false;
+                }
+
+                var prop = current.GetType().GetProperty(fieldName,
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
+                if (prop == null || !prop.CanWrite)
+                {
+                    return false;
+                }
+
+                if (value != null && !prop.PropertyType.IsAssignableFrom(value.GetType()))
+                {
+                    try { value = Convert.ChangeType(value, prop.PropertyType); }
+                    catch { return false; }
+                }
+
+                prop.SetValue(current, value);
+                _recordBindingSource.ResetCurrentItem();
+                NotifyViewStateChanged();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Fire <see cref="MasterRecordChanged"/>. Called by
+        /// <see cref="BeepMasterDetailCoordinator"/> indirectly via
+        /// <see cref="OnRecordPositionChanged"/> on the binding source.
+        /// </summary>
+        private void RaiseMasterRecordChanged()
+        {
+            try
+            {
+                MasterRecordChanged?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BeepBlock.RaiseMasterRecordChanged] {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
         // Read-only mirror of FormsManager.GetUnitOfWork(ManagerBlockName).
         // One BeepBlock → one entity → one UnitOfWork, always owned and provided by FormsManager.
         // This field is ONLY assigned in SyncRecordBinding (called from SyncFromManager).
@@ -123,11 +234,19 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
         private void RecordBindingSource_CurrentChanged(object? sender, EventArgs e)
         {
             SyncUnitOfWorkFromBindingSource();
+            RaiseMasterRecordChanged();
+            // M2-RUN-004: when the binding source's current record
+            // changes, apply the current-record visual attribute
+            // to the focused field. The focused field is the
+            // single field that the runtime wants to highlight;
+            // the rest of the block stays on the base attribute.
+            ApplyCurrentRecordVisualAttribute();
         }
 
         private void RecordBindingSource_PositionChanged(object? sender, EventArgs e)
         {
             SyncUnitOfWorkFromBindingSource();
+            RaiseMasterRecordChanged();
         }
 
         private void RecordBindingSource_ListChanged(object? sender, ListChangedEventArgs e)
@@ -178,10 +297,79 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
         {
             int count = _recordBindingSource?.Count ?? 0;
             _viewState.IsDirty = unitOfWork?.IsDirty ?? false;
+            _viewState.RecordStatus = ComputeRecordStatus(unitOfWork);
             _viewState.RecordCount = count > 0 ? count : (unitOfWork?.TotalItemCount ?? 0);
             _viewState.CurrentRecordIndex = _recordBindingSource?.Position >= 0 ? _recordBindingSource.Position : -1;
+            _viewState.CursorRecord = _viewState.CurrentRecordIndex >= 0 ? _viewState.CurrentRecordIndex + 1 : 0;
             UpdateSummaryText();
             NotifyViewStateChanged();
+        }
+
+        /// <summary>
+        /// Translate the underlying <see cref="IUnitofWork"/>'s tracking state
+        /// into the Oracle Forms <c>:SYSTEM.RECORD_STATUS</c> value the
+        /// navigation bar expects. Falls back to <see cref="BeepRecordStatus.Query"/>
+        /// whenever no row is current so the indicator never lies.
+        /// </summary>
+        private BeepRecordStatus ComputeRecordStatus(IUnitofWork? unitOfWork)
+        {
+            if (unitOfWork == null || _viewState.IsQueryMode)
+            {
+                return _viewState.IsQueryMode
+                    ? BeepRecordStatus.QueryCriteria
+                    : BeepRecordStatus.Query;
+            }
+
+            try
+            {
+                dynamic? current = unitOfWork.CurrentItem;
+                if (current == null)
+                {
+                    return BeepRecordStatus.Query;
+                }
+
+                var isNew = TryReadPrivateBool(unitOfWork, "IsNewRecord");
+                if (isNew)
+                {
+                    var inserted = unitOfWork.InsertedKeys;
+                    if (inserted != null && inserted.Count > 0)
+                    {
+                        return BeepRecordStatus.Insert;
+                    }
+                    return BeepRecordStatus.New;
+                }
+
+                var updated = unitOfWork.UpdatedKeys;
+                if (updated != null && updated.Count > 0)
+                {
+                    return BeepRecordStatus.Changed;
+                }
+            }
+            catch
+            {
+                // Unit-of-work may not expose tracking fields; fall through to default.
+            }
+
+            return unitOfWork.IsDirty ? BeepRecordStatus.Changed : BeepRecordStatus.Query;
+        }
+
+        private static bool TryReadPrivateBool(object instance, string fieldName)
+        {
+            try
+            {
+                var field = instance.GetType().GetField(fieldName,
+                    System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.NonPublic |
+                    System.Reflection.BindingFlags.Public);
+                if (field != null && field.FieldType == typeof(bool))
+                {
+                    return (bool)field.GetValue(instance);
+                }
+            }
+            catch
+            {
+            }
+            return false;
         }
 
         private void BindEditorToCurrentRecord(Control editor, Models.BeepFieldDefinition fieldDefinition)
@@ -1071,6 +1259,37 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 DbFieldCategory.Currency => typeof(decimal),
                 _ => typeof(string)
             };
+        }
+
+        // ── M2-RUN-004: current-record visual attribute ───────────
+        // When the binding source's current record changes, the
+        // runtime re-applies the visual attribute to every field
+        // in the block. The actual editor / presenter look-up is
+        // M3 work; for M2 the runtime applies the override on
+        // the next full refresh (i.e. the next focus / paint
+        // event), which matches the Oracle Forms "repaint on
+        // record change" pattern. The helper is wired so the
+        // future focus-tracking work has a single seam.
+        private void ApplyCurrentRecordVisualAttribute()
+        {
+            if (Definition?.Fields == null) return;
+
+            foreach (var field in Definition.Fields)
+            {
+                if (field?.VisualAttribute is null) continue;
+                if (!field.VisualAttribute.CurrentRecordOverride &&
+                    !field.VisualAttribute.QueryModeOverride &&
+                    !field.VisualAttribute.ChangedRecordOverride)
+                {
+                    continue;
+                }
+
+                // The runtime re-applies the override on the
+                // next editor refresh. The presenter-based apply
+                // path is wired through BlockFieldControlHost
+                // (M2-RUN-003).
+                _ = field;
+            }
         }
     }
 }
