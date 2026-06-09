@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using TheTechIdea.Beep.Editor.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
@@ -23,30 +24,44 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         public BeepApplication? Application { get; set; }
 
         /// <summary>
-        /// M4-RUN-008: raise the <c>On-Logoff</c> form-level
-        /// trigger. The form's <c>ITriggerManager</c> exposes
-        /// registration but not a fire-and-forget raise; the
-        /// concrete <see cref="BeepLogonScreen"/> raises the
-        /// trigger through its own trigger chain. The method
-        /// is a no-op stub for M4; M4 polish rounds it out to
-        /// call the engine's <c>RaiseFormTrigger(...)</c> when
-        /// the API is added.
+        /// M4-RUN-008 / M5-RUN-002: raise the <c>On-Logoff</c>
+        /// form-level trigger through the engine's
+        /// <c>ITriggerManager.FireFormTrigger</c>. The method
+        /// is no-op when the form has no trigger manager.
         /// </summary>
         public void RaiseOnLogoff()
         {
-            // M4-RUN-008 stub. The trigger manager's API surface
-            // currently exposes Register* but not Raise*; the
-            // M4 implementation will route this through the
-            // engine's RaiseFormTrigger once it's exposed on
-            // ITriggerManager. For M4 the orchestrator's
-            // FormClosed event is the source of truth.
             try
             {
-                System.Diagnostics.Debug.WriteLine($"[BeepForms.RaiseOnLogoff] {FormName} is closing.");
+                var formTriggers = FormsManager?.Triggers;
+                if (formTriggers == null) return;
+                var result = formTriggers.FireFormTrigger(TriggerType.OnLogoff, FormName);
+                System.Diagnostics.Debug.WriteLine($"[BeepForms.RaiseOnLogoff] {FormName} OnLogoff fired, result={result}.");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[BeepForms.RaiseOnLogoff] {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// M5-RUN-002: raise the <c>Post-Logon</c> form-level
+        /// trigger through the engine's
+        /// <c>ITriggerManager.FireFormTrigger</c>. The method
+        /// is no-op when the form has no trigger manager.
+        /// </summary>
+        public void RaisePostLogon()
+        {
+            try
+            {
+                var formTriggers = FormsManager?.Triggers;
+                if (formTriggers == null) return;
+                var result = formTriggers.FireFormTrigger(TriggerType.PostLogon, FormName);
+                System.Diagnostics.Debug.WriteLine($"[BeepForms.RaisePostLogon] {FormName} PostLogon fired, result={result}.");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BeepForms.RaisePostLogon] {ex.Message}");
             }
         }
     }

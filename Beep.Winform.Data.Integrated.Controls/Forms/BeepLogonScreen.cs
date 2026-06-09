@@ -29,8 +29,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         /// Show the logon dialog. The function returns <c>true</c>
         /// when the user logs in successfully; <c>false</c> when
         /// the user cancels. The method blocks until the dialog
-        /// closes; the <see cref="BeepApplication"/> uses the
-        /// result to drive <see cref="RaisePostLogon"/>.
+        /// closes; on success, the <c>Post-Logon</c>
+        /// form-level trigger is fired through the engine.
         /// </summary>
         public bool ShowLogonDialog()
         {
@@ -39,22 +39,27 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             if (result == DialogResult.OK)
             {
                 LoggedIn?.Invoke(this, EventArgs.Empty);
+                RaisePostLogon();
                 return true;
             }
             return false;
         }
 
         /// <summary>
-        /// M4-RUN-008: raise the <c>Post-Logon</c> form-level
-        /// trigger. The method is a stub for M4; M4 polish
-        /// routes it through the engine's
-        /// <c>RaiseFormTrigger(...)</c> when the API is added.
+        /// M4-RUN-008 / M5-RUN-002: raise the <c>Post-Logon</c>
+        /// form-level trigger. The method calls the
+        /// <c>FireFormTrigger</c> path through the inherited
+        /// <see cref="BeepForms.FormsManager"/>.
         /// </summary>
-        public void RaisePostLogon()
+        public new void RaisePostLogon()
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine($"[BeepLogonScreen.RaisePostLogon] {FormName} is now logged in.");
+                if (FormsManager?.Triggers == null) return;
+                var result = FormsManager.Triggers.FireFormTrigger(
+                    TheTechIdea.Beep.Editor.Forms.Models.TriggerType.PostLogon,
+                    FormName);
+                System.Diagnostics.Debug.WriteLine($"[BeepLogonScreen.RaisePostLogon] {FormName} PostLogon fired, result={result}.");
             }
             catch (Exception ex)
             {

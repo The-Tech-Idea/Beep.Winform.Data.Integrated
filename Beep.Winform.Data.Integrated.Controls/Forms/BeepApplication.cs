@@ -72,6 +72,40 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         }
 
         /// <summary>
+        /// M5-RUN-002: open a <see cref="BeepLogonScreen"/>
+        /// by name. The screen is added to <see cref="OpenForms"/>
+        /// and the <c>WhenLogon</c> form-level trigger is
+        /// fired through the engine's trigger manager. The
+        /// function returns the new screen.
+        /// </summary>
+        public BeepLogonScreen? OpenLogonScreen(string formName, BeepLogonScreen? instance = null)
+        {
+            ThrowIfDisposed();
+            if (string.IsNullOrWhiteSpace(formName)) return null;
+            if (_openForms.TryGetValue(formName, out var existing) && existing is BeepLogonScreen existingLogon)
+            {
+                BringToFront(existingLogon);
+                return existingLogon;
+            }
+            var screen = instance ?? new BeepLogonScreen { Name = formName };
+            screen.Application = this;
+            _openForms[formName] = screen;
+            BringToFront(screen);
+            try
+            {
+                screen.FormsManager?.Triggers?.FireFormTrigger(
+                    TheTechIdea.Beep.Editor.Forms.Models.TriggerType.WhenLogon,
+                    formName);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BeepApplication.OpenLogonScreen] {ex.Message}");
+            }
+            FormOpened?.Invoke(this, new BeepApplicationFormEventArgs(formName, screen));
+            return screen;
+        }
+
+        /// <summary>
         /// M4-RUN-002: close a form by name. The form is
         /// removed from <see cref="OpenForms"/> and the
         /// <c>On-Logoff</c> / <c>Post-Form</c> trigger fires
