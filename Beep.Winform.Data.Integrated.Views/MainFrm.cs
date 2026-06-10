@@ -19,6 +19,9 @@ namespace TheTechIdea.Beep.Winform.Default.Views
     {
         private uc_SetupWizard? _setupWizard;
         private uc_ImportExportWizardLauncher? _importExportWizard;
+        private uc_AppBootstrap? _appBootstrap;
+        private BootstrapState? _bootstrapState;
+        private System.Threading.CancellationTokenSource? _bootstrapCts;
 
 
         IServiceProvider _serviceprovider;
@@ -60,7 +63,75 @@ namespace TheTechIdea.Beep.Winform.Default.Views
 
         private void MainFrm_Load(object sender, EventArgs e)
         {
+            _ = TryShowBootstrapAsync();
+        }
 
+        private async Task TryShowBootstrapAsync()
+        {
+            if (beepService?.DMEEditor == null) return;
+            if (IsDisposed || Disposing) return;
+
+            _bootstrapCts ??= new System.Threading.CancellationTokenSource();
+            _bootstrapState ??= BootstrapState.Resolve(_serviceprovider, beepService.DMEEditor);
+
+            try
+            {
+                await _bootstrapState.InitializeAsync();
+                if (IsDisposed || Disposing) return;
+
+                if (!_bootstrapState.IsFirstRun)
+                {
+                    return;
+                }
+
+                if (InvokeRequired)
+                {
+                    BeginInvoke(ShowBootstrapControl);
+                }
+                else
+                {
+                    ShowBootstrapControl();
+                }
+            }
+            catch (Exception ex)
+            {
+                beepService.DMEEditor.AddLogMessage("MainFrm",
+                    $"Bootstrap init failed: {ex.Message}",
+                    DateTime.Now, -1, null, TheTechIdea.Beep.ConfigUtil.Errors.Failed);
+            }
+        }
+
+        private void ShowBootstrapControl()
+        {
+            if (IsDisposed || Disposing) return;
+            if (_appBootstrap != null) return;
+
+            _appBootstrap = new uc_AppBootstrap(_serviceprovider);
+            _appBootstrap.BootstrapCompleted -= AppBootstrap_BootstrapCompleted;
+            _appBootstrap.BootstrapCompleted += AppBootstrap_BootstrapCompleted;
+            _appBootstrap.Dock = DockStyle.Fill;
+            Controls.Add(_appBootstrap);
+            _appBootstrap.BringToFront();
+        }
+
+        private async void AppBootstrap_BootstrapCompleted(object? sender, BootstrapCompletedEventArgs e)
+        {
+            if (_appBootstrap != null)
+            {
+                if (InvokeRequired) BeginInvoke(RemoveBootstrapControl);
+                else RemoveBootstrapControl();
+            }
+        }
+
+        private void RemoveBootstrapControl()
+        {
+            if (_appBootstrap == null) return;
+            _appBootstrap.BootstrapCompleted -= AppBootstrap_BootstrapCompleted;
+            Controls.Remove(_appBootstrap);
+            _appBootstrap.Dispose();
+            _appBootstrap = null;
+
+            InitializeWorkspaceControls();
         }
 
         private void InitializeWorkspaceControls()
