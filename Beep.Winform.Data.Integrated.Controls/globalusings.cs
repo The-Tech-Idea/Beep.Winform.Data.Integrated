@@ -8,6 +8,7 @@ global using TheTechIdea.Beep.Winform.Controls.Models;
 global using TheTechIdea.Beep.Addin;
 global using TheTechIdea.Beep.ConfigUtil;
 global using TheTechIdea.Beep.Container;
+global using TheTechIdea.Beep.DataBase;
 
 global using TheTechIdea.Beep.Services;
 global using TheTechIdea.Beep.Shared;
