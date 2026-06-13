@@ -25,6 +25,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         private BeepButton _btnSave = null!;
         private BeepButton _btnSyncStatus = null!;
         private BeepLabel _lblStatus = null!;
+        private BeepButton _btnRepos = null!;
+        private BeepLabel _lblHeader = null!;
         private FlowLayoutPanel _toolbar = null!;
         private TableLayoutPanel _layout = null!;
 
@@ -41,7 +43,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private void InitializeComponent()
         {
-            Text = "Driver Management";
+            Text = "Driver & Package Manager";
             StartPosition = FormStartPosition.CenterParent;
             Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this);
 
@@ -49,11 +51,23 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 2,
-                Padding = new Padding(8)
+                RowCount = 3,
+                Padding = new Padding(12)
             };
+            _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 55));
             _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             _layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            _lblHeader = new BeepLabel
+            {
+                Text = $"Driver & DataSource Package Manager\n{_drivers.Count} driver(s) loaded",
+                Dock = DockStyle.Fill,
+                Font = new Font("Segoe UI", 14, FontStyle.Bold),
+                UseThemeColors = true,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(4, 8, 4, 4)
+            };
+            _layout.Controls.Add(_lblHeader, 0, 0);
 
             _toolbar = new FlowLayoutPanel
             {
@@ -71,6 +85,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _btnSave = CreateToolbarButton("Save", "💾");
             _btnSave.Click += (_, _) => SaveDrivers();
 
+            _btnRepos = CreateToolbarButton("Repositories", "⚙");
+            _btnRepos.Click += (_, _) => new NuGetRepositoryForm().ShowDialog(this);
+
             _lblStatus = new BeepLabel
             {
                 Dock = DockStyle.Fill,
@@ -82,9 +99,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _toolbar.Controls.Add(_btnAdd);
             _toolbar.Controls.Add(_btnSyncStatus);
             _toolbar.Controls.Add(_btnSave);
+            _toolbar.Controls.Add(new Panel { Width = 16, Height = 1 });
+            _toolbar.Controls.Add(_btnRepos);
             _toolbar.Controls.Add(_lblStatus);
 
-            _layout.Controls.Add(_toolbar, 0, 0);
+            _layout.Controls.Add(_toolbar, 0, 1);
             Controls.Add(_layout);
         }
 
@@ -108,6 +127,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 .ToList() ?? new List<ConnectionDriversConfig>();
 
             BuildGrid();
+            UpdateHeader();
+        }
+
+        private void UpdateHeader()
+        {
+            if (_lblHeader != null)
+                _lblHeader.Text = $"Driver & DataSource Package Manager\n{_drivers.Count} driver(s) loaded";
         }
 
         private void BuildGrid()
@@ -148,8 +174,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _grid.ContextMenuStrip = BuildContextMenu();
             
 
-            _layout.Controls.Remove(_layout.GetControlFromPosition(0, 1));
-            _layout.Controls.Add(_grid, 0, 1);
+            _layout.Controls.Remove(_layout.GetControlFromPosition(0, 2));
+            _layout.Controls.Add(_grid, 0, 2);
         }
 
         private ContextMenuStrip BuildContextMenu()
@@ -200,8 +226,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
                 return;
 
+            var driver = _drivers[idx];
             _drivers.RemoveAt(idx);
-            _editor.ConfigEditor!.DataDriversClasses!.Remove(_drivers[idx]);
+            _editor.ConfigEditor!.DataDriversClasses!.Remove(driver);
             _hasChanges = true;
             BuildGrid();
         }
@@ -252,11 +279,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
                 _hasChanges = true;
                 BuildGrid();
-                _lblStatus.Text = $"Status synced — {updated} driver(s) updated.";
+                if (!IsDisposed)
+                    _lblStatus.Text = $"Status synced — {updated} driver(s) updated.";
             }
             catch (Exception ex)
             {
-                _lblStatus.Text = $"Sync failed: {ex.Message}";
+                if (!IsDisposed)
+                    _lblStatus.Text = $"Sync failed: {ex.Message}";
             }
         }
 

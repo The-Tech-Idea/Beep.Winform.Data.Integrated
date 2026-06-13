@@ -621,7 +621,7 @@ namespace TheTechIdea.Beep.Winform.Controls.ITrees.BeepTreeView
                 // Call base BeepTree's RefreshTree to rebuild visible nodes and update display
                 base.RefreshTree();
                 // Ensure the tree is expanded so users can see the content
-                ExpandAll();
+                //ExpandAll();
                 
                 // CRITICAL FIX: Force immediate paint update
                 Update();
@@ -672,7 +672,7 @@ namespace TheTechIdea.Beep.Winform.Controls.ITrees.BeepTreeView
                 item.IsDrawn = false;
                 // Make newly added branches expanded by default so content is visible
                 item.IsExpanded = true;
-
+             
                // Console.WriteLine(br.BranchText);
                 DynamicMenuManager.CreateMenuMethods(DMEEditor, br);
                 if (br.ObjectType != null && br.BranchClass != null)

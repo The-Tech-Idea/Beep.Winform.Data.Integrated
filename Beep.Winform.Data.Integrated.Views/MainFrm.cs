@@ -45,6 +45,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views
 
             beepAppTree1.init(beepService,appManager);
             beepAppTree1.CreateRootTree();
+            beepAppTree1.CollapseAll();
             beepAppTree1.NodeSelected += BeepAppTree1_NodeSelected;
             FormStyle = BeepThemesManager.CurrentStyle;
 
