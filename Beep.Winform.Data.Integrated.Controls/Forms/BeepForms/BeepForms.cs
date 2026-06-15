@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using TheTechIdea.Beep.DataBase;
 using TheTechIdea.Beep.Editor.Forms.Builtins;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Editor.UOWManager.Interfaces;
@@ -292,8 +293,91 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 _managerAdapter.SyncBlock(block);
             }
 
+            _viewState.ConnectionName = _dataConnection?.CurrentConnection?.ConnectionName ?? string.Empty;
+            SyncErrorCount();
+            SyncAggregateText();
+
             UpdateMasterDetailShellContext();
             ApplyShellStateToUi();
+        }
+
+        private void SyncErrorCount()
+        {
+            _viewState.ErrorCount = 0;
+            if (_formsManager == null) return;
+
+            try
+            {
+                int total = 0;
+                foreach (var block in _blocks)
+                {
+                    if (!string.IsNullOrWhiteSpace(block.BlockName))
+                        total += _formsManager.ErrorLog.GetErrorCount(block.BlockName);
+                }
+                _viewState.ErrorCount = total;
+            }
+            catch
+            {
+                _viewState.ErrorCount = 0;
+            }
+        }
+
+        private void SyncAggregateText()
+        {
+            _viewState.AggregateText = string.Empty;
+            if (_formsManager == null || string.IsNullOrWhiteSpace(_viewState.ActiveBlockName)) return;
+
+            try
+            {
+                string blockName = _viewState.ActiveBlockName;
+                if (!_formsManager.BlockExists(blockName)) return;
+
+                int count = _formsManager.GetBlockCount(blockName);
+                if (count == 0) { _viewState.AggregateText = "0 rec"; return; }
+
+                var entity = _formsManager.GetBlock(blockName)?.EntityStructure;
+                var fields = entity?.Fields;
+                if (fields == null || fields.Count == 0) { _viewState.AggregateText = $"{count} rec"; return; }
+
+                EntityField? firstNumeric = null;
+                foreach (var f in fields)
+                {
+                    if (string.IsNullOrWhiteSpace(f.FieldName)) continue;
+                    bool isNumeric = !string.IsNullOrWhiteSpace(f.Fieldtype)
+                        && (f.Fieldtype.IndexOf("int", StringComparison.OrdinalIgnoreCase) >= 0
+                         || f.Fieldtype.IndexOf("decimal", StringComparison.OrdinalIgnoreCase) >= 0
+                         || f.Fieldtype.IndexOf("double", StringComparison.OrdinalIgnoreCase) >= 0
+                         || f.Fieldtype.IndexOf("float", StringComparison.OrdinalIgnoreCase) >= 0
+                         || f.Fieldtype.IndexOf("numeric", StringComparison.OrdinalIgnoreCase) >= 0
+                         || f.Fieldtype.IndexOf("money", StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (!isNumeric) continue;
+
+                    bool isLikelyAmount = f.FieldName.IndexOf("Amount", StringComparison.OrdinalIgnoreCase) >= 0
+                        || f.FieldName.IndexOf("Total", StringComparison.OrdinalIgnoreCase) >= 0
+                        || f.FieldName.IndexOf("Price", StringComparison.OrdinalIgnoreCase) >= 0
+                        || f.FieldName.IndexOf("Sum", StringComparison.OrdinalIgnoreCase) >= 0
+                        || f.FieldName.IndexOf("Value", StringComparison.OrdinalIgnoreCase) >= 0
+                        || f.FieldName.IndexOf("Cost", StringComparison.OrdinalIgnoreCase) >= 0;
+
+                    if (isLikelyAmount)
+                    {
+                        firstNumeric = f;
+                        break;
+                    }
+                    firstNumeric ??= f;
+                }
+
+                if (firstNumeric == null) { _viewState.AggregateText = $"{count} rec"; return; }
+
+                string fieldName = firstNumeric.FieldName;
+                decimal sum = _formsManager.GetBlockSum(blockName, fieldName);
+                decimal avg = _formsManager.GetBlockAverage(blockName, fieldName);
+                _viewState.AggregateText = $"{count} rec · Σ {sum:N0}";
+            }
+            catch
+            {
+                _viewState.AggregateText = string.Empty;
+            }
         }
 
         /// <summary>

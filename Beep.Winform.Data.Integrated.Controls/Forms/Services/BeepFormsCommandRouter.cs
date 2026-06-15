@@ -1,6 +1,8 @@
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using TheTechIdea.Beep.ConfigUtil;
+using TheTechIdea.Beep.Editor.Forms.Builtins;
 using TheTechIdea.Beep.Editor.UOWManager.Interfaces;
 using TheTechIdea.Beep.Report;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts;
@@ -14,9 +16,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
         public Task<bool> SwitchToBlockAsync(string blockName)
         {
             if (FormsManager == null || string.IsNullOrWhiteSpace(blockName))
-            {
                 return Task.FromResult(false);
-            }
 
             return FormsManager.SwitchToBlockAsync(blockName);
         }
@@ -24,9 +24,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
         public Task<bool> EnterQueryAsync(string blockName)
         {
             if (FormsManager == null || string.IsNullOrWhiteSpace(blockName))
-            {
                 return Task.FromResult(false);
-            }
 
             return FormsManager.EnterQueryAsync(blockName);
         }
@@ -34,9 +32,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
         public Task<bool> ExecuteQueryAsync(string blockName, List<AppFilter>? filters = null)
         {
             if (FormsManager == null || string.IsNullOrWhiteSpace(blockName))
-            {
                 return Task.FromResult(false);
-            }
 
             return FormsManager.ExecuteQueryAsync(blockName, filters);
         }
@@ -44,9 +40,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
         public async Task<IErrorsInfo> CommitFormAsync()
         {
             if (FormsManager == null)
-            {
                 return new ErrorsInfo { Flag = Errors.Failed, Message = "FormsManager is not assigned." };
-            }
 
             return await FormsManager.CommitFormAsync().ConfigureAwait(false);
         }
@@ -54,9 +48,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
         public async Task<IErrorsInfo> RollbackFormAsync()
         {
             if (FormsManager == null)
-            {
                 return new ErrorsInfo { Flag = Errors.Failed, Message = "FormsManager is not assigned." };
-            }
 
             return await FormsManager.RollbackFormAsync().ConfigureAwait(false);
         }
@@ -64,9 +56,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
         public Task<bool> FirstRecordAsync(string blockName)
         {
             if (FormsManager == null || string.IsNullOrWhiteSpace(blockName))
-            {
                 return Task.FromResult(false);
-            }
 
             return FormsManager.FirstRecordAsync(blockName);
         }
@@ -74,9 +64,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
         public Task<bool> PreviousRecordAsync(string blockName)
         {
             if (FormsManager == null || string.IsNullOrWhiteSpace(blockName))
-            {
                 return Task.FromResult(false);
-            }
 
             return FormsManager.PreviousRecordAsync(blockName);
         }
@@ -84,9 +72,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
         public Task<bool> NextRecordAsync(string blockName)
         {
             if (FormsManager == null || string.IsNullOrWhiteSpace(blockName))
-            {
                 return Task.FromResult(false);
-            }
 
             return FormsManager.NextRecordAsync(blockName);
         }
@@ -94,11 +80,55 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
         public Task<bool> LastRecordAsync(string blockName)
         {
             if (FormsManager == null || string.IsNullOrWhiteSpace(blockName))
-            {
                 return Task.FromResult(false);
-            }
 
             return FormsManager.LastRecordAsync(blockName);
+        }
+
+        public Task<bool> InsertRecordAsync(string blockName)
+        {
+            if (FormsManager == null || string.IsNullOrWhiteSpace(blockName))
+                return Task.FromResult(false);
+
+            return FormsManager.InsertRecordAsync(blockName);
+        }
+
+        public Task<bool> DeleteCurrentRecordAsync(string blockName)
+        {
+            if (FormsManager == null || string.IsNullOrWhiteSpace(blockName))
+                return Task.FromResult(false);
+
+            return FormsManager.DeleteCurrentRecordAsync(blockName);
+        }
+
+        public Task<bool> DuplicateCurrentRecordAsync(string blockName)
+        {
+            if (FormsManager == null || string.IsNullOrWhiteSpace(blockName))
+                return Task.FromResult(false);
+
+            return FormsManager.DuplicateCurrentRecordAsync(blockName);
+        }
+
+        public async Task<bool> ClearBlockAsync(string blockName, CancellationToken ct = default)
+        {
+            if (FormsManager == null || string.IsNullOrWhiteSpace(blockName))
+                return false;
+
+            await FormsManager.ClearBlockAsync(blockName).ConfigureAwait(false);
+            return true;
+        }
+
+        public Task<bool> ClearRecordAsync(string blockName, CancellationToken ct = default)
+        {
+            if (FormsManager == null || string.IsNullOrWhiteSpace(blockName))
+                return Task.FromResult(false);
+
+            var builtins = FormsManager as IBeepBuiltins;
+            if (builtins == null)
+                return Task.FromResult(false);
+
+            builtins.ClearRecord();
+            return Task.FromResult(true);
         }
     }
 }

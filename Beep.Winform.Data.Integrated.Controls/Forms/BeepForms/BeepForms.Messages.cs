@@ -276,6 +276,53 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             ClearMessages();
         }
 
+        public void ShowErrorSummary()
+        {
+            if (_formsManager == null)
+            {
+                ShowInfo("No FormsManager attached.");
+                return;
+            }
+
+            var lines = new System.Text.StringBuilder();
+            int totalErrors = 0;
+            int blocksWithErrors = 0;
+
+            foreach (var block in _blocks)
+            {
+                string? blockName = block.BlockName;
+                if (string.IsNullOrWhiteSpace(blockName)) continue;
+                if (!_formsManager.BlockExists(blockName)) continue;
+
+                var errors = _formsManager.ErrorLog.GetErrorLog(blockName);
+                if (errors.Count == 0) continue;
+
+                blocksWithErrors++;
+                totalErrors += errors.Count;
+                lines.AppendLine($"── {blockName} ({errors.Count} error(s)) ──");
+                foreach (var err in errors.Take(10))
+                {
+                    string severity = err.Severity.ToString().ToUpperInvariant();
+                    lines.AppendLine($"  [{severity}] {err.Message}");
+                    if (!string.IsNullOrWhiteSpace(err.Context) && err.Context != err.Message)
+                        lines.AppendLine($"           Context: {err.Context}");
+                }
+                if (errors.Count > 10)
+                    lines.AppendLine($"  ... and {errors.Count - 10} more");
+                lines.AppendLine();
+            }
+
+            if (totalErrors == 0)
+            {
+                ShowSuccess("No errors recorded.");
+                return;
+            }
+
+            string summary = $"{totalErrors} error(s) across {blocksWithErrors} block(s)";
+            MessageBox.Show(lines.ToString(), $"Error Summary — {summary}",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
         /// <summary>
         /// Implementation of the Oracle Forms <c>ALERT</c> built-in. Maps
         /// the Forms <c>ALERT_MESSAGE</c> style constants to a WinForms

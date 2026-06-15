@@ -1,3 +1,4 @@
+using System.Threading;
 using System.Threading.Tasks;
 using TheTechIdea.Beep.ConfigUtil;
 using TheTechIdea.Beep.Report;
@@ -58,16 +59,40 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 messageSnapshot,
                 targetBlockName,
                 success
-                    ? $"Query executed for '{targetBlockName}'."
+                    ? $"Query executed for '{targetBlockName}' — {GetQueryResultCount(targetBlockName)} records returned."
                     : $"Query execution stopped for '{targetBlockName}'.",
                 success ? BeepFormsMessageSeverity.Success : BeepFormsMessageSeverity.Warning);
 
             return success;
         }
 
+        private string GetQueryResultCount(string blockName)
+        {
+            try
+            {
+                int count = _formsManager?.GetBlockCount(blockName) ?? 0;
+                return count.ToString();
+            }
+            catch { return "?"; }
+        }
+
         public async Task<IErrorsInfo> CommitFormAsync()
         {
             var messageSnapshot = CaptureMessageSnapshot();
+
+            var crossBlockErrors = _formsManager?.ValidateCrossBlock();
+            if (crossBlockErrors != null && crossBlockErrors.Count > 0)
+            {
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("Cross-block validation failed:");
+                foreach (var err in crossBlockErrors)
+                    sb.AppendLine($"  • {err}");
+
+                bool proceed = await ConfirmAsync("Validation Errors", sb.ToString()).ConfigureAwait(true);
+                if (!proceed)
+                    return new ErrorsInfo { Flag = Errors.Failed, Message = "Commit cancelled due to cross-block validation errors." };
+            }
+
             var result = await _commandRouter.CommitFormAsync().ConfigureAwait(true);
             SyncFromManager();
             UpdateMasterDetailShellContext();
@@ -109,6 +134,119 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             }
 
             return success;
+        }
+
+        public async Task<bool> InsertRecordAsync(string? blockName = null)
+        {
+            string targetBlockName = ResolveTargetBlockName(blockName);
+            var messageSnapshot = CaptureMessageSnapshot();
+            bool success = await _commandRouter.InsertRecordAsync(targetBlockName).ConfigureAwait(true);
+            SyncFromManager();
+            UpdateMasterDetailShellContext(targetBlockName);
+
+            PublishOperationFeedback(
+                messageSnapshot,
+                targetBlockName,
+                success
+                    ? $"New record created in '{targetBlockName}'."
+                    : $"Unable to create new record in '{targetBlockName}'.",
+                success ? BeepFormsMessageSeverity.Success : BeepFormsMessageSeverity.Warning);
+
+            return success;
+        }
+
+        public async Task<bool> DeleteCurrentRecordAsync(string? blockName = null)
+        {
+            string targetBlockName = ResolveTargetBlockName(blockName);
+            bool confirmed = await ConfirmAsync("Delete Record",
+                $"Are you sure you want to delete the current record from '{targetBlockName}'?").ConfigureAwait(true);
+            if (!confirmed) return false;
+
+            var messageSnapshot = CaptureMessageSnapshot();
+            bool success = await _commandRouter.DeleteCurrentRecordAsync(targetBlockName).ConfigureAwait(true);
+            SyncFromManager();
+            UpdateMasterDetailShellContext(targetBlockName);
+
+            PublishOperationFeedback(
+                messageSnapshot,
+                targetBlockName,
+                success
+                    ? $"Record deleted from '{targetBlockName}'."
+                    : $"Unable to delete record from '{targetBlockName}'.",
+                success ? BeepFormsMessageSeverity.Success : BeepFormsMessageSeverity.Warning);
+
+            return success;
+        }
+
+        public async Task<bool> DuplicateCurrentRecordAsync(string? blockName = null)
+        {
+            string targetBlockName = ResolveTargetBlockName(blockName);
+            var messageSnapshot = CaptureMessageSnapshot();
+            bool success = await _commandRouter.DuplicateCurrentRecordAsync(targetBlockName).ConfigureAwait(true);
+            SyncFromManager();
+            UpdateMasterDetailShellContext(targetBlockName);
+
+            PublishOperationFeedback(
+                messageSnapshot,
+                targetBlockName,
+                success
+                    ? $"Record duplicated in '{targetBlockName}'."
+                    : $"Unable to duplicate record in '{targetBlockName}'.",
+                success ? BeepFormsMessageSeverity.Success : BeepFormsMessageSeverity.Warning);
+
+            return success;
+        }
+
+        public async Task<bool> ClearBlockAsync(string? blockName = null)
+        {
+            string targetBlockName = ResolveTargetBlockName(blockName);
+            bool confirmed = await ConfirmAsync("Clear Block",
+                $"Clear all records from '{targetBlockName}'? This cannot be undone.").ConfigureAwait(true);
+            if (!confirmed) return false;
+
+            var messageSnapshot = CaptureMessageSnapshot();
+            bool success = await _commandRouter.ClearBlockAsync(targetBlockName).ConfigureAwait(true);
+            SyncFromManager();
+            UpdateMasterDetailShellContext(targetBlockName);
+
+            PublishOperationFeedback(
+                messageSnapshot,
+                targetBlockName,
+                success
+                    ? $"Block '{targetBlockName}' cleared."
+                    : $"Unable to clear block '{targetBlockName}'.",
+                success ? BeepFormsMessageSeverity.Success : BeepFormsMessageSeverity.Warning);
+
+            return success;
+        }
+
+        public async Task<bool> ClearRecordAsync(string? blockName = null)
+        {
+            string targetBlockName = ResolveTargetBlockName(blockName);
+            var messageSnapshot = CaptureMessageSnapshot();
+            bool success = await _commandRouter.ClearRecordAsync(targetBlockName).ConfigureAwait(true);
+            SyncFromManager();
+            UpdateMasterDetailShellContext(targetBlockName);
+
+            PublishOperationFeedback(
+                messageSnapshot,
+                targetBlockName,
+                success
+                    ? $"Record cleared in '{targetBlockName}'."
+                    : $"Unable to clear record in '{targetBlockName}'.",
+                success ? BeepFormsMessageSeverity.Success : BeepFormsMessageSeverity.Warning);
+
+            return success;
+        }
+
+        public async Task<bool> ExitQueryAsync(string? blockName = null)
+        {
+            string targetBlockName = ResolveTargetBlockName(blockName);
+            Builtins?.ExitQuery();
+            SyncFromManager();
+            UpdateMasterDetailShellContext(targetBlockName);
+            ShowInfo($"Exited query mode for '{targetBlockName}'.");
+            return true;
         }
 
         private string ResolveTargetBlockName(string? blockName)

@@ -146,8 +146,21 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon
             _layout.Controls.Add(buttonPanel, 0, 5);
 
             Controls.Add(_layout);
-            //AcceptButton = _btnLogin;
-            //CancelButton = _btnCancel;
+        }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == Keys.Enter)
+            {
+                Login();
+                return true;
+            }
+            if (keyData == Keys.Escape)
+            {
+                Cancel();
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         private void Login()

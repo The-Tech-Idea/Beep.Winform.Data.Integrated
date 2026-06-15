@@ -12,7 +12,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
     public class ConnectionEditorForm : Form
     {
-        private readonly IDMEEditor _editor;
+        private IDMEEditor? _editor;
         private readonly ConnectionProperties? _existingConnection;
         private readonly bool _isEditMode;
 
@@ -57,6 +57,12 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         public ConnectionProperties? Result { get; private set; }
 
+        public ConnectionEditorForm()
+        {
+            InitializeComponent();
+            this.Load += (_, _) => { if (!DesignMode) LoadConnection(); };
+        }
+
         public ConnectionEditorForm(IDMEEditor editor, ConnectionProperties? existing = null)
         {
             _editor = editor ?? throw new ArgumentNullException(nameof(editor));
@@ -68,7 +74,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private void InitializeComponent()
         {
-            Text = _isEditMode ? $"Edit Connection: {_existingConnection?.ConnectionName}" : "New Connection";
+
             StartPosition = FormStartPosition.CenterParent;
             Size = new Size(680, 560);
             FormBorderStyle = FormBorderStyle.Sizable;
@@ -418,6 +424,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private async void TestConnection()
         {
+            if (_editor == null) { _lblTestResult.Text = "❌ No editor available."; return; }
             _btnTest.Enabled = false;
             _btnTest.Text = "Testing...";
             _lblTestResult.Text = "Testing...";
@@ -511,6 +518,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             if (disposing)
             {
+                _tabControl?.Dispose();
                 _cmbCategory?.Dispose();
                 _cmbDatabaseType?.Dispose();
             }

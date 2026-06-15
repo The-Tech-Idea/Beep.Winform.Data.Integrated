@@ -8,6 +8,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models
         None = 0,
         Commit = 1,
         Rollback = 2,
-        All = Commit | Rollback
+        BatchCommit = 4,
+        All = Commit | Rollback | BatchCommit,
+        Core = Commit | Rollback
     }
 }

@@ -19,7 +19,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
     public class DriverManagementForm : Form
     {
-        private readonly IDMEEditor _editor;
+        private readonly IDMEEditor? _editor;
         private BeepGridPro? _grid;
         private BeepButton _btnAdd = null!;
         private BeepButton _btnSave = null!;
@@ -34,6 +34,12 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         private bool _hasChanges;
         private CancellationTokenSource? _cts;
 
+        public DriverManagementForm()
+        {
+            InitializeComponent();
+            this.Load += (_, _) => { if (!DesignMode && _editor != null) LoadDrivers(); };
+        }
+
         public DriverManagementForm(IDMEEditor editor)
         {
             _editor = editor ?? throw new ArgumentNullException(nameof(editor));
@@ -45,7 +51,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             Text = "Driver & Package Manager";
             StartPosition = FormStartPosition.CenterParent;
-            Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this);
+            try { Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this); }
+            catch { Size = new Size(900, 600); }
 
             _layout = new TableLayoutPanel
             {
@@ -109,11 +116,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private BeepButton CreateToolbarButton(string text, string icon)
         {
+            int w = 120, h = 30;
+            try { var s = BeepLayoutMetrics.ButtonToolbar.ScaleSize(this); w = s.Width; h = s.Height; } catch { }
             var btn = new BeepButton
             {
                 Text = $"{icon} {text}",
-                Width = BeepLayoutMetrics.ButtonToolbar.ScaleSize(this).Width,
-                Height = BeepLayoutMetrics.ButtonToolbar.ScaleSize(this).Height,
+                Width = w,
+                Height = h,
                 UseThemeColors = true,
                 Margin = new Padding(0, 0, 8, 0)
             };
@@ -122,6 +131,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private void LoadDrivers()
         {
+            if (_editor == null) { _drivers = new List<ConnectionDriversConfig>(); return; }
             _drivers = _editor.ConfigEditor?.DataDriversClasses?
                 .Where(d => d.NeedDrivers && !d.InMemory)
                 .ToList() ?? new List<ConnectionDriversConfig>();
@@ -172,9 +182,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             _grid.DataSource = dt;
             _grid.ContextMenuStrip = BuildContextMenu();
-            
 
-            _layout.Controls.Remove(_layout.GetControlFromPosition(0, 2));
+            var existingGrid = _layout.GetControlFromPosition(0, 2);
+            if (existingGrid != null) _layout.Controls.Remove(existingGrid);
             _layout.Controls.Add(_grid, 0, 2);
         }
 
@@ -219,6 +229,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private void DeleteSelected()
         {
+            if (_editor == null) return;
             var idx = GetSelectedRowIndex();
             if (idx < 0) return;
 
@@ -228,13 +239,14 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             var driver = _drivers[idx];
             _drivers.RemoveAt(idx);
-            _editor.ConfigEditor!.DataDriversClasses!.Remove(driver);
+            _editor.ConfigEditor?.DataDriversClasses?.Remove(driver);
             _hasChanges = true;
             BuildGrid();
         }
 
         private void ShowAddEditDialog(ConnectionDriversConfig? existing)
         {
+            if (_editor == null) return;
             using var dlg = new DriverEditDialog(_editor, existing);
             if (dlg.ShowDialog(this) == DialogResult.OK && dlg.Result != null)
             {
@@ -255,6 +267,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private async Task SyncDriverStatusAsync()
         {
+            if (_editor == null) return;
             _lblStatus.Text = "Syncing driver status...";
             _cts?.Cancel();
             _cts = new CancellationTokenSource();
@@ -291,6 +304,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private async void DownloadNuGetSelected()
         {
+            if (_editor == null) return;
             var idx = GetSelectedRowIndex();
             if (idx < 0 || idx >= _drivers.Count) return;
             var driver = _drivers[idx];
@@ -309,6 +323,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private void LoadSelectedFromCache()
         {
+            if (_editor == null) return;
             var idx = GetSelectedRowIndex();
             if (idx < 0 || idx >= _drivers.Count) return;
             var driver = _drivers[idx];
@@ -335,6 +350,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private void SaveDrivers()
         {
+            if (_editor == null) return;
             try
             {
                 _editor.ConfigEditor?.SaveConnectionDriversConfigValues();
@@ -452,8 +468,21 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _layout.Controls.Add(new BeepLabel { Text = string.Empty, Dock = DockStyle.Fill }, 0, 6);
 
             Controls.Add(_layout);
-            //AcceptButton = _btnOk;
-            //CancelButton = _btnCancel;
+        }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == Keys.Enter)
+            {
+                _btnOk.PerformClick();
+                return true;
+            }
+            if (keyData == Keys.Escape)
+            {
+                _btnCancel.PerformClick();
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         private BeepTextBox CreateField(string label)

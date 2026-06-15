@@ -224,7 +224,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(ConfigFile)!);
+                var dir = Path.GetDirectoryName(ConfigFile);
+                if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
                 var json = JsonSerializer.Serialize(_repositories, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(ConfigFile, json);
             }
@@ -236,10 +237,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _listBox.DataSource = null;
             _listBox.DataSource = _repositories;
             _listBox.DisplayMember = "Name";
-            _listBox.SelectedIndex = -1;
-            if (_repositories.Count > 0)
-                _listBox.SelectedIndex = _repositories.FindIndex(r => r.IsDefault);
-            if (_listBox.SelectedIndex < 0) _listBox.SelectedIndex = 0;
+            if (_repositories.Count == 0) { _listBox.SelectedIndex = -1; return; }
+            int defaultIdx = _repositories.FindIndex(r => r.IsDefault);
+            _listBox.SelectedIndex = defaultIdx >= 0 ? defaultIdx : 0;
         }
 
         private void SyncEditFields()

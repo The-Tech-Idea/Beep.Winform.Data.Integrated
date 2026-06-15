@@ -35,6 +35,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         private bool _showSavepointLine = true;
         private bool _showAlertLine = true;
         private int _workflowHistoryVisibleCount = 3;
+        private System.Windows.Forms.Timer? _messageClearTimer;
+        private readonly ToolTip _workflowTooltip = new();
 
         public BeepFormsStatusStrip()
         {
@@ -62,6 +64,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _workflowLabel.WordWrap = true;
             _workflowLabel.AutoEllipsis = false;
             _workflowLabel.TextAlign = ContentAlignment.TopLeft;
+            _workflowLabel.Cursor = Cursors.Hand;
+            _workflowLabel.Click += WorkflowLabel_Click;
             _savepointLabel = CreateLineLabel();
             _alertLabel = CreateLineLabel();
 
@@ -258,6 +262,10 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             if (disposing)
             {
                 DetachFormsHost(_formsHost);
+                _messageClearTimer?.Stop();
+                _messageClearTimer?.Dispose();
+                _messageClearTimer = null;
+                _workflowTooltip.Dispose();
             }
 
             base.Dispose(disposing);
@@ -384,8 +392,10 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             ApplyLine(_statusLabel, $"Status: {bootstrapPrefix}{statusText}", statusSeverity, visible: ShowStatusLine);
             ApplyLine(_messageLabel, string.IsNullOrWhiteSpace(viewState.CurrentMessage) ? string.Empty : $"Message: {viewState.CurrentMessage}", viewState.MessageSeverity, ShowMessageLine && !string.IsNullOrWhiteSpace(viewState.CurrentMessage));
+            ScheduleMessageAutoClear(viewState.CurrentMessage, viewState.MessageSeverity);
             ApplyLine(_coordinationLabel, string.IsNullOrWhiteSpace(viewState.CoordinationText) ? string.Empty : $"Coordination: {viewState.CoordinationText}", viewState.CoordinationSeverity, ShowCoordinationLine && !string.IsNullOrWhiteSpace(viewState.CoordinationText));
             ApplyLine(_workflowLabel, workflowText, ResolveWorkflowHistorySeverity(viewState), ShowWorkflowLine && !string.IsNullOrWhiteSpace(workflowText));
+            UpdateWorkflowTooltip(viewState);
             ApplyLine(_savepointLabel, string.IsNullOrWhiteSpace(viewState.SavepointText) ? string.Empty : $"Savepoints: {viewState.SavepointText}", viewState.SavepointSeverity, ShowSavepointLine && !string.IsNullOrWhiteSpace(viewState.SavepointText));
             ApplyLine(_alertLabel, string.IsNullOrWhiteSpace(viewState.AlertText) ? string.Empty : $"Alerts: {viewState.AlertText}", viewState.AlertSeverity, ShowAlertLine && !string.IsNullOrWhiteSpace(viewState.AlertText));
 
@@ -510,6 +520,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private static BeepFormsMessageSeverity ResolveStatusSeverity(BeepFormsViewState viewState)
         {
+            if (viewState.ErrorCount > 0)
+            {
+                return BeepFormsMessageSeverity.Error;
+            }
+
             if (viewState.IsDirty)
             {
                 return BeepFormsMessageSeverity.Warning;
@@ -523,6 +538,58 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return BeepFormsMessageSeverity.Success;
         }
 
+        private void UpdateWorkflowTooltip(BeepFormsViewState viewState)
+        {
+            if (viewState?.WorkflowHistory == null || viewState.WorkflowHistory.Count == 0)
+            {
+                _workflowTooltip.SetToolTip(_workflowLabel, string.Empty);
+                return;
+            }
+
+            var lines = new System.Text.StringBuilder();
+            lines.AppendLine("Recent workflow activity:");
+            foreach (var entry in viewState.WorkflowHistory.Take(6))
+            {
+                string icon = entry.Severity switch
+                {
+                    BeepFormsMessageSeverity.Error => "✖",
+                    BeepFormsMessageSeverity.Warning => "⚠",
+                    BeepFormsMessageSeverity.Success => "✓",
+                    _ => "ℹ"
+                };
+                lines.AppendLine($"  {entry.Timestamp:HH:mm:ss} {icon} {entry.Text}");
+            }
+            _workflowTooltip.SetToolTip(_workflowLabel, lines.ToString().TrimEnd());
+        }
+
+        private void ScheduleMessageAutoClear(string message, BeepFormsMessageSeverity severity)
+        {
+            var oldTimer = _messageClearTimer;
+            _messageClearTimer = null;
+            try { oldTimer?.Stop(); oldTimer?.Dispose(); } catch { }
+
+            if (string.IsNullOrWhiteSpace(message)) return;
+
+            int timeout = severity switch
+            {
+                BeepFormsMessageSeverity.Success => 5000,
+                BeepFormsMessageSeverity.Info => 10000,
+                _ => 0
+            };
+
+            if (timeout <= 0) return;
+
+            _messageClearTimer = new System.Windows.Forms.Timer { Interval = timeout };
+            _messageClearTimer.Tick += (_, _) =>
+            {
+                var timer = _messageClearTimer;
+                _messageClearTimer = null;
+                try { timer?.Stop(); timer?.Dispose(); } catch { }
+                _formsHost?.ClearMessages();
+            };
+            _messageClearTimer.Start();
+        }
+
         private static Color GetMessageColor(BeepFormsMessageSeverity severity)
         {
             return severity switch
@@ -532,6 +599,29 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 BeepFormsMessageSeverity.Error => Color.Firebrick,
                 _ => Color.Black
             };
+        }
+
+        private void WorkflowLabel_Click(object? sender, EventArgs e)
+        {
+            if (_formsHost?.ViewState.WorkflowHistory == null
+                || _formsHost.ViewState.WorkflowHistory.Count == 0) return;
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("Workflow History");
+            sb.AppendLine(new string('─', 40));
+            foreach (var entry in _formsHost.ViewState.WorkflowHistory)
+            {
+                string icon = entry.Severity switch
+                {
+                    BeepFormsMessageSeverity.Error => "[ERR]",
+                    BeepFormsMessageSeverity.Warning => "[WRN]",
+                    BeepFormsMessageSeverity.Success => "[OK] ",
+                    _ => "[INF]"
+                };
+                sb.AppendLine($"{entry.Timestamp:yyyy-MM-dd HH:mm:ss} {icon} {entry.Text}");
+            }
+            MessageBox.Show(sb.ToString(), "Workflow History",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 }

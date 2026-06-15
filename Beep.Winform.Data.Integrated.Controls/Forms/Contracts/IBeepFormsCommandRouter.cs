@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using TheTechIdea.Beep.ConfigUtil;
 using TheTechIdea.Beep.Editor.UOWManager.Interfaces;
@@ -19,5 +20,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
         Task<bool> PreviousRecordAsync(string blockName);
         Task<bool> NextRecordAsync(string blockName);
         Task<bool> LastRecordAsync(string blockName);
+
+        Task<bool> InsertRecordAsync(string blockName);
+        Task<bool> DeleteCurrentRecordAsync(string blockName);
+        Task<bool> DuplicateCurrentRecordAsync(string blockName);
+        Task<bool> ClearBlockAsync(string blockName, CancellationToken ct = default);
+        Task<bool> ClearRecordAsync(string blockName, CancellationToken ct = default);
     }
 }

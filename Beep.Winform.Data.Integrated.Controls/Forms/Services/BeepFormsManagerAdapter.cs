@@ -21,10 +21,60 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
             viewState.StatusText = FormsManager?.Status ?? string.Empty;
             viewState.ActiveBlockName = FormsManager?.CurrentBlockName;
 
+            SyncRecordPosition(viewState);
+
             if (TryGetCurrentMessage(viewState.ActiveBlockName, out string message, out BeepFormsMessageSeverity severity))
             {
                 viewState.CurrentMessage = message;
                 viewState.MessageSeverity = severity;
+            }
+        }
+
+        private void SyncRecordPosition(BeepFormsViewState viewState)
+        {
+            viewState.RecordPositionText = string.Empty;
+
+            string? blockName = viewState.ActiveBlockName;
+            if (FormsManager == null || string.IsNullOrWhiteSpace(blockName))
+                return;
+
+            if (!FormsManager.BlockExists(blockName))
+                return;
+
+            try
+            {
+                var blockInfo = FormsManager.GetBlock(blockName);
+                if (blockInfo?.UnitOfWork == null)
+                    return;
+
+                object? currentItem = blockInfo.UnitOfWork.CurrentItem;
+                if (currentItem == null)
+                {
+                    viewState.RecordPositionText = "0 records";
+                    return;
+                }
+
+                try
+                {
+                    dynamic uow = blockInfo.UnitOfWork;
+                    int count = uow.Count;
+                    int currentIndex = uow.CurrentIndex;
+
+                    if (count > 0 && currentIndex >= 0)
+                        viewState.RecordPositionText = $"{currentIndex + 1}/{count}";
+                    else if (count > 0)
+                        viewState.RecordPositionText = $"*/{count}";
+                    else
+                        viewState.RecordPositionText = "0 records";
+                }
+                catch
+                {
+                    viewState.RecordPositionText = "1/?";
+                }
+            }
+            catch
+            {
+                viewState.RecordPositionText = string.Empty;
             }
         }
 

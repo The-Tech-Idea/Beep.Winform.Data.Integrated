@@ -33,6 +33,14 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Lov
 
         public LOVSelectionResult Selection { get; private set; } = LOVSelectionResult.Cancelled();
 
+        public LovPickerDialog()
+        {
+            _definition = new LOVDefinition { Title = "List of Values" };
+            _records = new List<object>();
+            _rows = new List<Dictionary<string, object?>>();
+            InitializeComponent();
+        }
+
         public LovPickerDialog(LOVDefinition definition, LOVResult result)
         {
             _definition = definition ?? new LOVDefinition { Title = "List of Values" };
@@ -94,6 +102,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Lov
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
                 AllowUserToResizeRows = false,
+                AllowUserToResizeColumns = true,
                 RowHeadersVisible = _definition.ShowRowNumbers,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 MultiSelect = _definition.AllowMultiSelect,
@@ -106,6 +115,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Lov
             {
                 if (e.RowIndex < 0) return;
                 AcceptSelection();
+            };
+            _grid.ColumnHeaderMouseClick += (_, e) =>
+            {
+                if (e.Button == MouseButtons.Right)
+                    ShowColumnContextMenu(e.ColumnIndex);
             };
 
             var bottomRow = new FlowLayoutPanel
@@ -242,9 +256,19 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Lov
 
             int visible = dt.DefaultView.Count;
             int total = _rows.Count;
-            _statusLabel.Text = total == visible
-                ? $"{total} record(s)"
-                : $"{visible} of {total} record(s)";
+
+            if (visible == 0 && !string.IsNullOrWhiteSpace(text))
+            {
+                _statusLabel.Text = "No matching values found.";
+                _statusLabel.ForeColor = System.Drawing.Color.DarkOrange;
+            }
+            else
+            {
+                _statusLabel.Text = visible == total
+                    ? $"{total} record(s)"
+                    : $"{visible} of {total} record(s)";
+                _statusLabel.ForeColor = SystemColors.ControlText;
+            }
 
             if (visible > 0)
             {
@@ -317,6 +341,30 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Lov
             }
 
             DialogResult = DialogResult.OK;
+        }
+
+        private void ShowColumnContextMenu(int columnIndex)
+        {
+            if (columnIndex < 0 || columnIndex >= _grid.Columns.Count) return;
+            var menu = new ContextMenuStrip();
+
+            foreach (DataGridViewColumn col in _grid.Columns)
+            {
+                if (col.Name == "__Record") continue;
+                var item = new ToolStripMenuItem(col.HeaderText)
+                {
+                    Checked = col.Visible,
+                    CheckOnClick = true,
+                    Tag = col
+                };
+                item.CheckedChanged += (_, _) =>
+                {
+                    col.Visible = item.Checked;
+                };
+                menu.Items.Add(item);
+            }
+
+            menu.Show(_grid, _grid.PointToClient(Cursor.Position));
         }
 
         private object? ResolveReturnValue(object? record)

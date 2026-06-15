@@ -34,5 +34,17 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models
 
         // Phase 7D — bootstrap progress surfaced to status strip
         public BootstrapState BootstrapState { get; set; } = BootstrapState.Idle;
+
+        // Phase 1.3 — record position and connection info for StatusStrip
+        public string RecordPositionText { get; set; } = string.Empty;
+        public string ConnectionName { get; set; } = string.Empty;
+
+        // Phase 5 — validation error summary for StatusStrip
+        public int ErrorCount { get; set; }
+        public string? FirstErrorBlockName { get; set; }
+        public string? FirstErrorFieldName { get; set; }
+
+        // Phase 6 — block aggregate display
+        public string AggregateText { get; set; } = string.Empty;
     }
 }

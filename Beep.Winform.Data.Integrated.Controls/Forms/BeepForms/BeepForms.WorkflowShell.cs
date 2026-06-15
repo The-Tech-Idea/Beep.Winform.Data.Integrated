@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using TheTechIdea.Beep.ConfigUtil;
@@ -263,71 +262,37 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private string? TryCreateBlockSavepoint(string blockName, string? savepointName)
         {
-            if (_formsManager == null)
+            if (_formsManager?.Savepoints == null)
             {
                 return null;
             }
 
-            MethodInfo? wrapperMethod = _formsManager.GetType().GetMethod(
-                "CreateBlockSavepoint",
-                BindingFlags.Instance | BindingFlags.Public,
-                binder: null,
-                types: new[] { typeof(string), typeof(string) },
-                modifiers: null);
-
-            if (wrapperMethod != null)
+            try
             {
-                try
-                {
-                    return wrapperMethod.Invoke(_formsManager, new object?[] { blockName, savepointName }) as string;
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[BeepForms.TryCreateBlockSavepoint] Reflection invoke failed: {ex.GetType().Name} - {ex.Message}");
-                }
+                return _formsManager.Savepoints.CreateSavepoint(blockName, savepointName);
             }
-
-            return _formsManager.Savepoints.CreateSavepoint(blockName, savepointName);
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BeepForms.TryCreateBlockSavepoint] {ex.GetType().Name} - {ex.Message}");
+                return null;
+            }
         }
 
         private async Task<bool> TryRollbackToSavepointViaManagerAsync(string blockName, string savepointName, CancellationToken cancellationToken)
         {
-            if (_formsManager == null)
-            {
-                return false;
-            }
-
-            MethodInfo? wrapperMethod = _formsManager.GetType().GetMethod(
-                "RollbackToSavepointAsync",
-                BindingFlags.Instance | BindingFlags.Public,
-                binder: null,
-                types: new[] { typeof(string), typeof(string), typeof(CancellationToken) },
-                modifiers: null);
-
-            if (wrapperMethod == null)
+            if (_formsManager?.Savepoints == null)
             {
                 return false;
             }
 
             try
             {
-                object? taskObject = wrapperMethod.Invoke(_formsManager, new object?[] { blockName, savepointName, cancellationToken });
-                if (taskObject is Task<bool> typedTask)
-                {
-                    return await typedTask.ConfigureAwait(true);
-                }
-
-                if (taskObject is Task untypedTask)
-                {
-                    await untypedTask.ConfigureAwait(true);
-                    return true;
-                }
-
-                return false;
+                return await _formsManager.Savepoints.RollbackToSavepointAsync(
+                    blockName, savepointName, cancellationToken).ConfigureAwait(true);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[BeepForms.TryRollbackToSavepointViaManagerAsync] Reflection invoke failed: {ex.GetType().Name} - {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[BeepForms.TryRollbackToSavepointViaManagerAsync] {ex.GetType().Name} - {ex.Message}");
                 return false;
             }
         }

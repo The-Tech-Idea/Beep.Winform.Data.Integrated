@@ -115,6 +115,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                     UpdateMasterDetailShellContext(blockName);
                 }
 
+                SyncErrorCount();
                 ShowMessage(FormatErrorMessage(e), MapErrorSeverity(e.ErrorInfo?.Severity ?? ErrorSeverity.Error));
             });
         }
@@ -130,6 +131,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                     UpdateMasterDetailShellContext(blockName);
                 }
 
+                SyncErrorCount();
                 ShowMessage(FormatErrorMessage(e), MapErrorSeverity(e.ErrorInfo?.Severity ?? ErrorSeverity.Warning));
             });
         }

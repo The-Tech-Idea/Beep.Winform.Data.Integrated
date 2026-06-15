@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TheTechIdea.Beep.Editor.UOWManager.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
@@ -34,43 +35,41 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers
         public static string ResolveContext(IBeepFormsHost? formsHost, bool includeActiveBlock, bool includeStateSummary)
         {
             if (!includeActiveBlock && !includeStateSummary)
-            {
                 return string.Empty;
-            }
 
             if (formsHost == null)
-            {
                 return "No BeepForms host attached.";
-            }
 
             var parts = new List<string>();
 
             if (includeActiveBlock)
             {
-                if (!string.IsNullOrWhiteSpace(formsHost.ViewState.ActiveBlockName))
+                int blockCount = formsHost.Blocks.Count;
+                if (blockCount > 0)
                 {
-                    parts.Add($"Block: {formsHost.ViewState.ActiveBlockName}");
+                    parts.Add($"{blockCount} block(s)");
+                    if (!string.IsNullOrWhiteSpace(formsHost.ViewState.ActiveBlockName))
+                        parts.Add($"Active: {formsHost.ViewState.ActiveBlockName}");
                 }
-                else if (formsHost.Blocks.Count > 0)
+                else
                 {
-                    parts.Add("Block: none selected");
+                    parts.Add("No blocks");
                 }
             }
 
             if (includeStateSummary)
             {
                 if (formsHost.ViewState.IsQueryMode)
-                {
                     parts.Add("Query mode");
-                }
 
                 if (formsHost.ViewState.IsDirty)
-                {
-                    parts.Add("Pending changes");
-                }
+                    parts.Add("Unsaved changes");
+
+                if (formsHost.ViewState.ErrorCount > 0)
+                    parts.Add($"{formsHost.ViewState.ErrorCount} error(s)");
             }
 
-            return parts.Count == 0 ? "Ready" : string.Join(" | ", parts);
+            return parts.Count == 0 ? "Ready" : string.Join("  ·  ", parts);
         }
 
         public static string ResolveStatusText(IBeepFormsHost? formsHost)
@@ -80,22 +79,60 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers
                 return "No BeepForms host attached.";
             }
 
-            if (!string.IsNullOrWhiteSpace(formsHost.ViewState.StatusText))
-            {
-                return formsHost.ViewState.StatusText.Trim();
-            }
+            var parts = new List<string>();
+
+            string mode = ResolveModeText(formsHost);
+            if (!string.IsNullOrWhiteSpace(mode))
+                parts.Add(mode);
+
+            if (!string.IsNullOrWhiteSpace(formsHost.ViewState.ActiveBlockName))
+                parts.Add(formsHost.ViewState.ActiveBlockName);
+
+            if (!string.IsNullOrWhiteSpace(formsHost.ViewState.RecordPositionText))
+                parts.Add(string.Concat("Rec ", formsHost.ViewState.RecordPositionText));
+
+            if (formsHost.ViewState.ErrorCount > 0)
+                parts.Add(string.Concat(formsHost.ViewState.ErrorCount, " err"));
 
             if (formsHost.ViewState.IsDirty)
-            {
-                return "Pending changes.";
-            }
+                parts.Add("Dirty");
+
+            if (!string.IsNullOrWhiteSpace(formsHost.ViewState.AggregateText))
+                parts.Add(formsHost.ViewState.AggregateText);
+
+            if (!string.IsNullOrWhiteSpace(formsHost.ViewState.ConnectionName))
+                parts.Add(formsHost.ViewState.ConnectionName);
+
+            if (!string.IsNullOrWhiteSpace(formsHost.ViewState.StatusText))
+                parts.Add(formsHost.ViewState.StatusText.Trim());
+
+            return parts.Count > 0 ? string.Join("  |  ", parts) : "Ready.";
+        }
+
+        private static string ResolveModeText(IBeepFormsHost? formsHost)
+        {
+            if (formsHost == null)
+                return string.Empty;
+
+            if (formsHost.ViewState.BootstrapState == BootstrapState.Running)
+                return "Loading";
 
             if (formsHost.ViewState.IsQueryMode)
             {
-                return "Query mode active.";
+                if (formsHost.FormsManager != null
+                    && !string.IsNullOrWhiteSpace(formsHost.ActiveBlockName)
+                    && formsHost.FormsManager.BlockExists(formsHost.ActiveBlockName))
+                {
+                    var mode = formsHost.FormsManager.GetBlock(formsHost.ActiveBlockName)?.Mode;
+                    if (mode == DataBlockMode.Query)
+                        return "Enter Query";
+                    if (mode == DataBlockMode.Insert)
+                        return "Insert";
+                }
+                return "Query";
             }
 
-            return "Ready.";
+            return "Normal";
         }
 
         public static string ResolveQueryTargetCaption(IBeepFormsHost? formsHost)

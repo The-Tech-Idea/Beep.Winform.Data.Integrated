@@ -26,6 +26,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         private bool _autoBindFormsHost = true;
         private bool _showActiveBlock = true;
         private bool _showStateSummary = true;
+        private bool _allowCollapse = true;
+        private bool _isCollapsed;
 
         public BeepFormsHeader()
         {
@@ -45,7 +47,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             };
             _table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             _table.RowStyles.Add(new RowStyle(SizeType.Absolute, 28f));
-            _table.RowStyles.Add(new RowStyle(SizeType.Absolute, 18f));
+            _table.RowStyles.Add(new RowStyle(SizeType.Absolute, 22f));
 
             _titleLabel = new BeepLabel
             {
@@ -136,6 +138,21 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         [Browsable(true)]
         [Category("Header")]
+        [Description("Allow the header to be collapsed to a compact bar. Click to expand.")]
+        [DefaultValue(true)]
+        public bool AllowCollapse
+        {
+            get => _allowCollapse;
+            set
+            {
+                if (_allowCollapse == value) return;
+                _allowCollapse = value;
+                UpdateFromViewState();
+            }
+        }
+
+        [Browsable(true)]
+        [Category("Header")]
         [Description("Show query mode and dirty-state summary in the header context line.")]
         [DefaultValue(true)]
         public bool ShowStateSummary
@@ -143,14 +160,18 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             get => _showStateSummary;
             set
             {
-                if (_showStateSummary == value)
-                {
-                    return;
-                }
-
+                if (_showStateSummary == value) return;
                 _showStateSummary = value;
                 UpdateFromViewState();
             }
+        }
+
+        protected override void OnClick(EventArgs e)
+        {
+            base.OnClick(e);
+            if (!_allowCollapse) return;
+            _isCollapsed = !_isCollapsed;
+            UpdateFromViewState();
         }
 
         protected override void Dispose(bool disposing)
@@ -230,15 +251,29 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private void UpdateFromViewState()
         {
+            if (_isCollapsed && _allowCollapse)
+            {
+                _titleLabel.Text = "▸ " + BeepFormsDisplayTextResolver.ResolveTitle(_formsHost);
+                _titleLabel.Font = BeepFontManager.StatusBarFont;
+                _contextLabel.Visible = false;
+                _contextLabel.Text = string.Empty;
+                _table.RowStyles[1].Height = 0f;
+                Height = 32;
+                Cursor = Cursors.Hand;
+                return;
+            }
+
             _titleLabel.Text = BeepFormsDisplayTextResolver.ResolveTitle(_formsHost);
+            _titleLabel.Font = BeepFontManager.TitleFont;
 
             string contextText = BeepFormsDisplayTextResolver.ResolveContext(_formsHost, ShowActiveBlock, ShowStateSummary);
             _contextLabel.Text = contextText;
             _contextLabel.ForeColor = ResolveContextColor(_formsHost?.ViewState);
             _contextLabel.Visible = !string.IsNullOrWhiteSpace(contextText);
 
-            _table.RowStyles[1].Height = _contextLabel.Visible ? 18f : 0f;
-            Height = _contextLabel.Visible ? 60 : 42;
+            _table.RowStyles[1].Height = _contextLabel.Visible ? 22f : 0f;
+            Height = _contextLabel.Visible ? 56 : 40;
+            Cursor = _allowCollapse ? Cursors.Hand : Cursors.Default;
         }
 
         private static Color ResolveContextColor(BeepFormsViewState? viewState)

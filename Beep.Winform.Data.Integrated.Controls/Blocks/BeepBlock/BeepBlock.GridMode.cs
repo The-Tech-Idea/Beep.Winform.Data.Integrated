@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TheTechIdea.Beep.DataBase;
+using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Editor.UOWManager.Interfaces;
+using TheTechIdea.Beep.Editor.UOWManager.Models;
 using TheTechIdea.Beep.Utilities;
 using TheTechIdea.Beep.Winform.Controls.CheckBoxes;
 using TheTechIdea.Beep.Winform.Controls.Models;
@@ -22,6 +24,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
             if (manager == null || string.IsNullOrWhiteSpace(ManagerBlockName) || !manager.BlockExists(ManagerBlockName))
             {
+                _gridView.CellValueChanged -= GridView_CellValueChanged;
                 _gridView.Uow = null;
                 _gridView.DataSource = null;
                 return;
@@ -32,6 +35,28 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 
             _gridView.Uow = null;
             _gridView.DataSource = _recordBindingSource;
+
+            _gridView.CellValueChanged -= GridView_CellValueChanged;
+            _gridView.CellValueChanged += GridView_CellValueChanged;
+        }
+
+        private void GridView_CellValueChanged(object? sender, BeepCellEventArgs e)
+        {
+            if (_formsHost == null || e.Cell == null) return;
+
+            string fieldName = e.Cell.ColumnName ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(fieldName)) return;
+
+            try
+            {
+                _formsHost.ValidateBlockRecord(
+                    ManagerBlockName,
+                    new Dictionary<string, object> { [fieldName] = e.Cell.CellValue ?? string.Empty },
+                    ValidationTiming.OnChange);
+
+                SyncFromManager();
+            }
+            catch { /* validation may not be available */ }
         }
 
         private void ConfigureGridColumns(IEntityStructure? entityStructure)

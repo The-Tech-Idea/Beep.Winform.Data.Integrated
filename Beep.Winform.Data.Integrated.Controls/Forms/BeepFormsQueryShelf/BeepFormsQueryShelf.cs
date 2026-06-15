@@ -26,10 +26,12 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         private bool _autoBindFormsHost = true;
         private BeepButton? _enterQueryButton;
         private BeepButton? _executeQueryButton;
+        private BeepButton? _exitQueryButton;
         private BeepFormsQueryShelfButtons _queryButtons = BeepFormsQueryShelfButtons.All;
         private FlowDirection _queryFlowDirection = FlowDirection.LeftToRight;
         private bool _showQueryContextCaption = true;
         private BeepFormsQueryShelfCaptionMode _queryCaptionMode = BeepFormsQueryShelfCaptionMode.TargetPlusMode;
+        private bool _highlightQueryMode = true;
 
         public BeepFormsQueryShelf()
         {
@@ -186,11 +188,26 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             set
             {
                 if (_queryCaptionMode == value)
-                {
                     return;
-                }
 
                 _queryCaptionMode = value;
+                UpdateQueryShelfState();
+            }
+        }
+
+        [Browsable(true)]
+        [Category("Query Shelf")]
+        [Description("Highlight the query shelf with a distinct background when the active block is in query mode.")]
+        [DefaultValue(true)]
+        public bool HighlightQueryMode
+        {
+            get => _highlightQueryMode;
+            set
+            {
+                if (_highlightQueryMode == value)
+                    return;
+
+                _highlightQueryMode = value;
                 UpdateQueryShelfState();
             }
         }
@@ -276,6 +293,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             AddButton(ref _enterQueryButton, BeepFormsQueryShelfButtons.EnterQuery, "Enter Query", EnterQueryButton_Click, 108);
             AddButton(ref _executeQueryButton, BeepFormsQueryShelfButtons.ExecuteQuery, "Execute Query", ExecuteQueryButton_Click, 118);
+            AddButton(ref _exitQueryButton, BeepFormsQueryShelfButtons.ExitQuery, "Cancel Query", ExitQueryButton_Click, 112);
 
             _commandPanel.Visible = _commandPanel.Controls.Count > 0;
             _commandPanel.ResumeLayout(false);
@@ -316,8 +334,12 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             bool hasHost = _formsHost != null;
             bool hasActiveBlock = hasHost && !string.IsNullOrWhiteSpace(_formsHost!.ActiveBlockName);
             bool isQueryMode = hasActiveBlock && _formsHost!.ViewState.IsQueryMode;
+            bool canQuery = hasActiveBlock && IsBlockQueryAllowed();
 
             string captionText = BeepFormsDisplayTextResolver.ResolveQueryTargetCaption(_formsHost, QueryCaptionMode);
+            if (isQueryMode)
+                captionText = string.Concat(captionText, "  —  Enter criteria and execute");
+
             _captionLabel.Text = captionText;
             _captionLabel.Visible = ShowQueryContextCaption;
             _captionLabel.ForeColor = ResolveCaptionColor();
@@ -325,8 +347,24 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _layoutRoot.RowStyles[0].Height = _captionLabel.Visible ? 16f : 0f;
             Height = _captionLabel.Visible ? 54 : 36;
 
-            SetButtonState(_enterQueryButton, hasActiveBlock, QueryButtons.HasFlag(BeepFormsQueryShelfButtons.EnterQuery));
-            SetButtonState(_executeQueryButton, isQueryMode, QueryButtons.HasFlag(BeepFormsQueryShelfButtons.ExecuteQuery));
+            if (_highlightQueryMode && isQueryMode)
+            {
+                BackColor = Color.FromArgb(220, 235, 252);
+            }
+            else
+            {
+                BackColor = Color.Transparent;
+            }
+
+            SetButtonState(_enterQueryButton, hasActiveBlock && !isQueryMode, QueryButtons.HasFlag(BeepFormsQueryShelfButtons.EnterQuery));
+            SetButtonState(_executeQueryButton, canQuery, QueryButtons.HasFlag(BeepFormsQueryShelfButtons.ExecuteQuery));
+            SetButtonState(_exitQueryButton, isQueryMode, QueryButtons.HasFlag(BeepFormsQueryShelfButtons.ExitQuery));
+        }
+
+        private bool IsBlockQueryAllowed()
+        {
+            if (_formsHost == null || string.IsNullOrWhiteSpace(_formsHost.ActiveBlockName)) return false;
+            return _formsHost.TryGetBlockProperty(_formsHost.ActiveBlockName, "QueryAllowed", out object? val) && val is true;
         }
 
         private Color ResolveCaptionColor()
@@ -372,6 +410,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             if (_formsHost == null) return;
             try { await _formsHost.ExecuteQueryAsync().ConfigureAwait(true); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsQueryShelf.ExecuteQuery] {ex.Message}"); }
+        }
+
+        private async void ExitQueryButton_Click(object? sender, EventArgs e)
+        {
+            if (_formsHost == null) return;
+            try { await _formsHost.ExitQueryAsync().ConfigureAwait(true); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsQueryShelf.ExitQuery] {ex.Message}"); }
         }
     }
 }

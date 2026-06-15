@@ -23,6 +23,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         private bool _autoBindFormsHost = true;
         private BeepButton? _commitButton;
         private BeepButton? _rollbackButton;
+        private BeepButton? _batchCommitButton;
         private BeepFormsPersistenceShelfButtons _persistenceButtons = BeepFormsPersistenceShelfButtons.All;
         private FlowDirection _persistenceFlowDirection = FlowDirection.LeftToRight;
 
@@ -210,6 +211,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             AddButton(ref _commitButton, BeepFormsPersistenceShelfButtons.Commit, "Commit", CommitButton_Click, 90);
             AddButton(ref _rollbackButton, BeepFormsPersistenceShelfButtons.Rollback, "Rollback", RollbackButton_Click, 96);
+            AddButton(ref _batchCommitButton, BeepFormsPersistenceShelfButtons.BatchCommit, "Batch", BatchCommitButton_Click, 72);
 
             _commandPanel.Visible = _commandPanel.Controls.Count > 0;
             _commandPanel.ResumeLayout(false);
@@ -251,6 +253,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             SetButtonState(_commitButton, isDirty, PersistenceButtons.HasFlag(BeepFormsPersistenceShelfButtons.Commit));
             SetButtonState(_rollbackButton, isDirty, PersistenceButtons.HasFlag(BeepFormsPersistenceShelfButtons.Rollback));
+            SetButtonState(_batchCommitButton, isDirty, PersistenceButtons.HasFlag(BeepFormsPersistenceShelfButtons.BatchCommit));
         }
 
         private static void SetButtonState(BeepButton? button, bool enabled, bool visible)
@@ -276,6 +279,27 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             if (_formsHost == null) return;
             try { await _formsHost.RollbackFormAsync().ConfigureAwait(true); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsPersistenceShelf.Rollback] {ex.Message}"); }
+        }
+
+        private async void BatchCommitButton_Click(object? sender, EventArgs e)
+        {
+            if (_formsHost?.FormsManager == null) return;
+            try
+            {
+                bool confirmed = await _formsHost.ConfirmAsync("Batch Commit",
+                    "Commit all blocks in a single transaction?").ConfigureAwait(true);
+                if (!confirmed) return;
+
+                _formsHost.ShowInfo("Running batch commit…");
+                var result = await _formsHost.FormsManager.CommitFormBatchAsync().ConfigureAwait(true);
+                _formsHost.SyncFromManager();
+                _formsHost.ShowSuccess("Batch commit completed.");
+            }
+            catch (Exception ex)
+            {
+                _formsHost?.ShowError($"Batch commit failed: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[BeepFormsPersistenceShelf.BatchCommit] {ex.Message}");
+            }
         }
     }
 }
