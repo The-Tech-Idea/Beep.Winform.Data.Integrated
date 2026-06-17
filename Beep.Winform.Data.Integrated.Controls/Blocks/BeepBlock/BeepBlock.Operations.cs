@@ -9,7 +9,7 @@ using TheTechIdea.Beep.Editor.UOWManager.Models;
 using TheTechIdea.Beep.Winform.Controls.GridX;
 using TheTechIdea.Beep.Winform.Controls.GridX.Export;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
+using TheTechIdea.Beep.Editor.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 {
@@ -284,7 +284,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
         /// service. Mirrors the Oracle Forms <c>MESSAGE</c> built-in at the
         /// block level so block code does not have to reach into the form.
         /// </summary>
-        public void Message(string text, BeepFormsMessageSeverity severity = BeepFormsMessageSeverity.Info)
+        public void Message(string text, BeepMessageSeverity severity = BeepMessageSeverity.Info)
         {
             if (_formsHost is BeepForms beepForms)
             {
@@ -292,12 +292,12 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             }
         }
 
-        private static BeepBuiltinMessageSeverity MapToBuiltinSeverity(BeepFormsMessageSeverity severity)
+        private static BeepBuiltinMessageSeverity MapToBuiltinSeverity(BeepMessageSeverity severity)
         {
             return severity switch
             {
-                BeepFormsMessageSeverity.Warning => BeepBuiltinMessageSeverity.Warning,
-                BeepFormsMessageSeverity.Error => BeepBuiltinMessageSeverity.Error,
+                BeepMessageSeverity.Warning => BeepBuiltinMessageSeverity.Warning,
+                BeepMessageSeverity.Error => BeepBuiltinMessageSeverity.Error,
                 _ => BeepBuiltinMessageSeverity.Info
             };
         }

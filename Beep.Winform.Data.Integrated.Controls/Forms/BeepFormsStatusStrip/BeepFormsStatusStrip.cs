@@ -6,8 +6,8 @@ using System.Windows.Forms;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.Base;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
+using TheTechIdea.Beep.Editor.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
@@ -333,6 +333,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private void FormsHost_Disposed(object? sender, EventArgs e)
         {
+            BeepFormsHostResolver.Invalidate(this);
             if (InvokeRequired)
             {
                 BeginInvoke(() => { FormsHost = null; TryBindFormsHostFromHierarchy(); });
@@ -360,17 +361,17 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             if (_formsHost == null)
             {
-                ApplyLine(_statusLabel, "Status: No BeepForms host attached.", BeepFormsMessageSeverity.Info, visible: ShowStatusLine);
-                ApplyLine(_messageLabel, string.Empty, BeepFormsMessageSeverity.None, visible: false);
-                ApplyLine(_coordinationLabel, string.Empty, BeepFormsMessageSeverity.None, visible: false);
-                ApplyLine(_workflowLabel, string.Empty, BeepFormsMessageSeverity.None, visible: false);
-                ApplyLine(_savepointLabel, string.Empty, BeepFormsMessageSeverity.None, visible: false);
-                ApplyLine(_alertLabel, string.Empty, BeepFormsMessageSeverity.None, visible: false);
+                ApplyLine(_statusLabel, "Status: No BeepForms host attached.", BeepMessageSeverity.Info, visible: ShowStatusLine);
+                ApplyLine(_messageLabel, string.Empty, BeepMessageSeverity.None, visible: false);
+                ApplyLine(_coordinationLabel, string.Empty, BeepMessageSeverity.None, visible: false);
+                ApplyLine(_workflowLabel, string.Empty, BeepMessageSeverity.None, visible: false);
+                ApplyLine(_savepointLabel, string.Empty, BeepMessageSeverity.None, visible: false);
+                ApplyLine(_alertLabel, string.Empty, BeepMessageSeverity.None, visible: false);
                 ApplyLayout();
                 return;
             }
 
-            BeepFormsViewState viewState = _formsHost.ViewState;
+            BeepViewState viewState = _formsHost.ViewState;
             string workflowText = BuildWorkflowHistoryText(viewState);
 
             string statusText = BeepFormsDisplayTextResolver.ResolveStatusText(_formsHost);
@@ -385,9 +386,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             };
 
             var statusSeverity = viewState.BootstrapState == BootstrapState.Failed
-                ? BeepFormsMessageSeverity.Error
+                ? BeepMessageSeverity.Error
                 : viewState.BootstrapState == BootstrapState.PartialSuccess
-                    ? BeepFormsMessageSeverity.Warning
+                    ? BeepMessageSeverity.Warning
                     : ResolveStatusSeverity(viewState);
 
             ApplyLine(_statusLabel, $"Status: {bootstrapPrefix}{statusText}", statusSeverity, visible: ShowStatusLine);
@@ -402,7 +403,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             ApplyLayout();
         }
 
-        private void ApplyLine(BeepLabel label, string text, BeepFormsMessageSeverity severity, bool visible)
+        private void ApplyLine(BeepLabel label, string text, BeepMessageSeverity severity, bool visible)
         {
             label.Text = text;
             label.ForeColor = GetMessageColor(severity);
@@ -446,12 +447,12 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return Math.Max(1, (int)Math.Ceiling(preferredSize.Height / 18d));
         }
 
-        private string BuildWorkflowHistoryText(BeepFormsViewState viewState)
+        private string BuildWorkflowHistoryText(BeepViewState viewState)
         {
             if (viewState?.WorkflowHistory == null)
                 return string.Empty;
 
-            BeepFormsWorkflowEntry[] entries = viewState.WorkflowHistory
+            BeepWorkflowEntry[] entries = viewState.WorkflowHistory
                 .Take(WorkflowHistoryVisibleCount)
                 .ToArray();
 
@@ -470,9 +471,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return "Workflow:" + Environment.NewLine + string.Join(Environment.NewLine, entries.Select(entry => $"  {FormatWorkflowEntry(entry)}"));
         }
 
-        private BeepFormsMessageSeverity ResolveWorkflowHistorySeverity(BeepFormsViewState viewState)
+        private BeepMessageSeverity ResolveWorkflowHistorySeverity(BeepViewState viewState)
         {
-            BeepFormsWorkflowEntry[] entries = viewState.WorkflowHistory
+            BeepWorkflowEntry[] entries = viewState.WorkflowHistory
                 .Take(WorkflowHistoryVisibleCount)
                 .ToArray();
 
@@ -481,64 +482,64 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 return viewState.WorkflowSeverity;
             }
 
-            if (entries.Any(entry => entry.Severity == BeepFormsMessageSeverity.Error))
+            if (entries.Any(entry => entry.Severity == BeepMessageSeverity.Error))
             {
-                return BeepFormsMessageSeverity.Error;
+                return BeepMessageSeverity.Error;
             }
 
-            if (entries.Any(entry => entry.Severity == BeepFormsMessageSeverity.Warning))
+            if (entries.Any(entry => entry.Severity == BeepMessageSeverity.Warning))
             {
-                return BeepFormsMessageSeverity.Warning;
+                return BeepMessageSeverity.Warning;
             }
 
-            if (entries.Any(entry => entry.Severity == BeepFormsMessageSeverity.Success))
+            if (entries.Any(entry => entry.Severity == BeepMessageSeverity.Success))
             {
-                return BeepFormsMessageSeverity.Success;
+                return BeepMessageSeverity.Success;
             }
 
-            if (entries.Any(entry => entry.Severity == BeepFormsMessageSeverity.Info))
+            if (entries.Any(entry => entry.Severity == BeepMessageSeverity.Info))
             {
-                return BeepFormsMessageSeverity.Info;
+                return BeepMessageSeverity.Info;
             }
 
-            return BeepFormsMessageSeverity.None;
+            return BeepMessageSeverity.None;
         }
 
-        private static string FormatWorkflowEntry(BeepFormsWorkflowEntry entry)
+        private static string FormatWorkflowEntry(BeepWorkflowEntry entry)
         {
             string severityCode = entry.Severity switch
             {
-                BeepFormsMessageSeverity.Error => "ERR",
-                BeepFormsMessageSeverity.Warning => "WARN",
-                BeepFormsMessageSeverity.Success => "OK",
-                BeepFormsMessageSeverity.Info => "INFO",
+                BeepMessageSeverity.Error => "ERR",
+                BeepMessageSeverity.Warning => "WARN",
+                BeepMessageSeverity.Success => "OK",
+                BeepMessageSeverity.Info => "INFO",
                 _ => "NOTE"
             };
 
             return $"{entry.Timestamp:HH:mm} {severityCode} {entry.Text}";
         }
 
-        private static BeepFormsMessageSeverity ResolveStatusSeverity(BeepFormsViewState viewState)
+        private static BeepMessageSeverity ResolveStatusSeverity(BeepViewState viewState)
         {
             if (viewState.ErrorCount > 0)
             {
-                return BeepFormsMessageSeverity.Error;
+                return BeepMessageSeverity.Error;
             }
 
             if (viewState.IsDirty)
             {
-                return BeepFormsMessageSeverity.Warning;
+                return BeepMessageSeverity.Warning;
             }
 
             if (viewState.IsQueryMode)
             {
-                return BeepFormsMessageSeverity.Info;
+                return BeepMessageSeverity.Info;
             }
 
-            return BeepFormsMessageSeverity.Success;
+            return BeepMessageSeverity.Success;
         }
 
-        private void UpdateWorkflowTooltip(BeepFormsViewState viewState)
+        private void UpdateWorkflowTooltip(BeepViewState viewState)
         {
             if (viewState?.WorkflowHistory == null || viewState.WorkflowHistory.Count == 0)
             {
@@ -552,9 +553,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             {
                 string icon = entry.Severity switch
                 {
-                    BeepFormsMessageSeverity.Error => "✖",
-                    BeepFormsMessageSeverity.Warning => "⚠",
-                    BeepFormsMessageSeverity.Success => "✓",
+                    BeepMessageSeverity.Error => "✖",
+                    BeepMessageSeverity.Warning => "⚠",
+                    BeepMessageSeverity.Success => "✓",
                     _ => "ℹ"
                 };
                 lines.AppendLine($"  {entry.Timestamp:HH:mm:ss} {icon} {entry.Text}");
@@ -562,7 +563,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _workflowTooltip.SetToolTip(_workflowLabel, lines.ToString().TrimEnd());
         }
 
-        private void ScheduleMessageAutoClear(string message, BeepFormsMessageSeverity severity)
+        private void ScheduleMessageAutoClear(string message, BeepMessageSeverity severity)
         {
             var oldTimer = _messageClearTimer;
             _messageClearTimer = null;
@@ -572,8 +573,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             int timeout = severity switch
             {
-                BeepFormsMessageSeverity.Success => 5000,
-                BeepFormsMessageSeverity.Info => 10000,
+                BeepMessageSeverity.Success => 5000,
+                BeepMessageSeverity.Info => 10000,
                 _ => 0
             };
 
@@ -590,13 +591,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _messageClearTimer.Start();
         }
 
-        private static Color GetMessageColor(BeepFormsMessageSeverity severity)
+        private static Color GetMessageColor(BeepMessageSeverity severity)
         {
             return severity switch
             {
-                BeepFormsMessageSeverity.Success => Color.ForestGreen,
-                BeepFormsMessageSeverity.Warning => Color.DarkOrange,
-                BeepFormsMessageSeverity.Error => Color.Firebrick,
+                BeepMessageSeverity.Success => Color.ForestGreen,
+                BeepMessageSeverity.Warning => Color.DarkOrange,
+                BeepMessageSeverity.Error => Color.Firebrick,
                 _ => Color.Black
             };
         }
@@ -613,9 +614,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             {
                 string icon = entry.Severity switch
                 {
-                    BeepFormsMessageSeverity.Error => "[ERR]",
-                    BeepFormsMessageSeverity.Warning => "[WRN]",
-                    BeepFormsMessageSeverity.Success => "[OK] ",
+                    BeepMessageSeverity.Error => "[ERR]",
+                    BeepMessageSeverity.Warning => "[WRN]",
+                    BeepMessageSeverity.Success => "[OK] ",
                     _ => "[INF]"
                 };
                 sb.AppendLine($"{entry.Timestamp:yyyy-MM-dd HH:mm:ss} {icon} {entry.Text}");

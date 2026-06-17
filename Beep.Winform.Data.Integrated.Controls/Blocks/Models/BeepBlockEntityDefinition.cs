@@ -71,6 +71,18 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Models
                 .ToList();
         }
 
+        public static List<BeepFieldDefinition> CreateFieldDefinitionsFromEntityStructure(IEntityStructure entity)
+        {
+            if (entity?.Fields == null || entity.Fields.Count == 0)
+                return new List<BeepFieldDefinition>();
+
+            return entity.Fields
+                .Where(f => f != null && !string.IsNullOrWhiteSpace(f.FieldName))
+                .OrderBy(f => f?.FieldName)
+                .Select((f, idx) => EntityFieldBlockConverter.ToFieldDefinition(f!, idx))
+                .ToList();
+        }
+
         public BeepBlockEntityDefinition Clone()
         {
             var clone = new BeepBlockEntityDefinition

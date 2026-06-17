@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using TheTechIdea.Beep.Editor.UOWManager.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts;
+using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers

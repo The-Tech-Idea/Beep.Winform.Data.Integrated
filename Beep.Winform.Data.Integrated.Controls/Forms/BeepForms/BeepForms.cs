@@ -14,9 +14,9 @@ using TheTechIdea.Beep.Editor.UOWManager.Interfaces;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Contracts;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Builtins;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Logon;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services;
+using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
@@ -29,7 +29,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
     public partial class BeepForms : Panel, IBeepFormsHost
     {
         private readonly List<IBeepBlockView> _blocks = new();
-        private readonly BeepFormsViewState _viewState = new();
+        private readonly BeepViewState _viewState = new();
         private readonly BeepFormsManagerAdapter _managerAdapter = new();
         private IUnitofWorksManager? _formsManager;
         private BeepFormsDefinition? _definition;
@@ -43,7 +43,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             InitializeComponent();
             InitializeLayout();
-            CommandRouter = new BeepFormsCommandRouter();
+            InitializeDragDrop();
             NotificationService = new BeepFormsMessageService();
         }
 
@@ -119,7 +119,6 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 DetachFromFormsManager(_formsManager);
                 _formsManager = value;
                 _managerAdapter.Attach(_formsManager);
-                _commandRouter.FormsManager = _formsManager;
                 AttachToFormsManager(_formsManager);
                 if (_formsManager != null && _definition?.Blocks?.Count > 0)
                     _ = InitializeAsync();
@@ -154,7 +153,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         }
 
         [Browsable(false)]
-        public BeepFormsViewState ViewState => _viewState;
+        public BeepViewState ViewState => _viewState;
 
         [Browsable(false)]
         public IReadOnlyList<IBeepBlockView> Blocks => _blocks;
@@ -164,7 +163,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         public event EventHandler? ViewStateChanged;
 
         // Phase 7D — raised when all blocks have been bootstrapped (or failed)
-        public event EventHandler<BeepFormsBootstrapEventArgs>? BootstrapCompleted;
+        public event EventHandler<BeepBootstrapEventArgs>? BootstrapCompleted;
 
         public bool RegisterBlock(IBeepBlockView blockView)
         {
@@ -383,7 +382,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         /// <summary>
         /// Phase 7D — Asynchronously bootstraps all blocks defined in <see cref="Definition"/>
         /// by delegating to <see cref="IUnitofWorksManager.SetupBlockAsync"/> for each block.
-        /// Updates <see cref="BeepFormsViewState.BootstrapState"/> and raises
+        /// Updates <see cref="BeepViewState.BootstrapState"/> and raises
         /// <see cref="BootstrapCompleted"/> when done.
         /// </summary>
         public async Task<bool> InitializeAsync(CancellationToken cancellationToken = default)
@@ -418,7 +417,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             _viewState.BootstrapState = allOk ? BootstrapState.Succeeded : BootstrapState.PartialSuccess;
             SyncFromManager();
-            BootstrapCompleted?.Invoke(this, new BeepFormsBootstrapEventArgs(
+            BootstrapCompleted?.Invoke(this, new BeepBootstrapEventArgs(
                 allOk ? BootstrapState.Succeeded : BootstrapState.PartialSuccess));
             return allOk;
         }

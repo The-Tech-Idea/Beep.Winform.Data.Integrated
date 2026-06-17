@@ -5,8 +5,9 @@ using System.Windows.Forms;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.Base;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
+using TheTechIdea.Beep.Editor.Forms.Models;
+using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
@@ -16,11 +17,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
     [DisplayName("Beep Forms Record Navigation Shelf")]
     [Description("Standalone record navigation shelf for BeepForms with First/Previous/Next/Last and position indicator.")]
     [Designer("TheTechIdea.Beep.Winform.Controls.Design.Server.Designers.BeepFormsRecordNavigationShelfDesigner, TheTechIdea.Beep.Winform.Controls.Design.Server")]
-    public sealed class BeepFormsRecordNavigationShelf : BaseControl
+    public sealed class BeepFormsRecordNavigationShelf : BeepFormsShelfBase
     {
         private readonly FlowLayoutPanel _navPanel;
-        private BeepForms? _formsHost;
-        private bool _autoBindFormsHost = true;
         private BeepButton? _firstButton;
         private BeepButton? _previousButton;
         private BeepLabel? _positionLabel;
@@ -50,43 +49,6 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             Controls.Add(_navPanel);
             RefreshNavigationStrip();
-        }
-
-        [Browsable(true)]
-        [Category("Behavior")]
-        [Description("Optional BeepForms coordinator surfaced by this navigation shelf.")]
-        [DefaultValue(null)]
-        public BeepForms? FormsHost
-        {
-            get => _formsHost;
-            set
-            {
-                if (ReferenceEquals(_formsHost, value))
-                    return;
-
-                DetachFormsHost(_formsHost);
-                _formsHost = value;
-                AttachFormsHost(_formsHost);
-                UpdateNavigationState();
-            }
-        }
-
-        [Browsable(true)]
-        [Category("Behavior")]
-        [Description("Automatically resolve a nearby BeepForms host when FormsHost is not set explicitly.")]
-        [DefaultValue(true)]
-        public bool AutoBindFormsHost
-        {
-            get => _autoBindFormsHost;
-            set
-            {
-                if (_autoBindFormsHost == value)
-                    return;
-
-                _autoBindFormsHost = value;
-                if (_autoBindFormsHost && _formsHost == null)
-                    TryBindFormsHostFromHierarchy();
-            }
         }
 
         [Browsable(true)]
@@ -136,99 +98,26 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                     return;
 
                 _showPositionLabel = value;
-                UpdateNavigationState();
+                OnFormsHostChanged();
             }
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-                DetachFormsHost(_formsHost);
-
-            base.Dispose(disposing);
-        }
-
-        protected override void OnCreateControl()
-        {
-            base.OnCreateControl();
-            TryBindFormsHostFromHierarchy();
-        }
-
-        protected override void OnParentChanged(EventArgs e)
-        {
-            base.OnParentChanged(e);
-            TryBindFormsHostFromHierarchy();
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            if (_formsHost == null) return base.ProcessCmdKey(ref msg, keyData);
+            if (FormsHost == null) return base.ProcessCmdKey(ref msg, keyData);
 
             switch (keyData)
             {
                 case Keys.PageUp:
-                    _ = _formsHost.MoveFirstAsync(); return true;
+                    _ = FormsHost.MoveFirstAsync(); return true;
                 case Keys.PageDown:
-                    _ = _formsHost.MoveLastAsync(); return true;
+                    _ = FormsHost.MoveLastAsync(); return true;
                 case Keys.Up:
-                    _ = _formsHost.MovePreviousAsync(); return true;
+                    _ = FormsHost.MovePreviousAsync(); return true;
                 case Keys.Down:
-                    _ = _formsHost.MoveNextAsync(); return true;
+                    _ = FormsHost.MoveNextAsync(); return true;
             }
             return base.ProcessCmdKey(ref msg, keyData);
-        }
-
-        private void AttachFormsHost(BeepForms? formsHost)
-        {
-            if (formsHost == null)
-                return;
-
-            formsHost.ActiveBlockChanged += FormsHost_StateChanged;
-            formsHost.FormsManagerChanged += FormsHost_StateChanged;
-            formsHost.ViewStateChanged += FormsHost_StateChanged;
-            formsHost.Disposed += FormsHost_Disposed;
-        }
-
-        private void DetachFormsHost(BeepForms? formsHost)
-        {
-            if (formsHost == null)
-                return;
-
-            formsHost.ActiveBlockChanged -= FormsHost_StateChanged;
-            formsHost.FormsManagerChanged -= FormsHost_StateChanged;
-            formsHost.ViewStateChanged -= FormsHost_StateChanged;
-            formsHost.Disposed -= FormsHost_Disposed;
-        }
-
-        private void FormsHost_StateChanged(object? sender, EventArgs e)
-        {
-            if (InvokeRequired)
-            {
-                BeginInvoke(() => UpdateNavigationState());
-                return;
-            }
-            UpdateNavigationState();
-        }
-
-        private void FormsHost_Disposed(object? sender, EventArgs e)
-        {
-            if (InvokeRequired)
-            {
-                BeginInvoke(() => { FormsHost = null; TryBindFormsHostFromHierarchy(); });
-                return;
-            }
-            FormsHost = null;
-            TryBindFormsHostFromHierarchy();
-        }
-
-        private void TryBindFormsHostFromHierarchy()
-        {
-            if (!AutoBindFormsHost || _formsHost != null || Parent == null)
-                return;
-
-            BeepForms? resolvedHost = BeepFormsHostResolver.Find(this);
-            if (resolvedHost != null)
-                FormsHost = resolvedHost;
         }
 
         private void RefreshNavigationStrip()
@@ -264,7 +153,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _navPanel.Visible = _navPanel.Controls.Count > 0;
             _navPanel.ResumeLayout(false);
 
-            UpdateNavigationState();
+            OnFormsHostChanged();
         }
 
         private void AddButton(ref BeepButton? field, BeepFormsRecordNavigationShelfButtons flag, string caption, EventHandler clickHandler, int minimumWidth)
@@ -295,16 +184,17 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return Math.Max(minimumWidth, measuredWidth);
         }
 
-        private void UpdateNavigationState()
+        protected override void OnFormsHostChanged()
         {
-            bool hasHost = _formsHost != null;
-            bool hasActiveBlock = hasHost && !string.IsNullOrWhiteSpace(_formsHost!.ActiveBlockName);
-            bool hasRecords = hasActiveBlock && !string.IsNullOrWhiteSpace(_formsHost!.ViewState.RecordPositionText)
-                && _formsHost.ViewState.RecordPositionText != "0 records";
+            base.OnFormsHostChanged();
+            bool hasHost = FormsHost != null;
+            bool hasActiveBlock = hasHost && !string.IsNullOrWhiteSpace(FormsHost!.ActiveBlockName);
+            bool hasRecords = hasActiveBlock && !string.IsNullOrWhiteSpace(FormsHost!.ViewState.RecordPositionText)
+                && FormsHost.ViewState.RecordPositionText != "0 records";
             int recordCount = TryParseRecordCount();
 
             string positionText = hasActiveBlock
-                ? _formsHost!.ViewState.RecordPositionText
+                ? FormsHost!.ViewState.RecordPositionText
                 : string.Empty;
             if (string.IsNullOrWhiteSpace(positionText))
                 positionText = "0 records";
@@ -326,7 +216,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private int TryParseRecordCount()
         {
-            string? text = _formsHost?.ViewState.RecordPositionText;
+            string? text = FormsHost?.ViewState.RecordPositionText;
             if (string.IsNullOrWhiteSpace(text) || text == "0 records")
                 return 0;
 
@@ -343,7 +233,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private int TryParseCurrentIndex()
         {
-            string? text = _formsHost?.ViewState.RecordPositionText;
+            string? text = FormsHost?.ViewState.RecordPositionText;
             if (string.IsNullOrWhiteSpace(text))
                 return -1;
 
@@ -365,29 +255,29 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private async void FirstButton_Click(object? sender, EventArgs e)
         {
-            if (_formsHost == null) return;
-            try { await _formsHost.MoveFirstAsync().ConfigureAwait(true); }
+            if (FormsHost == null) return;
+            try { await FormsHost.MoveFirstAsync().ConfigureAwait(true); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsRecordNavigationShelf.First] {ex.Message}"); }
         }
 
         private async void PreviousButton_Click(object? sender, EventArgs e)
         {
-            if (_formsHost == null) return;
-            try { await _formsHost.MovePreviousAsync().ConfigureAwait(true); }
+            if (FormsHost == null) return;
+            try { await FormsHost.MovePreviousAsync().ConfigureAwait(true); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsRecordNavigationShelf.Previous] {ex.Message}"); }
         }
 
         private async void NextButton_Click(object? sender, EventArgs e)
         {
-            if (_formsHost == null) return;
-            try { await _formsHost.MoveNextAsync().ConfigureAwait(true); }
+            if (FormsHost == null) return;
+            try { await FormsHost.MoveNextAsync().ConfigureAwait(true); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsRecordNavigationShelf.Next] {ex.Message}"); }
         }
 
         private async void LastButton_Click(object? sender, EventArgs e)
         {
-            if (_formsHost == null) return;
-            try { await _formsHost.MoveLastAsync().ConfigureAwait(true); }
+            if (FormsHost == null) return;
+            try { await FormsHost.MoveLastAsync().ConfigureAwait(true); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsRecordNavigationShelf.Last] {ex.Message}"); }
         }
     }

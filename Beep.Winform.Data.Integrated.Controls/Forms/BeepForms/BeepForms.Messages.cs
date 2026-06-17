@@ -7,7 +7,6 @@ using TheTechIdea.Beep.ConfigUtil;
 using TheTechIdea.Beep.Editor.Forms.Builtins;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
@@ -24,22 +23,22 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         public void ShowInfo(string message)
         {
-            ShowMessage(message, BeepFormsMessageSeverity.Info);
+            ShowMessage(message, BeepMessageSeverity.Info);
         }
 
         public void ShowSuccess(string message)
         {
-            ShowMessage(message, BeepFormsMessageSeverity.Success);
+            ShowMessage(message, BeepMessageSeverity.Success);
         }
 
         public void ShowWarning(string message)
         {
-            ShowMessage(message, BeepFormsMessageSeverity.Warning);
+            ShowMessage(message, BeepMessageSeverity.Warning);
         }
 
         public void ShowError(string message)
         {
-            ShowMessage(message, BeepFormsMessageSeverity.Error);
+            ShowMessage(message, BeepMessageSeverity.Error);
         }
 
         public void ClearMessages()
@@ -51,7 +50,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             ApplyShellStateToUi();
         }
 
-        private void ShowMessage(string message, BeepFormsMessageSeverity severity)
+        private void ShowMessage(string message, BeepMessageSeverity severity)
         {
             lock (_messageLock)
             {
@@ -60,72 +59,72 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             ApplyShellStateToUi();
         }
 
-        private static BeepFormsMessageSeverity MapMessageLevel(MessageLevel level)
+        private static BeepMessageSeverity MapMessageLevel(MessageLevel level)
         {
             return level switch
             {
-                MessageLevel.Success => BeepFormsMessageSeverity.Success,
-                MessageLevel.Warning => BeepFormsMessageSeverity.Warning,
-                MessageLevel.Error => BeepFormsMessageSeverity.Error,
-                _ => BeepFormsMessageSeverity.Info
+                MessageLevel.Success => BeepMessageSeverity.Success,
+                MessageLevel.Warning => BeepMessageSeverity.Warning,
+                MessageLevel.Error => BeepMessageSeverity.Error,
+                _ => BeepMessageSeverity.Info
             };
         }
 
-        private static BeepFormsMessageSeverity MapErrorSeverity(ErrorSeverity severity)
+        private static BeepMessageSeverity MapErrorSeverity(ErrorSeverity severity)
         {
             return severity switch
             {
-                ErrorSeverity.Info => BeepFormsMessageSeverity.Info,
-                ErrorSeverity.Warning => BeepFormsMessageSeverity.Warning,
-                ErrorSeverity.Critical => BeepFormsMessageSeverity.Error,
-                ErrorSeverity.Error => BeepFormsMessageSeverity.Error,
-                _ => BeepFormsMessageSeverity.Info
+                ErrorSeverity.Info => BeepMessageSeverity.Info,
+                ErrorSeverity.Warning => BeepMessageSeverity.Warning,
+                ErrorSeverity.Critical => BeepMessageSeverity.Error,
+                ErrorSeverity.Error => BeepMessageSeverity.Error,
+                _ => BeepMessageSeverity.Info
             };
         }
 
-        private static BeepFormsMessageSeverity MapFormMessageSeverity(string? messageType)
+        private static BeepMessageSeverity MapFormMessageSeverity(string? messageType)
         {
             if (string.IsNullOrWhiteSpace(messageType))
             {
-                return BeepFormsMessageSeverity.Info;
+                return BeepMessageSeverity.Info;
             }
 
             if (messageType.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 messageType.IndexOf("fail", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                return BeepFormsMessageSeverity.Error;
+                return BeepMessageSeverity.Error;
             }
 
             if (messageType.IndexOf("warn", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                return BeepFormsMessageSeverity.Warning;
+                return BeepMessageSeverity.Warning;
             }
 
             if (Regex.IsMatch(messageType, @"\bsuccess\b", RegexOptions.IgnoreCase) ||
                 Regex.IsMatch(messageType, @"\bok\b", RegexOptions.IgnoreCase))
             {
-                return BeepFormsMessageSeverity.Success;
+                return BeepMessageSeverity.Success;
             }
 
-            return BeepFormsMessageSeverity.Info;
+            return BeepMessageSeverity.Info;
         }
 
-        private (string Message, BeepFormsMessageSeverity Severity) CaptureMessageSnapshot()
+        private (string Message, BeepMessageSeverity Severity) CaptureMessageSnapshot()
         {
             return (_viewState.CurrentMessage ?? string.Empty, _viewState.MessageSeverity);
         }
 
-        private bool HasMessageChanged((string Message, BeepFormsMessageSeverity Severity) snapshot)
+        private bool HasMessageChanged((string Message, BeepMessageSeverity Severity) snapshot)
         {
             return !string.Equals(snapshot.Message, _viewState.CurrentMessage ?? string.Empty, StringComparison.Ordinal) ||
                    snapshot.Severity != _viewState.MessageSeverity;
         }
 
         private void PublishOperationFeedback(
-            (string Message, BeepFormsMessageSeverity Severity) snapshot,
+            (string Message, BeepMessageSeverity Severity) snapshot,
             string? preferredBlockName,
             string fallbackMessage,
-            BeepFormsMessageSeverity fallbackSeverity)
+            BeepMessageSeverity fallbackSeverity)
         {
             if (HasMessageChanged(snapshot) || _managerAdapter.TryGetCurrentMessage(preferredBlockName ?? _viewState.ActiveBlockName, out _, out _))
             {
@@ -145,27 +144,27 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             }
         }
 
-        private static BeepFormsMessageSeverity ResolveCommandResultSeverity(IErrorsInfo? result, BeepFormsMessageSeverity successSeverity = BeepFormsMessageSeverity.Success)
+        private static BeepMessageSeverity ResolveCommandResultSeverity(IErrorsInfo? result, BeepMessageSeverity successSeverity = BeepMessageSeverity.Success)
         {
             if (result == null)
             {
-                return BeepFormsMessageSeverity.Error;
+                return BeepMessageSeverity.Error;
             }
 
             return result.Flag switch
             {
                 Errors.Ok => ClassifyMessageText(result.Message, successSeverity),
-                Errors.Warning => BeepFormsMessageSeverity.Warning,
-                Errors.Information => BeepFormsMessageSeverity.Info,
-                Errors.Critical => BeepFormsMessageSeverity.Error,
-                Errors.Exception => BeepFormsMessageSeverity.Error,
-                Errors.Error => BeepFormsMessageSeverity.Error,
-                Errors.Fatal => BeepFormsMessageSeverity.Error,
-                _ => ClassifyMessageText(result.Message, BeepFormsMessageSeverity.Error)
+                Errors.Warning => BeepMessageSeverity.Warning,
+                Errors.Information => BeepMessageSeverity.Info,
+                Errors.Critical => BeepMessageSeverity.Error,
+                Errors.Exception => BeepMessageSeverity.Error,
+                Errors.Error => BeepMessageSeverity.Error,
+                Errors.Fatal => BeepMessageSeverity.Error,
+                _ => ClassifyMessageText(result.Message, BeepMessageSeverity.Error)
             };
         }
 
-        private static BeepFormsMessageSeverity ClassifyMessageText(string? message, BeepFormsMessageSeverity defaultSeverity)
+        private static BeepMessageSeverity ClassifyMessageText(string? message, BeepMessageSeverity defaultSeverity)
         {
             if (string.IsNullOrWhiteSpace(message))
             {
@@ -185,17 +184,17 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                     "already in query mode",
                     "cannot enter query mode"))
             {
-                return BeepFormsMessageSeverity.Warning;
+                return BeepMessageSeverity.Warning;
             }
 
             if (ContainsMessageToken(message, "error", "exception", "fatal", "critical", "failed"))
             {
-                return BeepFormsMessageSeverity.Error;
+                return BeepMessageSeverity.Error;
             }
 
             if (ContainsMessageToken(message, "warning"))
             {
-                return BeepFormsMessageSeverity.Warning;
+                return BeepMessageSeverity.Warning;
             }
 
             if (ContainsMessageToken(message,
@@ -213,7 +212,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             if (ContainsMessageToken(message, "info", "ready"))
             {
-                return BeepFormsMessageSeverity.Info;
+                return BeepMessageSeverity.Info;
             }
 
             return defaultSeverity;
@@ -254,12 +253,12 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 return;
             }
 
-            BeepFormsMessageSeverity mapped = severity switch
+            BeepMessageSeverity mapped = severity switch
             {
-                BeepBuiltinMessageSeverity.Hint => BeepFormsMessageSeverity.Info,
-                BeepBuiltinMessageSeverity.Warning => BeepFormsMessageSeverity.Warning,
-                BeepBuiltinMessageSeverity.Error => BeepFormsMessageSeverity.Error,
-                _ => BeepFormsMessageSeverity.Info
+                BeepBuiltinMessageSeverity.Hint => BeepMessageSeverity.Info,
+                BeepBuiltinMessageSeverity.Warning => BeepMessageSeverity.Warning,
+                BeepBuiltinMessageSeverity.Error => BeepMessageSeverity.Error,
+                _ => BeepMessageSeverity.Info
             };
 
             // Forms treats messageLevel >= 25 as "no message" — honor that.

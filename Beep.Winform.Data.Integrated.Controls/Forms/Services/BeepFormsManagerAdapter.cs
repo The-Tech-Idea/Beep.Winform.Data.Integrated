@@ -2,7 +2,6 @@ using System.Reflection;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Editor.UOWManager.Interfaces;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Contracts;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
 {
@@ -15,7 +14,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
             FormsManager = formsManager;
         }
 
-        public void Sync(BeepFormsViewState viewState)
+        public void Sync(BeepViewState viewState)
         {
             viewState.IsDirty = FormsManager?.IsDirty ?? false;
             viewState.StatusText = FormsManager?.Status ?? string.Empty;
@@ -23,14 +22,14 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
 
             SyncRecordPosition(viewState);
 
-            if (TryGetCurrentMessage(viewState.ActiveBlockName, out string message, out BeepFormsMessageSeverity severity))
+            if (TryGetCurrentMessage(viewState.ActiveBlockName, out string message, out BeepMessageSeverity severity))
             {
                 viewState.CurrentMessage = message;
                 viewState.MessageSeverity = severity;
             }
         }
 
-        private void SyncRecordPosition(BeepFormsViewState viewState)
+        private void SyncRecordPosition(BeepViewState viewState)
         {
             viewState.RecordPositionText = string.Empty;
 
@@ -83,10 +82,10 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
             blockView.SyncFromManager();
         }
 
-        public bool TryGetCurrentMessage(string? activeBlockName, out string message, out BeepFormsMessageSeverity severity)
+        public bool TryGetCurrentMessage(string? activeBlockName, out string message, out BeepMessageSeverity severity)
         {
             message = string.Empty;
-            severity = BeepFormsMessageSeverity.None;
+            severity = BeepMessageSeverity.None;
 
             if (FormsManager == null)
             {
@@ -134,21 +133,21 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
             }
             else
             {
-                severity = BeepFormsMessageSeverity.Info;
+                severity = BeepMessageSeverity.Info;
             }
 
             message = statusText;
             return true;
         }
 
-        private static BeepFormsMessageSeverity MapMessageLevel(MessageLevel level)
+        private static BeepMessageSeverity MapMessageLevel(MessageLevel level)
         {
             return level switch
             {
-                MessageLevel.Success => BeepFormsMessageSeverity.Success,
-                MessageLevel.Warning => BeepFormsMessageSeverity.Warning,
-                MessageLevel.Error => BeepFormsMessageSeverity.Error,
-                _ => BeepFormsMessageSeverity.Info
+                MessageLevel.Success => BeepMessageSeverity.Success,
+                MessageLevel.Warning => BeepMessageSeverity.Warning,
+                MessageLevel.Error => BeepMessageSeverity.Error,
+                _ => BeepMessageSeverity.Info
             };
         }
     }

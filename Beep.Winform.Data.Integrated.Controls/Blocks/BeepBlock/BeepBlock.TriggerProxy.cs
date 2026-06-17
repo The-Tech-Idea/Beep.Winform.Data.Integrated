@@ -2,7 +2,6 @@ using System;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Editor.UOWManager.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 {
@@ -12,7 +11,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
         public event EventHandler<TriggerExecutedEventArgs>? TriggerExecuted;
         public event EventHandler<TriggerRegisteredEventArgs>? TriggerRegistered;
         public event EventHandler<TriggerUnregisteredEventArgs>? TriggerUnregistered;
-        public event EventHandler<BeepFormsUnitOfWorkEventArgs>? UnitOfWorkActivity;
+        public event EventHandler<BeepUnitOfWorkEventArgs>? UnitOfWorkActivity;
 
         private void AttachToFormsHost(IBeepFormsHost formsHost)
         {
@@ -140,7 +139,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             });
         }
 
-        private void HandleHostUnitOfWorkActivity(object? sender, BeepFormsUnitOfWorkEventArgs e)
+        private void HandleHostUnitOfWorkActivity(object? sender, BeepUnitOfWorkEventArgs e)
         {
             if (!MatchesManagerBlock(e.BlockName))
             {
@@ -200,18 +199,18 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 && string.Equals(blockName, ManagerBlockName, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static bool ShouldSyncFromUnitOfWorkActivity(BeepFormsUnitOfWorkEventKind eventKind)
+        private static bool ShouldSyncFromUnitOfWorkActivity(BeepUnitOfWorkEventKind eventKind)
         {
             return eventKind is
-                BeepFormsUnitOfWorkEventKind.CurrentChanged or
-                BeepFormsUnitOfWorkEventKind.ItemChanged or
-                BeepFormsUnitOfWorkEventKind.PostCreate or
-                BeepFormsUnitOfWorkEventKind.PostQuery or
-                BeepFormsUnitOfWorkEventKind.PostInsert or
-                BeepFormsUnitOfWorkEventKind.PostUpdate or
-                BeepFormsUnitOfWorkEventKind.PostEdit or
-                BeepFormsUnitOfWorkEventKind.PostDelete or
-                BeepFormsUnitOfWorkEventKind.PostCommit;
+                BeepUnitOfWorkEventKind.CurrentChanged or
+                BeepUnitOfWorkEventKind.ItemChanged or
+                BeepUnitOfWorkEventKind.PostCreate or
+                BeepUnitOfWorkEventKind.PostQuery or
+                BeepUnitOfWorkEventKind.PostInsert or
+                BeepUnitOfWorkEventKind.PostUpdate or
+                BeepUnitOfWorkEventKind.PostEdit or
+                BeepUnitOfWorkEventKind.PostDelete or
+                BeepUnitOfWorkEventKind.PostCommit;
         }
 
         private static string BuildTriggerText(TriggerDefinition trigger, string state)

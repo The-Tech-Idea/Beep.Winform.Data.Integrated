@@ -3,7 +3,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
@@ -46,7 +45,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             finally
             {
                 ResetToolbarSelection(sender);
-                UpdateCommandStripState();
+                OnFormsHostChanged();
             }
         }
 
@@ -78,7 +77,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             finally
             {
                 ResetToolbarSelection(sender);
-                UpdateCommandStripState();
+                OnFormsHostChanged();
             }
         }
 
@@ -123,7 +122,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             finally
             {
                 ResetToolbarSelection(sender);
-                UpdateCommandStripState();
+                OnFormsHostChanged();
             }
         }
 
@@ -206,7 +205,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             string blockName = ResolveWorkflowTargetBlockName();
             if (string.IsNullOrWhiteSpace(blockName))
             {
-                _formsHost.PublishSavepointState("Release-all is unavailable because there is no active block context.", BeepFormsMessageSeverity.Warning);
+                _formsHost.PublishSavepointState("Release-all is unavailable because there is no active block context.", BeepMessageSeverity.Warning);
                 return;
             }
 
@@ -215,7 +214,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 $"Release every savepoint for '{blockName}'? This cannot be undone.").ConfigureAwait(true);
             if (!confirmed)
             {
-                _formsHost.PublishSavepointState($"Release-all savepoints was canceled for '{blockName}'.", BeepFormsMessageSeverity.Info);
+                _formsHost.PublishSavepointState($"Release-all savepoints was canceled for '{blockName}'.", BeepMessageSeverity.Info);
                 return;
             }
 
@@ -291,7 +290,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 contextName = "Current form";
             }
 
-            BeepFormsViewState? viewState = _formsHost?.ViewState;
+            BeepViewState? viewState = _formsHost?.ViewState;
             string fallbackStatus = string.IsNullOrWhiteSpace(viewState?.StatusText)
                 ? $"'{contextName}' is ready."
                 : viewState.StatusText;

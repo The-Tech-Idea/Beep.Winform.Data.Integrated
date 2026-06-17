@@ -6,8 +6,9 @@ using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.Base;
 using TheTechIdea.Beep.Winform.Controls.FontManagement;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
+using TheTechIdea.Beep.Editor.Forms.Models;
+using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
@@ -17,13 +18,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
     [DisplayName("Beep Forms Query Shelf")]
     [Description("Standalone query-mode action shelf for BeepForms.")]
     [Designer("TheTechIdea.Beep.Winform.Controls.Design.Server.Designers.BeepFormsQueryShelfDesigner, TheTechIdea.Beep.Winform.Controls.Design.Server")]
-    public sealed class BeepFormsQueryShelf : BaseControl
+    public sealed class BeepFormsQueryShelf : BeepFormsShelfBase
     {
         private readonly TableLayoutPanel _layoutRoot;
         private readonly BeepLabel _captionLabel;
         private readonly FlowLayoutPanel _commandPanel;
-        private BeepForms? _formsHost;
-        private bool _autoBindFormsHost = true;
         private BeepButton? _enterQueryButton;
         private BeepButton? _executeQueryButton;
         private BeepButton? _exitQueryButton;
@@ -79,49 +78,6 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         }
 
         [Browsable(true)]
-        [Category("Behavior")]
-        [Description("Optional BeepForms coordinator surfaced by this query shelf.")]
-        [DefaultValue(null)]
-        public BeepForms? FormsHost
-        {
-            get => _formsHost;
-            set
-            {
-                if (ReferenceEquals(_formsHost, value))
-                {
-                    return;
-                }
-
-                DetachFormsHost(_formsHost);
-                _formsHost = value;
-                AttachFormsHost(_formsHost);
-                UpdateQueryShelfState();
-            }
-        }
-
-        [Browsable(true)]
-        [Category("Behavior")]
-        [Description("Automatically resolve a nearby BeepForms host when FormsHost is not set explicitly.")]
-        [DefaultValue(true)]
-        public bool AutoBindFormsHost
-        {
-            get => _autoBindFormsHost;
-            set
-            {
-                if (_autoBindFormsHost == value)
-                {
-                    return;
-                }
-
-                _autoBindFormsHost = value;
-                if (_autoBindFormsHost && _formsHost == null)
-                {
-                    TryBindFormsHostFromHierarchy();
-                }
-            }
-        }
-
-        [Browsable(true)]
         [Category("Query Shelf")]
         [Description("Select which query-mode buttons are shown.")]
         [DefaultValue(BeepFormsQueryShelfButtons.All)]
@@ -174,7 +130,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 }
 
                 _showQueryContextCaption = value;
-                UpdateQueryShelfState();
+                OnFormsHostChanged();
             }
         }
 
@@ -191,7 +147,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                     return;
 
                 _queryCaptionMode = value;
-                UpdateQueryShelfState();
+                OnFormsHostChanged();
             }
         }
 
@@ -208,80 +164,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                     return;
 
                 _highlightQueryMode = value;
-                UpdateQueryShelfState();
-            }
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                DetachFormsHost(_formsHost);
-            }
-
-            base.Dispose(disposing);
-        }
-
-        protected override void OnCreateControl()
-        {
-            base.OnCreateControl();
-            TryBindFormsHostFromHierarchy();
-        }
-
-        protected override void OnParentChanged(EventArgs e)
-        {
-            base.OnParentChanged(e);
-            TryBindFormsHostFromHierarchy();
-        }
-
-        private void AttachFormsHost(BeepForms? formsHost)
-        {
-            if (formsHost == null)
-            {
-                return;
-            }
-
-            formsHost.ActiveBlockChanged += FormsHost_StateChanged;
-            formsHost.FormsManagerChanged += FormsHost_StateChanged;
-            formsHost.ViewStateChanged += FormsHost_StateChanged;
-            formsHost.Disposed += FormsHost_Disposed;
-        }
-
-        private void DetachFormsHost(BeepForms? formsHost)
-        {
-            if (formsHost == null)
-            {
-                return;
-            }
-
-            formsHost.ActiveBlockChanged -= FormsHost_StateChanged;
-            formsHost.FormsManagerChanged -= FormsHost_StateChanged;
-            formsHost.ViewStateChanged -= FormsHost_StateChanged;
-            formsHost.Disposed -= FormsHost_Disposed;
-        }
-
-        private void FormsHost_StateChanged(object? sender, EventArgs e)
-        {
-            UpdateQueryShelfState();
-        }
-
-        private void FormsHost_Disposed(object? sender, EventArgs e)
-        {
-            FormsHost = null;
-            TryBindFormsHostFromHierarchy();
-        }
-
-        private void TryBindFormsHostFromHierarchy()
-        {
-            if (!AutoBindFormsHost || _formsHost != null || Parent == null)
-            {
-                return;
-            }
-
-            BeepForms? resolvedHost = BeepFormsHostResolver.Find(this);
-            if (resolvedHost != null)
-            {
-                FormsHost = resolvedHost;
+                OnFormsHostChanged();
             }
         }
 
@@ -298,7 +181,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _commandPanel.Visible = _commandPanel.Controls.Count > 0;
             _commandPanel.ResumeLayout(false);
 
-            UpdateQueryShelfState();
+            OnFormsHostChanged();
         }
 
         private void AddButton(ref BeepButton? field, BeepFormsQueryShelfButtons flag, string caption, EventHandler clickHandler, int minimumWidth)
@@ -329,14 +212,15 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return Math.Max(minimumWidth, measuredWidth);
         }
 
-        private void UpdateQueryShelfState()
+        protected override void OnFormsHostChanged()
         {
-            bool hasHost = _formsHost != null;
-            bool hasActiveBlock = hasHost && !string.IsNullOrWhiteSpace(_formsHost!.ActiveBlockName);
-            bool isQueryMode = hasActiveBlock && _formsHost!.ViewState.IsQueryMode;
+            base.OnFormsHostChanged();
+            bool hasHost = FormsHost != null;
+            bool hasActiveBlock = hasHost && !string.IsNullOrWhiteSpace(FormsHost!.ActiveBlockName);
+            bool isQueryMode = hasActiveBlock && FormsHost!.ViewState.IsQueryMode;
             bool canQuery = hasActiveBlock && IsBlockQueryAllowed();
 
-            string captionText = BeepFormsDisplayTextResolver.ResolveQueryTargetCaption(_formsHost, QueryCaptionMode);
+            string captionText = BeepFormsDisplayTextResolver.ResolveQueryTargetCaption(FormsHost, QueryCaptionMode);
             if (isQueryMode)
                 captionText = string.Concat(captionText, "  —  Enter criteria and execute");
 
@@ -363,23 +247,23 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private bool IsBlockQueryAllowed()
         {
-            if (_formsHost == null || string.IsNullOrWhiteSpace(_formsHost.ActiveBlockName)) return false;
-            return _formsHost.TryGetBlockProperty(_formsHost.ActiveBlockName, "QueryAllowed", out object? val) && val is true;
+            if (FormsHost == null || string.IsNullOrWhiteSpace(FormsHost.ActiveBlockName)) return false;
+            return FormsHost.TryGetBlockProperty(FormsHost.ActiveBlockName, "QueryAllowed", out object? val) && val is true;
         }
 
         private Color ResolveCaptionColor()
         {
-            if (_formsHost == null)
+            if (FormsHost == null)
             {
                 return Color.DimGray;
             }
 
-            if (string.IsNullOrWhiteSpace(_formsHost.ActiveBlockName))
+            if (string.IsNullOrWhiteSpace(FormsHost.ActiveBlockName))
             {
                 return Color.DarkOrange;
             }
 
-            if (_formsHost.ViewState.IsQueryMode)
+            if (FormsHost.ViewState.IsQueryMode)
             {
                 return Color.SteelBlue;
             }
@@ -400,22 +284,22 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private async void EnterQueryButton_Click(object? sender, EventArgs e)
         {
-            if (_formsHost == null) return;
-            try { await _formsHost.EnterQueryAsync().ConfigureAwait(true); }
+            if (FormsHost == null) return;
+            try { await FormsHost.EnterQueryAsync().ConfigureAwait(true); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsQueryShelf.EnterQuery] {ex.Message}"); }
         }
 
         private async void ExecuteQueryButton_Click(object? sender, EventArgs e)
         {
-            if (_formsHost == null) return;
-            try { await _formsHost.ExecuteQueryAsync().ConfigureAwait(true); }
+            if (FormsHost == null) return;
+            try { await FormsHost.ExecuteQueryAsync().ConfigureAwait(true); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsQueryShelf.ExecuteQuery] {ex.Message}"); }
         }
 
         private async void ExitQueryButton_Click(object? sender, EventArgs e)
         {
-            if (_formsHost == null) return;
-            try { await _formsHost.ExitQueryAsync().ConfigureAwait(true); }
+            if (FormsHost == null) return;
+            try { await FormsHost.ExitQueryAsync().ConfigureAwait(true); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsQueryShelf.ExitQuery] {ex.Message}"); }
         }
     }

@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using TheTechIdea.Beep.ConfigUtil;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
@@ -18,7 +17,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             if (!TryResolveWorkflowBlockName(blockName, out string targetBlockName, out string unavailableMessage))
             {
-                SetSavepointState(unavailableMessage, BeepFormsMessageSeverity.Warning);
+                SetSavepointState(unavailableMessage, BeepMessageSeverity.Warning);
                 ApplyShellStateToUi();
                 return null;
             }
@@ -26,12 +25,12 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             string? createdSavepoint = TryCreateBlockSavepoint(targetBlockName, savepointName);
             if (string.IsNullOrWhiteSpace(createdSavepoint))
             {
-                SetSavepointState($"Savepoint creation failed for '{targetBlockName}'.", BeepFormsMessageSeverity.Warning);
+                SetSavepointState($"Savepoint creation failed for '{targetBlockName}'.", BeepMessageSeverity.Warning);
                 ApplyShellStateToUi();
                 return null;
             }
 
-            UpdateSavepointStateFromManager(targetBlockName, $"Savepoint '{createdSavepoint}' captured", BeepFormsMessageSeverity.Success);
+            UpdateSavepointStateFromManager(targetBlockName, $"Savepoint '{createdSavepoint}' captured", BeepMessageSeverity.Success);
             ApplyShellStateToUi();
             return createdSavepoint;
         }
@@ -40,7 +39,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             if (!TryResolveWorkflowBlockName(blockName, out string targetBlockName, out string unavailableMessage))
             {
-                SetSavepointState(unavailableMessage, BeepFormsMessageSeverity.Warning);
+                SetSavepointState(unavailableMessage, BeepMessageSeverity.Warning);
                 ApplyShellStateToUi();
                 return Array.Empty<SavepointInfo>();
             }
@@ -48,11 +47,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             IReadOnlyList<SavepointInfo> savepoints = _formsManager?.Savepoints.ListSavepoints(targetBlockName) ?? Array.Empty<SavepointInfo>();
             if (savepoints.Count == 0)
             {
-                SetSavepointState($"No savepoints are available for '{targetBlockName}'.", BeepFormsMessageSeverity.Info);
+                SetSavepointState($"No savepoints are available for '{targetBlockName}'.", BeepMessageSeverity.Info);
             }
             else
             {
-                UpdateSavepointStateFromManager(targetBlockName, "Savepoint inventory", BeepFormsMessageSeverity.Info);
+                UpdateSavepointStateFromManager(targetBlockName, "Savepoint inventory", BeepMessageSeverity.Info);
             }
 
             ApplyShellStateToUi();
@@ -63,14 +62,14 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             if (!TryResolveWorkflowBlockName(blockName, out string targetBlockName, out string unavailableMessage))
             {
-                SetSavepointState(unavailableMessage, BeepFormsMessageSeverity.Warning);
+                SetSavepointState(unavailableMessage, BeepMessageSeverity.Warning);
                 ApplyShellStateToUi();
                 return false;
             }
 
             if (string.IsNullOrWhiteSpace(savepointName))
             {
-                SetSavepointState($"Savepoint release skipped for '{targetBlockName}': a savepoint name is required.", BeepFormsMessageSeverity.Warning);
+                SetSavepointState($"Savepoint release skipped for '{targetBlockName}': a savepoint name is required.", BeepMessageSeverity.Warning);
                 ApplyShellStateToUi();
                 return false;
             }
@@ -78,11 +77,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             bool released = _formsManager?.Savepoints.ReleaseSavepoint(targetBlockName, savepointName) == true;
             if (released)
             {
-                UpdateSavepointStateFromManager(targetBlockName, $"Released savepoint '{savepointName}'", BeepFormsMessageSeverity.Info);
+                UpdateSavepointStateFromManager(targetBlockName, $"Released savepoint '{savepointName}'", BeepMessageSeverity.Info);
             }
             else
             {
-                SetSavepointState($"Savepoint '{savepointName}' was not found for '{targetBlockName}'.", BeepFormsMessageSeverity.Warning);
+                SetSavepointState($"Savepoint '{savepointName}' was not found for '{targetBlockName}'.", BeepMessageSeverity.Warning);
             }
 
             ApplyShellStateToUi();
@@ -93,13 +92,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             if (!TryResolveWorkflowBlockName(blockName, out string targetBlockName, out string unavailableMessage))
             {
-                SetSavepointState(unavailableMessage, BeepFormsMessageSeverity.Warning);
+                SetSavepointState(unavailableMessage, BeepMessageSeverity.Warning);
                 ApplyShellStateToUi();
                 return;
             }
 
             _formsManager?.Savepoints.ReleaseAllSavepoints(targetBlockName);
-            SetSavepointState($"All savepoints were released for '{targetBlockName}'.", BeepFormsMessageSeverity.Info);
+            SetSavepointState($"All savepoints were released for '{targetBlockName}'.", BeepMessageSeverity.Info);
             ApplyShellStateToUi();
         }
 
@@ -107,24 +106,24 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             if (!TryResolveWorkflowBlockName(blockName, out string targetBlockName, out string unavailableMessage))
             {
-                SetSavepointState(unavailableMessage, BeepFormsMessageSeverity.Warning);
-                SetWorkflowState(unavailableMessage, BeepFormsMessageSeverity.Warning);
+                SetSavepointState(unavailableMessage, BeepMessageSeverity.Warning);
+                SetWorkflowState(unavailableMessage, BeepMessageSeverity.Warning);
                 ApplyShellStateToUi();
                 return false;
             }
 
             if (string.IsNullOrWhiteSpace(savepointName))
             {
-                SetSavepointState($"Savepoint rollback skipped for '{targetBlockName}': a savepoint name is required.", BeepFormsMessageSeverity.Warning);
-                SetWorkflowState($"Savepoint rollback skipped for '{targetBlockName}': a savepoint name is required.", BeepFormsMessageSeverity.Warning);
+                SetSavepointState($"Savepoint rollback skipped for '{targetBlockName}': a savepoint name is required.", BeepMessageSeverity.Warning);
+                SetWorkflowState($"Savepoint rollback skipped for '{targetBlockName}': a savepoint name is required.", BeepMessageSeverity.Warning);
                 ApplyShellStateToUi();
                 return false;
             }
 
             if (_formsManager?.Savepoints.SavepointExists(targetBlockName, savepointName) != true)
             {
-                SetSavepointState($"Savepoint '{savepointName}' does not exist for '{targetBlockName}'.", BeepFormsMessageSeverity.Warning);
-                SetWorkflowState($"Savepoint rollback is unavailable because '{savepointName}' does not exist for '{targetBlockName}'.", BeepFormsMessageSeverity.Warning);
+                SetSavepointState($"Savepoint '{savepointName}' does not exist for '{targetBlockName}'.", BeepMessageSeverity.Warning);
+                SetWorkflowState($"Savepoint rollback is unavailable because '{savepointName}' does not exist for '{targetBlockName}'.", BeepMessageSeverity.Warning);
                 ApplyShellStateToUi();
                 return false;
             }
@@ -132,8 +131,8 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             bool success = await TryRollbackToSavepointViaManagerAsync(targetBlockName, savepointName, cancellationToken).ConfigureAwait(true);
             if (!success)
             {
-                SetSavepointState($"Savepoint rollback failed for '{targetBlockName}' -> '{savepointName}'.", BeepFormsMessageSeverity.Warning);
-                SetWorkflowState($"Savepoint rollback failed for '{targetBlockName}' -> '{savepointName}'.", BeepFormsMessageSeverity.Error);
+                SetSavepointState($"Savepoint rollback failed for '{targetBlockName}' -> '{savepointName}'.", BeepMessageSeverity.Warning);
+                SetWorkflowState($"Savepoint rollback failed for '{targetBlockName}' -> '{savepointName}'.", BeepMessageSeverity.Error);
                 ApplyShellStateToUi();
                 return false;
             }
@@ -146,13 +145,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[BeepForms.RollbackToSavepointAsync] Post-rollback refresh failed: {ex.GetType().Name} - {ex.Message}");
-                SetSavepointState($"Rollback succeeded but UI refresh failed for '{targetBlockName}'.", BeepFormsMessageSeverity.Warning);
-                SetWorkflowState($"Rollback succeeded but UI refresh failed for '{targetBlockName}': {ex.Message}", BeepFormsMessageSeverity.Error);
+                SetSavepointState($"Rollback succeeded but UI refresh failed for '{targetBlockName}'.", BeepMessageSeverity.Warning);
+                SetWorkflowState($"Rollback succeeded but UI refresh failed for '{targetBlockName}': {ex.Message}", BeepMessageSeverity.Error);
                 ApplyShellStateToUi();
                 return true;
             }
-            UpdateSavepointStateFromManager(targetBlockName, $"Rolled back to savepoint '{savepointName}'", BeepFormsMessageSeverity.Success);
-            SetWorkflowState($"Savepoint rollback completed for '{targetBlockName}' -> '{savepointName}'. Hosted blocks were refreshed from manager state.", BeepFormsMessageSeverity.Success);
+            UpdateSavepointStateFromManager(targetBlockName, $"Rolled back to savepoint '{savepointName}'", BeepMessageSeverity.Success);
+            SetWorkflowState($"Savepoint rollback completed for '{targetBlockName}' -> '{savepointName}'. Hosted blocks were refreshed from manager state.", BeepMessageSeverity.Success);
             ApplyShellStateToUi();
             return true;
         }
@@ -170,7 +169,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             {
                 if (cancellationToken.IsCancellationRequested)
                 {
-                    SetAlertState($"Alert '{title}' was canceled before it was shown.", BeepFormsMessageSeverity.Warning);
+                    SetAlertState($"Alert '{title}' was canceled before it was shown.", BeepMessageSeverity.Warning);
                     ApplyShellStateToUi();
                     return AlertResult.None;
                 }
@@ -206,7 +205,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             }
             catch (Exception ex)
             {
-                SetAlertState($"Alert '{title}' failed: {ex.Message}", BeepFormsMessageSeverity.Error);
+                SetAlertState($"Alert '{title}' failed: {ex.Message}", BeepMessageSeverity.Error);
                 ApplyShellStateToUi();
                 return AlertResult.None;
             }
@@ -297,12 +296,12 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             }
         }
 
-        private void UpdateSavepointStateFromManager(string blockName, string leadText, BeepFormsMessageSeverity severity)
+        private void UpdateSavepointStateFromManager(string blockName, string leadText, BeepMessageSeverity severity)
         {
             IReadOnlyList<SavepointInfo> savepoints = _formsManager?.Savepoints.ListSavepoints(blockName) ?? Array.Empty<SavepointInfo>();
             if (savepoints.Count == 0)
             {
-                SetSavepointState($"{leadText} for '{blockName}', but no savepoints remain available.", BeepFormsMessageSeverity.Info);
+                SetSavepointState($"{leadText} for '{blockName}', but no savepoints remain available.", BeepMessageSeverity.Info);
                 return;
             }
 
@@ -334,18 +333,18 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             };
         }
 
-        private static BeepFormsMessageSeverity MapAlertSeverity(AlertStyle style, AlertResult result)
+        private static BeepMessageSeverity MapAlertSeverity(AlertStyle style, AlertResult result)
         {
             if (result == AlertResult.None)
             {
-                return BeepFormsMessageSeverity.Warning;
+                return BeepMessageSeverity.Warning;
             }
 
             return style switch
             {
-                AlertStyle.Stop => BeepFormsMessageSeverity.Error,
-                AlertStyle.Caution => BeepFormsMessageSeverity.Warning,
-                _ => BeepFormsMessageSeverity.Info
+                AlertStyle.Stop => BeepMessageSeverity.Error,
+                AlertStyle.Caution => BeepMessageSeverity.Warning,
+                _ => BeepMessageSeverity.Info
             };
         }
 
@@ -354,35 +353,35 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return ResolveWorkflowTargetBlockName(blockName);
         }
 
-        internal void PublishSavepointState(string text, BeepFormsMessageSeverity severity)
+        internal void PublishSavepointState(string text, BeepMessageSeverity severity)
         {
             SetSavepointState(text, severity);
             ApplyShellStateToUi();
         }
 
-        internal void PublishWorkflowState(string text, BeepFormsMessageSeverity severity)
+        internal void PublishWorkflowState(string text, BeepMessageSeverity severity)
         {
             SetWorkflowState(text, severity);
             ApplyShellStateToUi();
         }
 
-        internal void PublishAlertState(string text, BeepFormsMessageSeverity severity)
+        internal void PublishAlertState(string text, BeepMessageSeverity severity)
         {
             SetAlertState(text, severity);
             ApplyShellStateToUi();
         }
 
-        private void SetWorkflowState(string text, BeepFormsMessageSeverity severity)
+        private void SetWorkflowState(string text, BeepMessageSeverity severity)
         {
             string normalizedText = (text ?? string.Empty).Trim();
             _viewState.WorkflowText = normalizedText;
             _viewState.WorkflowSeverity = string.IsNullOrWhiteSpace(normalizedText)
-                ? BeepFormsMessageSeverity.None
+                ? BeepMessageSeverity.None
                 : severity;
 
             if (!string.IsNullOrWhiteSpace(normalizedText))
             {
-                _viewState.WorkflowHistoryItems.Insert(0, new BeepFormsWorkflowEntry
+                _viewState.WorkflowHistoryItems.Insert(0, new BeepWorkflowEntry
                 {
                     Timestamp = DateTime.Now,
                     Text = normalizedText,
@@ -410,46 +409,46 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 ? "."
                 : $": {result!.Message}";
 
-            return ResolveRollbackWorkflowSeverity(result) == BeepFormsMessageSeverity.Warning
+            return ResolveRollbackWorkflowSeverity(result) == BeepMessageSeverity.Warning
                 ? $"{scope} rollback was blocked{detail}"
                 : $"{scope} rollback failed{detail}";
         }
 
-        private BeepFormsMessageSeverity ResolveRollbackWorkflowSeverity(IErrorsInfo? result)
+        private BeepMessageSeverity ResolveRollbackWorkflowSeverity(IErrorsInfo? result)
         {
             if (result == null)
             {
-                return BeepFormsMessageSeverity.Error;
+                return BeepMessageSeverity.Error;
             }
 
             if (result.Flag == Errors.Ok)
             {
-                return BeepFormsMessageSeverity.Success;
+                return BeepMessageSeverity.Success;
             }
 
             if (result.Flag is Errors.Warning or Errors.Information)
             {
-                return BeepFormsMessageSeverity.Warning;
+                return BeepMessageSeverity.Warning;
             }
 
-            return ClassifyMessageText(result.Message, BeepFormsMessageSeverity.Error) == BeepFormsMessageSeverity.Warning
-                ? BeepFormsMessageSeverity.Warning
-                : BeepFormsMessageSeverity.Error;
+            return ClassifyMessageText(result.Message, BeepMessageSeverity.Error) == BeepMessageSeverity.Warning
+                ? BeepMessageSeverity.Warning
+                : BeepMessageSeverity.Error;
         }
 
-        private void SetSavepointState(string text, BeepFormsMessageSeverity severity)
+        private void SetSavepointState(string text, BeepMessageSeverity severity)
         {
             _viewState.SavepointText = text ?? string.Empty;
             _viewState.SavepointSeverity = string.IsNullOrWhiteSpace(text)
-                ? BeepFormsMessageSeverity.None
+                ? BeepMessageSeverity.None
                 : severity;
         }
 
-        private void SetAlertState(string text, BeepFormsMessageSeverity severity)
+        private void SetAlertState(string text, BeepMessageSeverity severity)
         {
             _viewState.AlertText = text ?? string.Empty;
             _viewState.AlertSeverity = string.IsNullOrWhiteSpace(text)
-                ? BeepFormsMessageSeverity.None
+                ? BeepMessageSeverity.None
                 : severity;
         }
     }

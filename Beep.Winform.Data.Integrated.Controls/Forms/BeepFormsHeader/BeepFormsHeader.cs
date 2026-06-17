@@ -6,8 +6,8 @@ using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.Base;
 using TheTechIdea.Beep.Winform.Controls.FontManagement;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
+using TheTechIdea.Beep.Editor.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
@@ -230,6 +230,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private void FormsHost_Disposed(object? sender, EventArgs e)
         {
+            BeepFormsHostResolver.Invalidate(this);
             if (InvokeRequired) { BeginInvoke(() => { FormsHost = null; TryBindFormsHostFromHierarchy(); }); return; }
             FormsHost = null;
             TryBindFormsHostFromHierarchy();
@@ -276,7 +277,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             Cursor = _allowCollapse ? Cursors.Hand : Cursors.Default;
         }
 
-        private static Color ResolveContextColor(BeepFormsViewState? viewState)
+        private static Color ResolveContextColor(BeepViewState? viewState)
         {
             if (viewState == null)
             {

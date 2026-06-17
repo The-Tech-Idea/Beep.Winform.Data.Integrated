@@ -5,7 +5,6 @@ using TheTechIdea.Beep.DataBase;
 using TheTechIdea.Beep.Editor;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Editor.UOWManager.Interfaces;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
@@ -18,7 +17,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         public event EventHandler<TriggerRegisteredEventArgs>? TriggerRegistered;
         public event EventHandler<TriggerUnregisteredEventArgs>? TriggerUnregistered;
         public event EventHandler<TriggerChainCompletedEventArgs>? TriggerChainCompleted;
-        public event EventHandler<BeepFormsUnitOfWorkEventArgs>? BlockUnitOfWorkActivity;
+        public event EventHandler<BeepUnitOfWorkEventArgs>? BlockUnitOfWorkActivity;
 
         private sealed class UnitOfWorkSubscription
         {
@@ -119,35 +118,35 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             var subscription = new UnitOfWorkSubscription
             {
                 UnitOfWork = unitOfWork,
-                CurrentChanged = (_, _) => RaiseBlockUnitOfWorkActivity(new BeepFormsUnitOfWorkEventArgs
+                CurrentChanged = (_, _) => RaiseBlockUnitOfWorkActivity(new BeepUnitOfWorkEventArgs
                 {
                     BlockName = blockName,
-                    EventKind = BeepFormsUnitOfWorkEventKind.CurrentChanged,
+                    EventKind = BeepUnitOfWorkEventKind.CurrentChanged,
                     UnitOfWork = unitOfWork,
                     CurrentItem = unitOfWork.CurrentItem
                 }),
-                ItemChanged = (_, e) => RaiseBlockUnitOfWorkActivity(new BeepFormsUnitOfWorkEventArgs
+                ItemChanged = (_, e) => RaiseBlockUnitOfWorkActivity(new BeepUnitOfWorkEventArgs
                 {
                     BlockName = blockName,
-                    EventKind = BeepFormsUnitOfWorkEventKind.ItemChanged,
+                    EventKind = BeepUnitOfWorkEventKind.ItemChanged,
                     UnitOfWork = unitOfWork,
                     Item = e.Item,
                     PropertyName = e.PropertyName,
                     CurrentItem = unitOfWork.CurrentItem
                 }),
-                PreCreate = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepFormsUnitOfWorkEventKind.PreCreate)),
-                PostCreate = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepFormsUnitOfWorkEventKind.PostCreate)),
-                PreQuery = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepFormsUnitOfWorkEventKind.PreQuery)),
-                PostQuery = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepFormsUnitOfWorkEventKind.PostQuery)),
-                PreInsert = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepFormsUnitOfWorkEventKind.PreInsert)),
-                PostInsert = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepFormsUnitOfWorkEventKind.PostInsert)),
-                PreUpdate = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepFormsUnitOfWorkEventKind.PreUpdate)),
-                PostUpdate = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepFormsUnitOfWorkEventKind.PostUpdate)),
-                PostEdit = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepFormsUnitOfWorkEventKind.PostEdit)),
-                PreDelete = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepFormsUnitOfWorkEventKind.PreDelete)),
-                PostDelete = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepFormsUnitOfWorkEventKind.PostDelete)),
-                PreCommit = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepFormsUnitOfWorkEventKind.PreCommit)),
-                PostCommit = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepFormsUnitOfWorkEventKind.PostCommit))
+                PreCreate = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepUnitOfWorkEventKind.PreCreate)),
+                PostCreate = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepUnitOfWorkEventKind.PostCreate)),
+                PreQuery = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepUnitOfWorkEventKind.PreQuery)),
+                PostQuery = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepUnitOfWorkEventKind.PostQuery)),
+                PreInsert = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepUnitOfWorkEventKind.PreInsert)),
+                PostInsert = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepUnitOfWorkEventKind.PostInsert)),
+                PreUpdate = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepUnitOfWorkEventKind.PreUpdate)),
+                PostUpdate = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepUnitOfWorkEventKind.PostUpdate)),
+                PostEdit = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepUnitOfWorkEventKind.PostEdit)),
+                PreDelete = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepUnitOfWorkEventKind.PreDelete)),
+                PostDelete = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepUnitOfWorkEventKind.PostDelete)),
+                PreCommit = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepUnitOfWorkEventKind.PreCommit)),
+                PostCommit = (_, e) => RaiseBlockUnitOfWorkActivity(CreateUnitOfWorkEventArgs(blockName, unitOfWork, e, BeepUnitOfWorkEventKind.PostCommit))
             };
 
             unitOfWork.CurrentChanged += subscription.CurrentChanged;
@@ -195,13 +194,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _unitOfWorkSubscriptions.Remove(blockName);
         }
 
-        private BeepFormsUnitOfWorkEventArgs CreateUnitOfWorkEventArgs(
+        private BeepUnitOfWorkEventArgs CreateUnitOfWorkEventArgs(
             string blockName,
             IUnitofWork unitOfWork,
             UnitofWorkParams? parameters,
-            BeepFormsUnitOfWorkEventKind fallbackKind)
+            BeepUnitOfWorkEventKind fallbackKind)
         {
-            return new BeepFormsUnitOfWorkEventArgs
+            return new BeepUnitOfWorkEventArgs
             {
                 BlockName = blockName,
                 EventKind = ResolveUnitOfWorkEventKind(parameters, fallbackKind),
@@ -213,7 +212,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             };
         }
 
-        private BeepFormsUnitOfWorkEventKind ResolveUnitOfWorkEventKind(UnitofWorkParams? parameters, BeepFormsUnitOfWorkEventKind fallbackKind)
+        private BeepUnitOfWorkEventKind ResolveUnitOfWorkEventKind(UnitofWorkParams? parameters, BeepUnitOfWorkEventKind fallbackKind)
         {
             if (parameters == null)
             {
@@ -222,24 +221,24 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             return parameters.EventAction switch
             {
-                EventAction.PreCreate => BeepFormsUnitOfWorkEventKind.PreCreate,
-                EventAction.PostCreate => BeepFormsUnitOfWorkEventKind.PostCreate,
-                EventAction.PreQuery => BeepFormsUnitOfWorkEventKind.PreQuery,
-                EventAction.PostQuery => BeepFormsUnitOfWorkEventKind.PostQuery,
-                EventAction.PreInsert => BeepFormsUnitOfWorkEventKind.PreInsert,
-                EventAction.PostInsert => BeepFormsUnitOfWorkEventKind.PostInsert,
-                EventAction.PreUpdate => BeepFormsUnitOfWorkEventKind.PreUpdate,
-                EventAction.PostUpdate => BeepFormsUnitOfWorkEventKind.PostUpdate,
-                EventAction.PostEdit => BeepFormsUnitOfWorkEventKind.PostEdit,
-                EventAction.PreDelete => BeepFormsUnitOfWorkEventKind.PreDelete,
-                EventAction.PostDelete => BeepFormsUnitOfWorkEventKind.PostDelete,
-                EventAction.PreCommit => BeepFormsUnitOfWorkEventKind.PreCommit,
-                EventAction.PostCommit => BeepFormsUnitOfWorkEventKind.PostCommit,
+                EventAction.PreCreate => BeepUnitOfWorkEventKind.PreCreate,
+                EventAction.PostCreate => BeepUnitOfWorkEventKind.PostCreate,
+                EventAction.PreQuery => BeepUnitOfWorkEventKind.PreQuery,
+                EventAction.PostQuery => BeepUnitOfWorkEventKind.PostQuery,
+                EventAction.PreInsert => BeepUnitOfWorkEventKind.PreInsert,
+                EventAction.PostInsert => BeepUnitOfWorkEventKind.PostInsert,
+                EventAction.PreUpdate => BeepUnitOfWorkEventKind.PreUpdate,
+                EventAction.PostUpdate => BeepUnitOfWorkEventKind.PostUpdate,
+                EventAction.PostEdit => BeepUnitOfWorkEventKind.PostEdit,
+                EventAction.PreDelete => BeepUnitOfWorkEventKind.PreDelete,
+                EventAction.PostDelete => BeepUnitOfWorkEventKind.PostDelete,
+                EventAction.PreCommit => BeepUnitOfWorkEventKind.PreCommit,
+                EventAction.PostCommit => BeepUnitOfWorkEventKind.PostCommit,
                 _ => fallbackKind
             };
         }
 
-        private void RaiseBlockUnitOfWorkActivity(BeepFormsUnitOfWorkEventArgs eventArgs)
+        private void RaiseBlockUnitOfWorkActivity(BeepUnitOfWorkEventArgs eventArgs)
         {
             RunOnUiThread(() =>
             {
@@ -255,18 +254,18 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             });
         }
 
-        private static bool ShouldSyncFromUnitOfWorkActivity(BeepFormsUnitOfWorkEventKind eventKind)
+        private static bool ShouldSyncFromUnitOfWorkActivity(BeepUnitOfWorkEventKind eventKind)
         {
             return eventKind is
-                BeepFormsUnitOfWorkEventKind.CurrentChanged or
-                BeepFormsUnitOfWorkEventKind.ItemChanged or
-                BeepFormsUnitOfWorkEventKind.PostCreate or
-                BeepFormsUnitOfWorkEventKind.PostQuery or
-                BeepFormsUnitOfWorkEventKind.PostInsert or
-                BeepFormsUnitOfWorkEventKind.PostUpdate or
-                BeepFormsUnitOfWorkEventKind.PostEdit or
-                BeepFormsUnitOfWorkEventKind.PostDelete or
-                BeepFormsUnitOfWorkEventKind.PostCommit;
+                BeepUnitOfWorkEventKind.CurrentChanged or
+                BeepUnitOfWorkEventKind.ItemChanged or
+                BeepUnitOfWorkEventKind.PostCreate or
+                BeepUnitOfWorkEventKind.PostQuery or
+                BeepUnitOfWorkEventKind.PostInsert or
+                BeepUnitOfWorkEventKind.PostUpdate or
+                BeepUnitOfWorkEventKind.PostEdit or
+                BeepUnitOfWorkEventKind.PostDelete or
+                BeepUnitOfWorkEventKind.PostCommit;
         }
 
         private void HandleManagerTriggerExecuting(object? sender, TriggerExecutingEventArgs e)
@@ -328,21 +327,21 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return $"Trigger chain {e.TriggerType}{contextSuffix} completed successfully: {e.SuccessCount}/{e.TriggerCount} ran in {e.TotalDurationMs:F0} ms.";
         }
 
-        private static BeepFormsMessageSeverity ResolveTriggerChainSeverity(TriggerChainCompletedEventArgs e)
+        private static BeepMessageSeverity ResolveTriggerChainSeverity(TriggerChainCompletedEventArgs e)
         {
             if (e.FailureCount > 0)
             {
-                return BeepFormsMessageSeverity.Error;
+                return BeepMessageSeverity.Error;
             }
 
             if (e.WasCancelled || e.SkippedCount > 0)
             {
-                return e.WasCancelled ? BeepFormsMessageSeverity.Warning : BeepFormsMessageSeverity.Info;
+                return e.WasCancelled ? BeepMessageSeverity.Warning : BeepMessageSeverity.Info;
             }
 
             return e.SuccessCount > 0
-                ? BeepFormsMessageSeverity.Success
-                : BeepFormsMessageSeverity.Info;
+                ? BeepMessageSeverity.Success
+                : BeepMessageSeverity.Info;
         }
     }
 }

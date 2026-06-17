@@ -7,9 +7,9 @@ using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.Base;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Controls.ListBoxs;
+using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
@@ -20,11 +20,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
     [DisplayName("Beep Forms Toolbar")]
     [Description("Standalone toolbar surface for BeepForms savepoint and alert actions.")]
     [Designer("TheTechIdea.Beep.Winform.Controls.Design.Server.Designers.BeepFormsToolbarDesigner, TheTechIdea.Beep.Winform.Controls.Design.Server")]
-    public partial class BeepFormsToolbar : BaseControl
+    public partial class BeepFormsToolbar : BeepFormsShelfBase
     {
         private readonly FlowLayoutPanel _commandPanel;
-        private BeepForms? _formsHost;
-        private bool _autoBindFormsHost = true;
         private BeepButton? _savepointActionsButton;
         private BeepButton? _alertPresetsButton;
         private BeepButton? _builtinActionsButton;
@@ -57,49 +55,6 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             Controls.Add(_commandPanel);
             RefreshToolbarConfiguration();
-        }
-
-        [Browsable(true)]
-        [Category("Behavior")]
-        [Description("Optional BeepForms coordinator surfaced by this toolbar.")]
-        [DefaultValue(null)]
-        public BeepForms? FormsHost
-        {
-            get => _formsHost;
-            set
-            {
-                if (ReferenceEquals(_formsHost, value))
-                {
-                    return;
-                }
-
-                DetachFormsHost(_formsHost);
-                _formsHost = value;
-                AttachFormsHost(_formsHost);
-                UpdateCommandStripState();
-            }
-        }
-
-        [Browsable(true)]
-        [Category("Behavior")]
-        [Description("Automatically resolve a nearby BeepForms host when FormsHost is not set explicitly.")]
-        [DefaultValue(true)]
-        public bool AutoBindFormsHost
-        {
-            get => _autoBindFormsHost;
-            set
-            {
-                if (_autoBindFormsHost == value)
-                {
-                    return;
-                }
-
-                _autoBindFormsHost = value;
-                if (_autoBindFormsHost && _formsHost == null)
-                {
-                    TryBindFormsHostFromHierarchy();
-                }
-            }
         }
 
         [Browsable(true)]
@@ -239,7 +194,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         [Browsable(true)]
         [Category("Toolbar")]
-        [Description("Select which built-in actions (GO_BLOCK, NEXT_RECORD, COMMIT, …) are available from the toolbar popup.")]
+        [Description("Select which built-in actions (GO_BLOCK, NEXT_RECORD, COMMIT, ...) are available from the toolbar popup.")]
         [DefaultValue(BeepFormsBuiltinToolbarActions.All)]
         public BeepFormsBuiltinToolbarActions BuiltinToolbarActions
         {
@@ -273,89 +228,6 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
                 _builtinToolbarCaption = normalized;
                 RefreshToolbarConfiguration();
-            }
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                DetachFormsHost(_formsHost);
-            }
-
-            base.Dispose(disposing);
-        }
-
-        protected override void OnCreateControl()
-        {
-            base.OnCreateControl();
-            TryBindFormsHostFromHierarchy();
-        }
-
-        protected override void OnParentChanged(EventArgs e)
-        {
-            base.OnParentChanged(e);
-            TryBindFormsHostFromHierarchy();
-        }
-
-        private void AttachFormsHost(BeepForms? formsHost)
-        {
-            if (formsHost == null)
-            {
-                return;
-            }
-
-            formsHost.ActiveBlockChanged += FormsHost_StateChanged;
-            formsHost.FormsManagerChanged += FormsHost_StateChanged;
-            formsHost.ViewStateChanged += FormsHost_StateChanged;
-            formsHost.Disposed += FormsHost_Disposed;
-        }
-
-        private void DetachFormsHost(BeepForms? formsHost)
-        {
-            if (formsHost == null)
-            {
-                return;
-            }
-
-            formsHost.ActiveBlockChanged -= FormsHost_StateChanged;
-            formsHost.FormsManagerChanged -= FormsHost_StateChanged;
-            formsHost.ViewStateChanged -= FormsHost_StateChanged;
-            formsHost.Disposed -= FormsHost_Disposed;
-        }
-
-        private void FormsHost_StateChanged(object? sender, EventArgs e)
-        {
-            if (InvokeRequired)
-            {
-                BeginInvoke(() => UpdateCommandStripState());
-                return;
-            }
-            UpdateCommandStripState();
-        }
-
-        private void FormsHost_Disposed(object? sender, EventArgs e)
-        {
-            if (InvokeRequired)
-            {
-                BeginInvoke(() => { FormsHost = null; TryBindFormsHostFromHierarchy(); });
-                return;
-            }
-            FormsHost = null;
-            TryBindFormsHostFromHierarchy();
-        }
-
-        private void TryBindFormsHostFromHierarchy()
-        {
-            if (!AutoBindFormsHost || _formsHost != null || Parent == null)
-            {
-                return;
-            }
-
-            BeepForms? resolvedHost = BeepFormsHostResolver.Find(this);
-            if (resolvedHost != null)
-            {
-                FormsHost = resolvedHost;
             }
         }
 
@@ -399,7 +271,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _commandPanel.Visible = _commandPanel.Controls.Count > 0;
             _commandPanel.ResumeLayout(false);
 
-            UpdateCommandStripState();
+            OnFormsHostChanged();
         }
 
         private void AddSavepointToolbarButton()
@@ -618,12 +490,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return items;
         }
 
-        private void UpdateCommandStripState()
+        protected override void OnFormsHostChanged()
         {
+            base.OnFormsHostChanged();
             string blockName = ResolveWorkflowTargetBlockName();
-            bool hasBlockContext = _formsHost?.FormsManager != null &&
+            bool hasBlockContext = FormsHost?.FormsManager != null &&
                                    !string.IsNullOrWhiteSpace(blockName) &&
-                                   _formsHost.FormsManager.BlockExists(blockName);
+                                   FormsHost.FormsManager.BlockExists(blockName);
 
             if (_savepointActionsButton != null)
             {
@@ -632,18 +505,18 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             if (_alertPresetsButton != null)
             {
-                _alertPresetsButton.Enabled = _formsHost?.FormsManager?.AlertProvider != null;
+                _alertPresetsButton.Enabled = FormsHost?.FormsManager?.AlertProvider != null;
             }
 
             if (_builtinActionsButton != null)
             {
-                _builtinActionsButton.Enabled = _formsHost?.Builtins != null && hasBlockContext;
+                _builtinActionsButton.Enabled = FormsHost?.Builtins != null && hasBlockContext;
             }
         }
 
         private string ResolveWorkflowTargetBlockName(string? blockName = null)
         {
-            return _formsHost?.ResolveToolbarWorkflowBlockName(blockName) ?? string.Empty;
+            return FormsHost?.ResolveToolbarWorkflowBlockName(blockName) ?? string.Empty;
         }
     }
 }

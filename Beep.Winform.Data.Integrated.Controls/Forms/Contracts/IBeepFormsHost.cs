@@ -42,7 +42,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
         IUnitofWorksManager? FormsManager { get; set; }
 
         BeepFormsDefinition? Definition { get; set; }
-        BeepFormsViewState ViewState { get; }
+        BeepViewState ViewState { get; }
         IReadOnlyList<IBeepBlockView> Blocks { get; }
 
         // ── Built-ins ─────────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
         event EventHandler? ViewStateChanged;
 
         // Phase 7D — raised by InitializeAsync when all blocks are bootstrapped
-        event EventHandler<BeepFormsBootstrapEventArgs>? BootstrapCompleted;
+        event EventHandler<BeepBootstrapEventArgs>? BootstrapCompleted;
 
         // Manager-owned trigger and UoW activity proxies.
         event EventHandler<TriggerExecutingEventArgs>? TriggerExecuting;
@@ -67,7 +67,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
         event EventHandler<TriggerRegisteredEventArgs>? TriggerRegistered;
         event EventHandler<TriggerUnregisteredEventArgs>? TriggerUnregistered;
         event EventHandler<TriggerChainCompletedEventArgs>? TriggerChainCompleted;
-        event EventHandler<BeepFormsUnitOfWorkEventArgs>? BlockUnitOfWorkActivity;
+        event EventHandler<BeepUnitOfWorkEventArgs>? BlockUnitOfWorkActivity;
 
         // ── Registration / routing ────────────────────────────────────────────────────
         bool RegisterBlock(IBeepBlockView blockView);
@@ -78,7 +78,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
 
         /// <summary>
         /// Phase 7D — Async bootstrap that calls <see cref="IUnitofWorksManager.SetupBlockAsync"/>
-        /// for every block in <see cref="Definition"/>. Updates <see cref="BeepFormsViewState.BootstrapState"/>
+        /// for every block in <see cref="Definition"/>. Updates <see cref="BeepViewState.BootstrapState"/>
         /// and raises <see cref="BootstrapCompleted"/> when finished.
         /// Should be called automatically when both FormsManager and Definition are set.
         /// </summary>

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using TheTechIdea.Beep.Editor.UOWManager.Models;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
+using TheTechIdea.Beep.Editor.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
@@ -15,7 +15,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
         {
             if (_formsManager == null)
             {
-                SetCoordinationState(string.Empty, BeepFormsMessageSeverity.None);
+                SetCoordinationState(string.Empty, BeepMessageSeverity.None);
                 ApplyShellStateToUi();
                 return;
             }
@@ -26,7 +26,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             if (string.IsNullOrWhiteSpace(targetBlockName) || !_formsManager.BlockExists(targetBlockName))
             {
-                SetCoordinationState(string.Empty, BeepFormsMessageSeverity.None);
+                SetCoordinationState(string.Empty, BeepMessageSeverity.None);
                 ApplyShellStateToUi();
                 return;
             }
@@ -38,17 +38,17 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             {
                 SetCoordinationState(
                     $"Master '{targetBlockName}' coordinates detail block(s): {string.Join(", ", detailBlocks)}.",
-                    BeepFormsMessageSeverity.Info);
+                    BeepMessageSeverity.Info);
             }
             else if (!string.IsNullOrWhiteSpace(masterBlockName))
             {
                 SetCoordinationState(
                     $"Detail '{targetBlockName}' is coordinated by master '{masterBlockName}'.",
-                    BeepFormsMessageSeverity.Info);
+                    BeepMessageSeverity.Info);
             }
             else
             {
-                SetCoordinationState(string.Empty, BeepFormsMessageSeverity.None);
+                SetCoordinationState(string.Empty, BeepMessageSeverity.None);
             }
 
             ApplyShellStateToUi();
@@ -89,13 +89,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 _managerAdapter.Sync(_viewState);
                 SetCoordinationState(
                     $"Master '{blockName}' refreshed detail block(s) after {reason}: {string.Join(", ", detailBlocks)}.",
-                    BeepFormsMessageSeverity.Success);
+                    BeepMessageSeverity.Success);
             }
             catch (Exception ex)
             {
                 SetCoordinationState(
                     $"Master '{blockName}' detail refresh failed after {reason}: {ex.Message}",
-                    BeepFormsMessageSeverity.Warning);
+                    BeepMessageSeverity.Warning);
             }
             finally
             {
@@ -134,11 +134,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                    string.Equals(masterKeyField, e.FieldName, StringComparison.OrdinalIgnoreCase);
         }
 
-        private void SetCoordinationState(string text, BeepFormsMessageSeverity severity)
+        private void SetCoordinationState(string text, BeepMessageSeverity severity)
         {
             _viewState.CoordinationText = text ?? string.Empty;
             _viewState.CoordinationSeverity = string.IsNullOrWhiteSpace(text)
-                ? BeepFormsMessageSeverity.None
+                ? BeepMessageSeverity.None
                 : severity;
         }
     }

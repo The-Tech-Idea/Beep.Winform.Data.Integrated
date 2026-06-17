@@ -186,7 +186,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             _viewState.IsQueryMode = false;
             _viewState.CurrentRecordIndex = -1;
             _viewState.RecordCount = 0;
-            SyncGridFromManager(null);
+            SyncGridFromManager();
             RefreshRuntimeDefinition(null);
             ReconcileDesignerGeneratedBindings(EffectiveDefinition);
             RefreshPresentation();
@@ -210,7 +210,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
                 _viewState.IsQueryMode = false;
                 _viewState.CurrentRecordIndex = -1;
                 _viewState.RecordCount = 0;
-                SyncGridFromManager(null);
+                SyncGridFromManager();
                 RefreshRuntimeDefinition(null);
                 ReconcileDesignerGeneratedBindings(EffectiveDefinition);
                 RefreshPresentation();
@@ -230,7 +230,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             _viewState.Mode = blockInfo?.Mode ?? DataBlockMode.EnterQuery;
             _viewState.IsQueryMode = _viewState.Mode == DataBlockMode.EnterQuery || _viewState.Mode == DataBlockMode.Query;
 
-            SyncGridFromManager(_formsHost?.FormsManager);
+            SyncGridFromManager();
             UpdateRecordViewState(unitOfWork);
             RefreshTriggerState();
             RefreshPresentation();

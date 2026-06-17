@@ -110,46 +110,6 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             return false;
         }
 
-        public async Task<bool> CommitAsync()
-        {
-            if (_formsHost is BeepForms forms)
-            {
-                _formsHost.TrySetActiveBlock(BlockName);
-                var result = await forms.CommitFormAsync().ConfigureAwait(true);
-                return !IsFailure(result);
-            }
-
-            // Route through BeepForms host — never access FormsManager from BeepBlock.
-            if (_formsHost == null || string.IsNullOrWhiteSpace(ManagerBlockName))
-            {
-                return false;
-            }
-
-            bool committed = await _formsHost.SaveBlockAsync(ManagerBlockName).ConfigureAwait(true);
-            SyncFromManager();
-            return committed;
-        }
-
-        public async Task<bool> RollbackAsync()
-        {
-            if (_formsHost is BeepForms forms)
-            {
-                _formsHost.TrySetActiveBlock(BlockName);
-                var result = await forms.RollbackFormAsync().ConfigureAwait(true);
-                return !IsFailure(result);
-            }
-
-            // Route through BeepForms host — never access FormsManager from BeepBlock.
-            if (_formsHost == null || string.IsNullOrWhiteSpace(ManagerBlockName))
-            {
-                return false;
-            }
-
-            bool rolledBack = await _formsHost.RollbackBlockAsync(ManagerBlockName).ConfigureAwait(true);
-            SyncFromManager();
-            return rolledBack;
-        }
-
         public async Task<bool> NewRecordAsync()
         {
             if (ViewState.IsQueryMode)
@@ -173,27 +133,19 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
             return ok;
         }
 
-        public async Task<bool> DeleteCurrentRecordAsync()
+        public async Task<bool> RollbackAsync()
         {
-            if (ViewState.IsQueryMode || ViewState.RecordCount == 0)
-            {
-                return false;
-            }
-
             if (_formsHost is BeepForms forms)
             {
                 _formsHost.TrySetActiveBlock(BlockName);
+                var result = await forms.RollbackFormAsync().ConfigureAwait(true);
+                return !IsFailure(result);
             }
-
-            // Route through BeepForms host — never access FormsManager from BeepBlock.
             if (_formsHost == null || string.IsNullOrWhiteSpace(ManagerBlockName))
-            {
                 return false;
-            }
-
-            bool ok = await _formsHost.DeleteBlockCurrentRecordAsync(ManagerBlockName).ConfigureAwait(true);
+            bool rolledBack = await _formsHost.RollbackBlockAsync(ManagerBlockName).ConfigureAwait(true);
             SyncFromManager();
-            return ok;
+            return rolledBack;
         }
 
         private bool GetNavigatorFlag(string key, bool defaultValue)

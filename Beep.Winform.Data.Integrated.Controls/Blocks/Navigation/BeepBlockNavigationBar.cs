@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
+using System.Threading;
 using System.Windows.Forms;
 using TheTechIdea.Beep.Editor.UOWManager.Models;
 using TheTechIdea.Beep.Winform.Controls;
@@ -305,7 +306,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
         private async void DeleteButton_Click(object? sender, EventArgs e)
         {
             if (_block == null) return;
-            try { await _block.DeleteCurrentRecordAsync().ConfigureAwait(true); }
+            try { await _block.DeleteCurrentRecordAsync(CancellationToken.None).ConfigureAwait(true); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepBlockNavigationBar.Delete] {ex.Message}"); }
         }
 
@@ -326,7 +327,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
         private async void SaveButton_Click(object? sender, EventArgs e)
         {
             if (_block == null) return;
-            try { await _block.CommitAsync().ConfigureAwait(true); }
+            try { await _block.CommitAsync(CancellationToken.None).ConfigureAwait(true); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepBlockNavigationBar.Save] {ex.Message}"); }
         }
 

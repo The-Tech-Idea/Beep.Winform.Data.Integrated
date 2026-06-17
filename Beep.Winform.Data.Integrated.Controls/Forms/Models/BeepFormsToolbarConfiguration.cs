@@ -1,5 +1,6 @@
 using System;
 using System.Windows.Forms;
+using TheTechIdea.Beep.Editor.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models
 {

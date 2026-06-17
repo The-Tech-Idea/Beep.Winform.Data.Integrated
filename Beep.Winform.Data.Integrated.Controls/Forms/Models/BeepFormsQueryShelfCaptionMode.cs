@@ -1,3 +1,5 @@
+using TheTechIdea.Beep.Editor.Forms.Models;
+
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models
 {
     public enum BeepFormsQueryShelfCaptionMode

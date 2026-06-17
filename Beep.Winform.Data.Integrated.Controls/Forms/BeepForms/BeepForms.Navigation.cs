@@ -1,100 +1,107 @@
 using System.Threading.Tasks;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
+using TheTechIdea.Beep.Editor.Forms.Models;
 
-namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
+namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms;
+
+public partial class BeepForms
 {
-    public partial class BeepForms
+    public async Task<bool> MoveFirstAsync(string? blockName = null)
     {
-        public async Task<bool> MoveFirstAsync(string? blockName = null)
+        string targetBlockName = ResolveTargetBlockName(blockName);
+        var messageSnapshot = CaptureMessageSnapshot();
+        bool success = _formsManager != null
+            ? await _formsManager.FirstRecordAsync(targetBlockName).ConfigureAwait(true)
+            : false;
+        SyncFromManager();
+        if (success)
         {
-            string targetBlockName = ResolveTargetBlockName(blockName);
-            var messageSnapshot = CaptureMessageSnapshot();
-            bool success = await _commandRouter.FirstRecordAsync(targetBlockName).ConfigureAwait(true);
-            SyncFromManager();
-            if (success)
-            {
-                await RefreshMasterDetailShellAsync(targetBlockName, "navigation").ConfigureAwait(true);
-            }
-            else
-            {
-                UpdateMasterDetailShellContext(targetBlockName);
-            }
-
-            if (!success)
-            {
-                PublishOperationFeedback(messageSnapshot, targetBlockName, $"Navigation stopped for '{targetBlockName}'.", BeepFormsMessageSeverity.Warning);
-            }
-
-            return success;
+            await RefreshMasterDetailShellAsync(targetBlockName, "navigation").ConfigureAwait(true);
+        }
+        else
+        {
+            UpdateMasterDetailShellContext(targetBlockName);
         }
 
-        public async Task<bool> MovePreviousAsync(string? blockName = null)
+        if (!success)
         {
-            string targetBlockName = ResolveTargetBlockName(blockName);
-            var messageSnapshot = CaptureMessageSnapshot();
-            bool success = await _commandRouter.PreviousRecordAsync(targetBlockName).ConfigureAwait(true);
-            SyncFromManager();
-            if (success)
-            {
-                await RefreshMasterDetailShellAsync(targetBlockName, "navigation").ConfigureAwait(true);
-            }
-            else
-            {
-                UpdateMasterDetailShellContext(targetBlockName);
-            }
-
-            if (!success)
-            {
-                PublishOperationFeedback(messageSnapshot, targetBlockName, $"Navigation stopped for '{targetBlockName}'.", BeepFormsMessageSeverity.Warning);
-            }
-
-            return success;
+            PublishOperationFeedback(messageSnapshot, targetBlockName, $"Navigation stopped for '{targetBlockName}'.", BeepMessageSeverity.Warning);
         }
 
-        public async Task<bool> MoveNextAsync(string? blockName = null)
+        return success;
+    }
+
+    public async Task<bool> MovePreviousAsync(string? blockName = null)
+    {
+        string targetBlockName = ResolveTargetBlockName(blockName);
+        var messageSnapshot = CaptureMessageSnapshot();
+        bool success = _formsManager != null
+            ? await _formsManager.PreviousRecordAsync(targetBlockName).ConfigureAwait(true)
+            : false;
+        SyncFromManager();
+        if (success)
         {
-            string targetBlockName = ResolveTargetBlockName(blockName);
-            var messageSnapshot = CaptureMessageSnapshot();
-            bool success = await _commandRouter.NextRecordAsync(targetBlockName).ConfigureAwait(true);
-            SyncFromManager();
-            if (success)
-            {
-                await RefreshMasterDetailShellAsync(targetBlockName, "navigation").ConfigureAwait(true);
-            }
-            else
-            {
-                UpdateMasterDetailShellContext(targetBlockName);
-            }
-
-            if (!success)
-            {
-                PublishOperationFeedback(messageSnapshot, targetBlockName, $"Navigation stopped for '{targetBlockName}'.", BeepFormsMessageSeverity.Warning);
-            }
-
-            return success;
+            await RefreshMasterDetailShellAsync(targetBlockName, "navigation").ConfigureAwait(true);
+        }
+        else
+        {
+            UpdateMasterDetailShellContext(targetBlockName);
         }
 
-        public async Task<bool> MoveLastAsync(string? blockName = null)
+        if (!success)
         {
-            string targetBlockName = ResolveTargetBlockName(blockName);
-            var messageSnapshot = CaptureMessageSnapshot();
-            bool success = await _commandRouter.LastRecordAsync(targetBlockName).ConfigureAwait(true);
-            SyncFromManager();
-            if (success)
-            {
-                await RefreshMasterDetailShellAsync(targetBlockName, "navigation").ConfigureAwait(true);
-            }
-            else
-            {
-                UpdateMasterDetailShellContext(targetBlockName);
-            }
-
-            if (!success)
-            {
-                PublishOperationFeedback(messageSnapshot, targetBlockName, $"Navigation stopped for '{targetBlockName}'.", BeepFormsMessageSeverity.Warning);
-            }
-
-            return success;
+            PublishOperationFeedback(messageSnapshot, targetBlockName, $"Navigation stopped for '{targetBlockName}'.", BeepMessageSeverity.Warning);
         }
+
+        return success;
+    }
+
+    public async Task<bool> MoveNextAsync(string? blockName = null)
+    {
+        string targetBlockName = ResolveTargetBlockName(blockName);
+        var messageSnapshot = CaptureMessageSnapshot();
+        bool success = _formsManager != null
+            ? await _formsManager.NextRecordAsync(targetBlockName).ConfigureAwait(true)
+            : false;
+        SyncFromManager();
+        if (success)
+        {
+            await RefreshMasterDetailShellAsync(targetBlockName, "navigation").ConfigureAwait(true);
+        }
+        else
+        {
+            UpdateMasterDetailShellContext(targetBlockName);
+        }
+
+        if (!success)
+        {
+            PublishOperationFeedback(messageSnapshot, targetBlockName, $"Navigation stopped for '{targetBlockName}'.", BeepMessageSeverity.Warning);
+        }
+
+        return success;
+    }
+
+    public async Task<bool> MoveLastAsync(string? blockName = null)
+    {
+        string targetBlockName = ResolveTargetBlockName(blockName);
+        var messageSnapshot = CaptureMessageSnapshot();
+        bool success = _formsManager != null
+            ? await _formsManager.LastRecordAsync(targetBlockName).ConfigureAwait(true)
+            : false;
+        SyncFromManager();
+        if (success)
+        {
+            await RefreshMasterDetailShellAsync(targetBlockName, "navigation").ConfigureAwait(true);
+        }
+        else
+        {
+            UpdateMasterDetailShellContext(targetBlockName);
+        }
+
+        if (!success)
+        {
+            PublishOperationFeedback(messageSnapshot, targetBlockName, $"Navigation stopped for '{targetBlockName}'.", BeepMessageSeverity.Warning);
+        }
+
+        return success;
     }
 }

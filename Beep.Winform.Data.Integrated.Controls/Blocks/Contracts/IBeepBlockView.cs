@@ -4,7 +4,6 @@ using TheTechIdea.Beep.Editor.Forms.Builtins;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Contracts
 {
@@ -22,7 +21,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks.Contracts
         event EventHandler<TriggerExecutedEventArgs>? TriggerExecuted;
         event EventHandler<TriggerRegisteredEventArgs>? TriggerRegistered;
         event EventHandler<TriggerUnregisteredEventArgs>? TriggerUnregistered;
-        event EventHandler<BeepFormsUnitOfWorkEventArgs>? UnitOfWorkActivity;
+        event EventHandler<BeepUnitOfWorkEventArgs>? UnitOfWorkActivity;
 
         void Bind(IBeepFormsHost formsHost);
         void Unbind();

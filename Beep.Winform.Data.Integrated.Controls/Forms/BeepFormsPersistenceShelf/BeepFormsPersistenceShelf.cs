@@ -5,8 +5,9 @@ using System.Windows.Forms;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.Base;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
+using TheTechIdea.Beep.Editor.Forms.Models;
+using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 {
@@ -16,11 +17,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
     [DisplayName("Beep Forms Persistence Shelf")]
     [Description("Standalone persistence action shelf for BeepForms commit and rollback commands.")]
     [Designer("TheTechIdea.Beep.Winform.Controls.Design.Server.Designers.BeepFormsPersistenceShelfDesigner, TheTechIdea.Beep.Winform.Controls.Design.Server")]
-    public sealed class BeepFormsPersistenceShelf : BaseControl
+    public sealed class BeepFormsPersistenceShelf : BeepFormsShelfBase
     {
         private readonly FlowLayoutPanel _commandPanel;
-        private BeepForms? _formsHost;
-        private bool _autoBindFormsHost = true;
         private BeepButton? _commitButton;
         private BeepButton? _rollbackButton;
         private BeepButton? _batchCommitButton;
@@ -47,49 +46,6 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
             Controls.Add(_commandPanel);
             RefreshPersistenceShelf();
-        }
-
-        [Browsable(true)]
-        [Category("Behavior")]
-        [Description("Optional BeepForms coordinator surfaced by this persistence shelf.")]
-        [DefaultValue(null)]
-        public BeepForms? FormsHost
-        {
-            get => _formsHost;
-            set
-            {
-                if (ReferenceEquals(_formsHost, value))
-                {
-                    return;
-                }
-
-                DetachFormsHost(_formsHost);
-                _formsHost = value;
-                AttachFormsHost(_formsHost);
-                UpdatePersistenceShelfState();
-            }
-        }
-
-        [Browsable(true)]
-        [Category("Behavior")]
-        [Description("Automatically resolve a nearby BeepForms host when FormsHost is not set explicitly.")]
-        [DefaultValue(true)]
-        public bool AutoBindFormsHost
-        {
-            get => _autoBindFormsHost;
-            set
-            {
-                if (_autoBindFormsHost == value)
-                {
-                    return;
-                }
-
-                _autoBindFormsHost = value;
-                if (_autoBindFormsHost && _formsHost == null)
-                {
-                    TryBindFormsHostFromHierarchy();
-                }
-            }
         }
 
         [Browsable(true)]
@@ -130,79 +86,6 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             }
         }
 
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                DetachFormsHost(_formsHost);
-            }
-
-            base.Dispose(disposing);
-        }
-
-        protected override void OnCreateControl()
-        {
-            base.OnCreateControl();
-            TryBindFormsHostFromHierarchy();
-        }
-
-        protected override void OnParentChanged(EventArgs e)
-        {
-            base.OnParentChanged(e);
-            TryBindFormsHostFromHierarchy();
-        }
-
-        private void AttachFormsHost(BeepForms? formsHost)
-        {
-            if (formsHost == null)
-            {
-                return;
-            }
-
-            formsHost.ActiveBlockChanged += FormsHost_StateChanged;
-            formsHost.FormsManagerChanged += FormsHost_StateChanged;
-            formsHost.ViewStateChanged += FormsHost_StateChanged;
-            formsHost.Disposed += FormsHost_Disposed;
-        }
-
-        private void DetachFormsHost(BeepForms? formsHost)
-        {
-            if (formsHost == null)
-            {
-                return;
-            }
-
-            formsHost.ActiveBlockChanged -= FormsHost_StateChanged;
-            formsHost.FormsManagerChanged -= FormsHost_StateChanged;
-            formsHost.ViewStateChanged -= FormsHost_StateChanged;
-            formsHost.Disposed -= FormsHost_Disposed;
-        }
-
-        private void FormsHost_StateChanged(object? sender, EventArgs e)
-        {
-            UpdatePersistenceShelfState();
-        }
-
-        private void FormsHost_Disposed(object? sender, EventArgs e)
-        {
-            FormsHost = null;
-            TryBindFormsHostFromHierarchy();
-        }
-
-        private void TryBindFormsHostFromHierarchy()
-        {
-            if (!AutoBindFormsHost || _formsHost != null || Parent == null)
-            {
-                return;
-            }
-
-            BeepForms? resolvedHost = BeepFormsHostResolver.Find(this);
-            if (resolvedHost != null)
-            {
-                FormsHost = resolvedHost;
-            }
-        }
-
         private void RefreshPersistenceShelf()
         {
             _commandPanel.SuspendLayout();
@@ -216,7 +99,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             _commandPanel.Visible = _commandPanel.Controls.Count > 0;
             _commandPanel.ResumeLayout(false);
 
-            UpdatePersistenceShelfState();
+            OnFormsHostChanged();
         }
 
         private void AddButton(ref BeepButton? field, BeepFormsPersistenceShelfButtons flag, string caption, EventHandler clickHandler, int minimumWidth)
@@ -247,9 +130,10 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return Math.Max(minimumWidth, measuredWidth);
         }
 
-        private void UpdatePersistenceShelfState()
+        protected override void OnFormsHostChanged()
         {
-            bool isDirty = _formsHost != null && _formsHost.ViewState.IsDirty;
+            base.OnFormsHostChanged();
+            bool isDirty = FormsHost != null && FormsHost.ViewState.IsDirty;
 
             SetButtonState(_commitButton, isDirty, PersistenceButtons.HasFlag(BeepFormsPersistenceShelfButtons.Commit));
             SetButtonState(_rollbackButton, isDirty, PersistenceButtons.HasFlag(BeepFormsPersistenceShelfButtons.Rollback));
@@ -269,35 +153,35 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         private async void CommitButton_Click(object? sender, EventArgs e)
         {
-            if (_formsHost == null) return;
-            try { await _formsHost.CommitFormAsync().ConfigureAwait(true); }
+            if (FormsHost == null) return;
+            try { await FormsHost.CommitFormAsync().ConfigureAwait(true); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsPersistenceShelf.Commit] {ex.Message}"); }
         }
 
         private async void RollbackButton_Click(object? sender, EventArgs e)
         {
-            if (_formsHost == null) return;
-            try { await _formsHost.RollbackFormAsync().ConfigureAwait(true); }
+            if (FormsHost == null) return;
+            try { await FormsHost.RollbackFormAsync().ConfigureAwait(true); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepFormsPersistenceShelf.Rollback] {ex.Message}"); }
         }
 
         private async void BatchCommitButton_Click(object? sender, EventArgs e)
         {
-            if (_formsHost?.FormsManager == null) return;
+            if (FormsHost?.FormsManager == null) return;
             try
             {
-                bool confirmed = await _formsHost.ConfirmAsync("Batch Commit",
+                bool confirmed = await FormsHost.ConfirmAsync("Batch Commit",
                     "Commit all blocks in a single transaction?").ConfigureAwait(true);
                 if (!confirmed) return;
 
-                _formsHost.ShowInfo("Running batch commit…");
-                var result = await _formsHost.FormsManager.CommitFormBatchAsync().ConfigureAwait(true);
-                _formsHost.SyncFromManager();
-                _formsHost.ShowSuccess("Batch commit completed.");
+                FormsHost.ShowInfo("Running batch commit…");
+                var result = await FormsHost.FormsManager.CommitFormBatchAsync().ConfigureAwait(true);
+                FormsHost.SyncFromManager();
+                FormsHost.ShowSuccess("Batch commit completed.");
             }
             catch (Exception ex)
             {
-                _formsHost?.ShowError($"Batch commit failed: {ex.Message}");
+                FormsHost?.ShowError($"Batch commit failed: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"[BeepFormsPersistenceShelf.BatchCommit] {ex.Message}");
             }
         }

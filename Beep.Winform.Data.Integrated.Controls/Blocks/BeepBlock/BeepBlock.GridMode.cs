@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using TheTechIdea.Beep.DataBase;
 using TheTechIdea.Beep.Editor.Forms.Models;
-using TheTechIdea.Beep.Editor.UOWManager.Interfaces;
 using TheTechIdea.Beep.Editor.UOWManager.Models;
 using TheTechIdea.Beep.Utilities;
 using TheTechIdea.Beep.Winform.Controls.CheckBoxes;
@@ -15,13 +14,11 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Blocks
 {
     public partial class BeepBlock
     {
-        private void SyncGridFromManager(IUnitofWorksManager? manager)
+        private void SyncGridFromManager()
         {
-            if (_gridView == null)
-            {
-                return;
-            }
+            if (_gridView == null) return;
 
+            var manager = _formsHost?.FormsManager;
             if (manager == null || string.IsNullOrWhiteSpace(ManagerBlockName) || !manager.BlockExists(ManagerBlockName))
             {
                 _gridView.CellValueChanged -= GridView_CellValueChanged;

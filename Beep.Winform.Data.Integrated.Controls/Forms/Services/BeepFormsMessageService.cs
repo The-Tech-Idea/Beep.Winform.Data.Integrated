@@ -1,5 +1,5 @@
+using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts;
-using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Models;
 
 namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
 {
@@ -7,9 +7,9 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
     {
         public string CurrentMessage { get; private set; } = string.Empty;
 
-        public BeepFormsMessageSeverity CurrentSeverity { get; private set; } = BeepFormsMessageSeverity.None;
+        public BeepMessageSeverity CurrentSeverity { get; private set; } = BeepMessageSeverity.None;
 
-        public void Publish(BeepFormsViewState viewState, string message, BeepFormsMessageSeverity severity = BeepFormsMessageSeverity.Info)
+        public void Publish(BeepViewState viewState, string message, BeepMessageSeverity severity = BeepMessageSeverity.Info)
         {
             CurrentMessage = message ?? string.Empty;
             CurrentSeverity = severity;
@@ -17,12 +17,12 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Services
             viewState.MessageSeverity = severity;
         }
 
-        public void Clear(BeepFormsViewState viewState)
+        public void Clear(BeepViewState viewState)
         {
             CurrentMessage = string.Empty;
-            CurrentSeverity = BeepFormsMessageSeverity.None;
+            CurrentSeverity = BeepMessageSeverity.None;
             viewState.CurrentMessage = string.Empty;
-            viewState.MessageSeverity = BeepFormsMessageSeverity.None;
+            viewState.MessageSeverity = BeepMessageSeverity.None;
         }
     }
 }
