@@ -451,5 +451,14 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 ? BeepMessageSeverity.None
                 : severity;
         }
+
+        Task<int> IBeepFormsHost.ShowAlertAsync(string title, string message,
+            BeepBuiltinAlertStyle style, string button1Text, string? button2Text,
+            string? button3Text, CancellationToken ct)
+        {
+            var alertStyle = (AlertStyle)(int)style;
+            var result = ShowAlertAsync(title, message, alertStyle, button1Text, button2Text, button3Text, ct);
+            return result.ContinueWith(t => (int)t.Result, TaskContinuationOptions.None);
+        }
     }
 }

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net8.0-windows</TargetFramework>
+		<TargetFramework>net10.0-windows</TargetFramework>
 		<Nullable>enable</Nullable>
 		<UseWindowsForms>true</UseWindowsForms>
 		<ImplicitUsings>enable</ImplicitUsings>
@@ -21,7 +21,7 @@
        
 		<Version>1.0.1</Version>
 		<GenerateDocumentationFile>True</GenerateDocumentationFile>
-		<NoWarn>CS1591</NoWarn>
+		<NoWarn>$(NoWarn);CS1591;WFO1000</NoWarn>
 	</PropertyGroup>
 	<PropertyGroup>
 		<!-- Don’t pack on design-time builds -->

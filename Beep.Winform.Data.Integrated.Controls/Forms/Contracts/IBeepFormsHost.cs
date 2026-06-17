@@ -172,10 +172,10 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
         bool TrySetBlockProperty(string blockName, string property, object? value);
 
         // ── Mutation proxies (used by BeepBlock when host is not a concrete BeepForms) ─
-        Task<bool> SaveBlockAsync(string blockName);
-        Task<bool> RollbackBlockAsync(string blockName);
-        Task<bool> InsertBlockRecordAsync(string blockName);
-        Task<bool> DeleteBlockCurrentRecordAsync(string blockName);
+        Task<bool> SaveBlockAsync(string blockName, CancellationToken ct = default);
+        Task<bool> RollbackBlockAsync(string blockName, CancellationToken ct = default);
+        Task<bool> InsertBlockRecordAsync(string blockName, CancellationToken ct = default);
+        Task<bool> DeleteBlockCurrentRecordAsync(string blockName, CancellationToken ct = default);
         Task<bool> ExecuteQueryAsync(string blockName, CancellationToken ct = default);
         Task<bool> ClearBlockAsync(string blockName, CancellationToken ct = default);
         Task<bool> ClearRecordAsync(string blockName, CancellationToken ct = default);
@@ -183,5 +183,12 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
         // ── Logon flow ───────────────────────────────────────────────────────────
         /// <summary>Shows the configured logon dialog and, on success, raises the When-New-Form-Instance trigger.</summary>
         Task<BeepLogonContext> LogonAsync(BeepLogonRequest request);
+
+        // ── Post / Alert ──────────────────────────────────────────────────────────
+        /// <summary>Post (validate and send to DB without committing). Oracle Forms POST equivalent.</summary>
+        Task<bool> PostBlockAsync(string blockName, CancellationToken ct = default);
+        /// <summary>Show a modal alert dialog. Returns 1-based button index.</summary>
+        Task<int> ShowAlertAsync(string title, string message, BeepBuiltinAlertStyle style,
+            string button1Text, string? button2Text = null, string? button3Text = null, CancellationToken ct = default);
     }
 }

@@ -187,7 +187,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
 
         // ── Mutation proxies ──────────────────────────────────────────────────────────
 
-        public async Task<bool> SaveBlockAsync(string blockName)
+        public async Task<bool> SaveBlockAsync(string blockName, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(blockName) || _formsManager == null) return false;
             var uow = _formsManager.GetUnitOfWork(blockName);
@@ -196,7 +196,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return result?.Flag == TheTechIdea.Beep.ConfigUtil.Errors.Ok;
         }
 
-        public async Task<bool> RollbackBlockAsync(string blockName)
+        public async Task<bool> RollbackBlockAsync(string blockName, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(blockName) || _formsManager == null) return false;
             var uow = _formsManager.GetUnitOfWork(blockName);
@@ -213,13 +213,13 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
             return success;
         }
 
-        public async Task<bool> InsertBlockRecordAsync(string blockName)
+        public async Task<bool> InsertBlockRecordAsync(string blockName, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(blockName) || _formsManager == null) return false;
             return await _formsManager.InsertRecordAsync(blockName).ConfigureAwait(false);
         }
 
-        public async Task<bool> DeleteBlockCurrentRecordAsync(string blockName)
+        public async Task<bool> DeleteBlockCurrentRecordAsync(string blockName, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(blockName) || _formsManager == null) return false;
             return await _formsManager.DeleteCurrentRecordAsync(blockName).ConfigureAwait(false);
@@ -419,6 +419,12 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 Debug.WriteLine($"[BeepForms.BlockProxy.ClearRecordAsync] {blockName}: {ex.GetType().Name} - {ex.Message}");
                 return false;
             }
+        }
+
+        public async Task<bool> PostBlockAsync(string blockName, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(blockName) || _formsManager == null) return false;
+            return await _formsManager.PostBlockAsync(blockName, ct).ConfigureAwait(false);
         }
     }
 }

@@ -50,19 +50,33 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
         }
         #region "IAddinVisSchema"
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string RootNodeName { get; set; } = "Configuration";
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string CatgoryName { get; set; }
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int Order { get; set; } = 1;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int ID { get; set; } = 1;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string BranchText { get; set; } = "Entity Editor";
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int Level { get; set; }
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public EnumPointType BranchType { get; set; } = EnumPointType.Function;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int BranchID { get; set; } = 1;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string IconImageName { get; set; } = "entityeditor.svg";
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string BranchStatus { get; set; }
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int ParentBranchID { get; set; }
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string BranchDescription { get; set; } = "Entity Editor Screen";
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string BranchClass { get; set; } = "ADDIN";
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string AddinName { get; set; }
         #endregion "IAddinVisSchema"
         EntityManagerViewModel viewModel;

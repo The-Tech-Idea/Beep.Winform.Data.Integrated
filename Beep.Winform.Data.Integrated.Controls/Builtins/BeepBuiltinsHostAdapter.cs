@@ -100,13 +100,14 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Builtins
         public bool TrySetBlockProperty(string blockName, string property, object? value)
             => _host.TrySetBlockProperty(blockName, property, value);
 
-        public Task<bool> SaveBlockAsync(string blockName, CancellationToken ct) => _host.SaveBlockAsync(blockName);
-        public Task<bool> RollbackBlockAsync(string blockName, CancellationToken ct) => _host.RollbackBlockAsync(blockName);
-        public Task<bool> InsertBlockRecordAsync(string blockName, CancellationToken ct) => _host.InsertBlockRecordAsync(blockName);
-        public Task<bool> DeleteBlockCurrentRecordAsync(string blockName, CancellationToken ct) => _host.DeleteBlockCurrentRecordAsync(blockName);
+        public Task<bool> SaveBlockAsync(string blockName, CancellationToken ct) => _host.SaveBlockAsync(blockName, ct);
+        public Task<bool> RollbackBlockAsync(string blockName, CancellationToken ct) => _host.RollbackBlockAsync(blockName, ct);
+        public Task<bool> InsertBlockRecordAsync(string blockName, CancellationToken ct) => _host.InsertBlockRecordAsync(blockName, ct);
+        public Task<bool> DeleteBlockCurrentRecordAsync(string blockName, CancellationToken ct) => _host.DeleteBlockCurrentRecordAsync(blockName, ct);
         public Task<bool> ExecuteQueryAsync(string blockName, CancellationToken ct) => _host.ExecuteQueryAsync(blockName, ct);
         public Task<bool> ClearBlockAsync(string blockName, CancellationToken ct) => _host.ClearBlockAsync(blockName, ct);
         public Task<bool> ClearRecordAsync(string blockName, CancellationToken ct) => _host.ClearRecordAsync(blockName, ct);
+        public Task<bool> PostBlockAsync(string blockName, CancellationToken ct) => _host.PostBlockAsync(blockName, ct);
 
         public RecordValidationResult? ValidateBlockRecord(string blockName, IDictionary<string, object> record, ValidationTiming timing)
             => _host.ValidateBlockRecord(blockName, record, timing);
