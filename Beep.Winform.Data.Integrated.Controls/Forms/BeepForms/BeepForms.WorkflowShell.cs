@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TheTechIdea.Beep.ConfigUtil;
+using TheTechIdea.Beep.Editor.Forms.Builtins;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Helpers;
 
@@ -452,7 +453,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms
                 : severity;
         }
 
-        Task<int> IBeepFormsHost.ShowAlertAsync(string title, string message,
+        Task<int> TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts.IBeepFormsHost.ShowAlertAsync(string title, string message,
             BeepBuiltinAlertStyle style, string button1Text, string? button2Text,
             string? button3Text, CancellationToken ct)
         {

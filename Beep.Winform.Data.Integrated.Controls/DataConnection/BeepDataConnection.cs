@@ -19,7 +19,7 @@ namespace TheTechIdea.Beep.Winform.Controls
     public class BeepDataConnection : Component, INotifyPropertyChanged
     {
         private IBeepService? _beepService;
-        private BeepConnectionRepository? _connectionRepository;
+        private IConnectionCatalogRepository? _connectionRepository;
         private EventHandler? _repositoryChangedHandler;
         private bool _ownsBeepService = true;
 
@@ -382,7 +382,11 @@ namespace TheTechIdea.Beep.Winform.Controls
                 return;
             }
 
-            _connectionRepository = new BeepConnectionRepository(_beepService);
+            // Use the shared catalog repository from ConfigEditor, or create a local one.
+            var editor = _beepService.DMEEditor;
+            var configEditor = editor?.ConfigEditor ?? _beepService.Config_editor;
+            _connectionRepository = configEditor?.ConnectionCatalogRepository
+                ?? new BeepConnectionRepository(_beepService);
             ApplyRepositorySettings();
             _repositoryChangedHandler = (_, _) =>
             {

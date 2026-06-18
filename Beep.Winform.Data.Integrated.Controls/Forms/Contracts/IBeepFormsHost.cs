@@ -52,6 +52,7 @@ namespace TheTechIdea.Beep.Winform.Controls.Integrated.Forms.Contracts
         /// load window.
         /// </summary>
         IBeepBuiltins? Builtins { get; }
+        FormHostPlatform HostPlatform => FormHostPlatform.WinForms;
 
         // ── Events ────────────────────────────────────────────────────────────────────
         event EventHandler? ActiveBlockChanged;
