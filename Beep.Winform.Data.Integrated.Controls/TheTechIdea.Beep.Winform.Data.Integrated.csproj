@@ -1,0 +1,94 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	  <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>12.0</LangVersion>
+    <Authors>The Tech Idea</Authors>
+    <Company>The Tech Idea</Company>
+    <Copyright>2022</Copyright>
+    <PackageIcon>SimpleODM.png</PackageIcon>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <IncludeSymbols>False</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <PackageId>TheTechIdea.Beep.Winform.Data.Integrated</PackageId>
+    <Title>TheTechIdea.Beep.Winform.Data.Integrated</Title>
+    <Product>TheTechIdea.Beep.Winform.Data.Integrated</Product>
+    <AssemblyName>TheTechIdea.Beep.Winform.Data.Integrated</AssemblyName>
+   
+    <Version>1.0.1</Version>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;WFO1000</NoWarn>
+	  
+  </PropertyGroup>
+	<PropertyGroup>
+		<!-- Don't pack on design-time builds -->
+		<GeneratePackageOnBuild Condition="'$(DesignTimeBuild)' != 'true'">True</GeneratePackageOnBuild>
+	</PropertyGroup>
+	<Target Name="CopyPackage" AfterTargets="Pack" Condition="'$(DesignTimeBuild)' != 'true'">
+		<PropertyGroup>
+			<_PkgName>$(PackageId).$(PackageVersion).nupkg</_PkgName>
+			<!-- Pack writes to $(PackageOutputPath); default is bin\<Configuration>\ -->
+			<_PkgPath>$(PackageOutputPath)\$(_PkgName)</_PkgPath>
+			<_Dest>$(ProjectDir)..\..\..\LocalNugetFiles</_Dest>
+		</PropertyGroup>
+
+		<!-- Ensure destination exists -->
+		<MakeDir Directories="$(_Dest)" Condition="!Exists('$(_Dest)')" />
+
+		<!-- Copy only if the package exists -->
+		<Copy SourceFiles="$(_PkgPath)" DestinationFolder="$(_Dest)" SkipUnchangedFiles="true" Condition="Exists('$(_PkgPath)')" />
+	</Target>
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Copy SourceFiles="$(TargetDir)$(Assemblyname).dll" DestinationFolder="$(ProjectDir)..\..\outputDLL\$(Assemblyname)\$(TargetFramework)" SkipUnchangedFiles="false" />
+  </Target>
+  <ItemGroup>
+    <Compile Remove="Designer\**" />
+    <EmbeddedResource Remove="Designer\**" />
+    <None Remove="Designer\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Helpers\AssemblyClassDefinitionManager.cs" />
+    <Compile Remove="Helpers\DynamicFunctionCallingManager.cs" />
+    <Compile Remove="Helpers\DynamicMenuManager.cs" />
+    <Compile Remove="Helpers\LoadEnvironmentServices.cs" />
+    <Compile Remove="Helpers\MenuGenerators.cs" />
+  </ItemGroup>
+	<ItemGroup>
+		<None Include="..\..\InstallationScripts\LogoGFx\128\SimpleODM.png">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.DependencyModel" Version="10.0.9" />
+		<PackageReference Include="Svg" Version="3.4.7" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\..\Beep.Shared\Beep.Shared\TheTechIdea.Beep.Shared.csproj" />
+	  <ProjectReference Include="..\..\Beep.Winform\TheTechIdea.Beep.Winform.Controls\TheTechIdea.Beep.Winform.Controls.csproj" />
+	  <ProjectReference Include="..\..\BeepDM\DataManagementEngineStandard\DataManagementEngine.csproj" />
+	  <ProjectReference Include="..\..\BeepDM\DataManagementModelsStandard\DataManagementModels.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Compile Update="BeepDataBlock.cs">
+	    <SubType>Component</SubType>
+	  </Compile>
+	  <Compile Update="BeepDataConnection.cs">
+	    <SubType>Component</SubType>
+	  </Compile>
+	  <Compile Update="ITrees\BeepTreeView\BeepAppTree.cs" />
+	  <Compile Update="MenuBar\BeepMenuAppBar.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="docs\" />
+	  <Folder Include="Forms\FormHost\Helpers\" />
+	</ItemGroup>
+</Project>
