@@ -18,7 +18,7 @@ over the BeepDM Forms engine.
 | Savepoints | engine savepoint manager | `WinFormSavepointPanel` | Implemented |
 | Navigation history/bookmarks | engine history/bookmarks | `WinFormHistoryDialog` and host commands | Implemented |
 | Timers | engine timer manager | `WinFormTimerPanel` and timer relay | Implemented |
-| Sequences | engine sequence provider | `WinFormSequencePanel` | Implemented |
+| Sequences, including first-class drop | engine sequence provider | `WinFormSequencePanel` | Implemented |
 | Record groups | engine registry | `WinFormRecordGroupPanel` | Implemented |
 | Parameter lists | engine parameter manager | `WinFormParameterListPanel` | Implemented |
 | Multi-form calls/messages/globals | engine registry/message bus | `WinFormMultiFormPanel` and factory | Implemented |

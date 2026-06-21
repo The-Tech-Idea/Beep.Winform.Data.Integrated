@@ -20,4 +20,7 @@ public sealed class WinFormSequencePanel : WinFormFormsFeatureControl
 
     public void Reset(string name, long startValue = 1) =>
         Host.ResetSequence(name, startValue);
+
+    public bool Drop(string name) =>
+        Host.DropSequence(name);
 }

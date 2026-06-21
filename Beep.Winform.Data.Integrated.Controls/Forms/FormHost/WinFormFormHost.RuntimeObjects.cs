@@ -43,6 +43,9 @@ public partial class WinFormFormHost
             sequenceName,
             startValue);
 
+    public bool DropSequence(string sequenceName) =>
+        RequireManager().Sequences.DropSequence(sequenceName);
+
     public void CreateRecordGroup(
         string name,
         string dataSourceName,

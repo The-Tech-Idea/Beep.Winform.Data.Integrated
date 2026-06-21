@@ -41,9 +41,11 @@ public class WinFormFeatureControlTests
     {
         var host = new Mock<IBeepFormsHost>();
         host.Setup(x => x.GetNextSequence("ORDER_SEQ")).Returns(5);
+        host.Setup(x => x.DropSequence("ORDER_SEQ")).Returns(true);
         using var sequencePanel = new WinFormSequencePanel(host.Object);
 
         Assert.Equal(5, sequencePanel.NextValue("ORDER_SEQ"));
+        Assert.True(sequencePanel.Drop("ORDER_SEQ"));
         Assert.DoesNotContain(
             typeof(IBeepFormsHost).Assembly.GetReferencedAssemblies(),
             assembly => assembly.Name?.Contains("WinForms", StringComparison.OrdinalIgnoreCase) == true);
