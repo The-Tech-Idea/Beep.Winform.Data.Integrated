@@ -11,6 +11,7 @@ public partial class WinFormBlockHost : UserControl, IBlockView
 {
     private readonly List<IFieldPresenter> _presenters = [];
     private readonly HashSet<IFieldPresenter> _ownedPresenters = [];
+    private readonly Dictionary<IFieldPresenter, BeepLabel> _presenterLabels = [];
     private readonly TableLayoutPanel _layout;
     private readonly WinFormFieldPresenterRegistry _registry = new();
     private IBeepFormsHost? _formsHost;
@@ -110,6 +111,11 @@ public partial class WinFormBlockHost : UserControl, IBlockView
         _presenters.Remove(presenter);
         if (presenter.View is Control control)
             _layout.Controls.Remove(control);
+        if (_presenterLabels.Remove(presenter, out var label))
+        {
+            _layout.Controls.Remove(label);
+            label.Dispose();
+        }
         if (_ownedPresenters.Remove(presenter) && presenter is IDisposable disposable)
             disposable.Dispose();
     }
@@ -132,7 +138,9 @@ public partial class WinFormBlockHost : UserControl, IBlockView
             throw new InvalidOperationException("WinForms presenters must expose a Control.");
         var row = _layout.RowCount++;
         _layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        _layout.Controls.Add(new BeepLabel { Text = presenter.Label, AutoSize = true }, 0, row);
+        var label = new BeepLabel { Text = presenter.Label, AutoSize = true };
+        _presenterLabels[presenter] = label;
+        _layout.Controls.Add(label, 0, row);
         control.Dock = DockStyle.Top;
         _layout.Controls.Add(control, 1, row);
     }
@@ -163,8 +171,32 @@ public partial class WinFormBlockHost : UserControl, IBlockView
                 var item = _formsHost.GetItemInfo(
                     ManagerBlockName,
                     presenter.FieldName);
+                if (!string.IsNullOrWhiteSpace(item?.PromptText))
+                {
+                    presenter.Label = item.PromptText;
+                    if (_presenterLabels.TryGetValue(presenter, out var label))
+                    {
+                        label.Text = item.PromptText;
+                    }
+                }
+                presenter.Prompt = item?.HintText;
                 presenter.IsVisible = item?.Visible ?? presenter.IsVisible;
                 presenter.IsRequired = item?.Required ?? presenter.IsRequired;
+                if (item is not null)
+                {
+                    presenter.IsReadOnly = _queryMode
+                        ? !item.QueryAllowed
+                        : GetBlockModeForItemAccess() == DataBlockMode.Insert
+                            ? !item.InsertAllowed
+                            : !item.UpdateAllowed;
+                    presenter.ValidationError = item.HasError
+                        ? item.ErrorMessage
+                        : null;
+                    if (presenter.View is Control control)
+                    {
+                        control.TabIndex = item.TabIndex;
+                    }
+                }
                 presenter.IsEnabled = (item?.Enabled ?? true) &&
                     (_queryMode
                         ? _formsHost.IsFieldQueryAllowed(
@@ -178,6 +210,9 @@ public partial class WinFormBlockHost : UserControl, IBlockView
     }
 
     public void RefreshPresenters() => SyncFromManager();
+
+    private DataBlockMode GetBlockModeForItemAccess() =>
+        _formsHost?.GetBlockMode(ManagerBlockName) ?? DataBlockMode.Query;
 
     private async void PresenterOnValueChanged(object? sender, object? value)
     {
@@ -383,6 +418,9 @@ public partial class WinFormBlockHost : UserControl, IBlockView
             foreach (var presenter in _ownedPresenters.OfType<IDisposable>())
                 presenter.Dispose();
             _ownedPresenters.Clear();
+            foreach (var label in _presenterLabels.Values)
+                label.Dispose();
+            _presenterLabels.Clear();
             _presenters.Clear();
         }
         base.Dispose(disposing);

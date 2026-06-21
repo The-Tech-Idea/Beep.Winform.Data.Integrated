@@ -17,10 +17,10 @@
 - Modify: `BeepDM/DataManagementModelsStandard/Editor/Forms/Interfaces/IUnitofWorksManager.cs`
 - Test: `BeepDM/DataManagementEngineStandard/Editor/Forms.Tests/FormsHostContractTests.cs`
 
-- [ ] Add contract tests for audit, undo/redo, cross-block validation, item properties, and dirty-state methods.
-- [ ] Run the contract test and confirm it fails because methods are absent.
-- [ ] Add signatures matching existing `FormsManager` APIs.
-- [ ] Run the contract test and confirm it passes.
+- [x] Add contract tests for audit, undo/redo, cross-block validation, item properties, and dirty-state methods.
+- [x] Run the contract test and confirm it fails because methods are absent.
+- [x] Add signatures matching existing `FormsManager` APIs.
+- [x] Run the contract test and confirm it passes.
 
 ### Task 2: WinFormFormHost delegation
 
@@ -30,9 +30,9 @@
 - Create: `Beep.Winform.Data.Integrated.Controls/Forms/FormHost/WinFormFormHost.ItemProperties.cs`
 - Test: `Beep.Winform.Data.Integrated.Controls.Tests/Forms/WinFormFormHostAdvancedTests.cs`
 
-- [ ] Add failing tests proving delegation and refresh behavior.
-- [ ] Implement thin manager delegation with block refresh after state-changing operations.
-- [ ] Run focused tests and confirm they pass.
+- [x] Add failing tests proving delegation and refresh behavior.
+- [x] Implement thin manager delegation with block refresh after state-changing operations.
+- [x] Run focused tests and confirm they pass.
 
 ### Task 3: Manager-free feature controls
 
@@ -44,9 +44,9 @@
 - Create: `Forms/FeatureControls/WinFormDirtyStatePanel.cs`
 - Test: `Beep.Winform.Data.Integrated.Controls.Tests/Forms/WinFormFeatureControlTests.cs`
 
-- [ ] Add failing tests that mock only `IBeepFormsHost`.
-- [ ] Implement controls as thin command/query wrappers.
-- [ ] Run focused tests and confirm they pass.
+- [x] Add failing tests that mock only `IBeepFormsHost`.
+- [x] Implement controls as thin command/query wrappers.
+- [x] Run focused tests and confirm they pass.
 
 ### Task 4: Presenter synchronization and documentation
 
@@ -56,16 +56,16 @@
 - Modify: `Forms/README.md`
 - Test: `Beep.Winform.Data.Integrated.Controls.Tests/Forms/WinFormBlockHostBindingTests.cs`
 
-- [ ] Add a failing test for prompt, visibility, required, enabled, and read-only state.
-- [ ] Apply `ItemInfo` during synchronization.
-- [ ] Document the five completed surfaces.
+- [x] Add a failing test for prompt, visibility, required, enabled, and read-only state.
+- [x] Apply `ItemInfo` during synchronization.
+- [x] Document the five completed surfaces.
 
 ### Task 5: Verification and commits
 
-- [ ] Run all BeepDM Forms tests.
-- [ ] Build BeepDM for `net10.0`.
-- [ ] Run all WinForms Forms tests.
-- [ ] Build the WinForms integrated controls project.
-- [ ] Run the architecture scan ensuring manager/data-source references remain under `Forms/FormHost`.
+- [x] Run all BeepDM Forms tests.
+- [x] Build BeepDM for `net10.0`.
+- [x] Run all WinForms Forms tests.
+- [x] Build the WinForms integrated controls project.
+- [x] Run the architecture scan ensuring manager/data-source references remain under `Forms/FormHost`.
 - [ ] Commit scoped BeepDM changes on `master`.
 - [ ] Commit scoped WinForms changes on `master`.

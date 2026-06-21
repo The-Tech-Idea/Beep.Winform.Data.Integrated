@@ -99,7 +99,7 @@ public class WinFormFeatureControlTests
         using var audit = new WinFormAuditPanel(host.Object, "ORDERS");
 
         Assert.True(undo.Undo());
-        Assert.Single(validation.Validate());
+        Assert.Single(validation.ValidateRules());
         Assert.Single(dirty.GetDirtyBlocks());
         Assert.True(await dirty.SaveAsync());
         Assert.Equal("#,##0.00", items.GetProperty("TOTAL", "FORMAT_MASK"));

@@ -32,6 +32,11 @@ over the BeepDM Forms engine.
 | Client/application properties | engine property APIs | host commands | Implemented |
 | Transactions/post/status | engine form APIs | host commands | Implemented |
 | Runtime security and field masking | engine security/item-property APIs | `WinFormSecurityPanel` and presenter synchronization | Implemented |
+| Audit trail and field history | engine audit manager | `WinFormAuditPanel` | Implemented |
+| Undo/redo and change summaries | engine data operations | `WinFormUndoRedoPanel` | Implemented |
+| Cross-block validation | engine validation rules | `WinFormCrossBlockValidationPanel` | Implemented |
+| Item properties, values, errors, and tab order | engine item-property manager | `WinFormItemPropertyPanel` and presenter synchronization | Implemented |
+| Dirty-state save/rollback workflows | engine dirty-state manager | `WinFormDirtyStatePanel` | Implemented |
 
 ## Boundary verification
 
