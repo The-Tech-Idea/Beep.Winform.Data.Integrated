@@ -50,6 +50,7 @@ Advanced Oracle Forms surfaces are also available:
 - `WinFormTimerPanel` and `WinFormSequencePanel`
 - `WinFormRecordGroupPanel` and `WinFormParameterListPanel`
 - `WinFormMultiFormPanel` plus `IWinFormFormsFactory`
+- `WinFormSecurityPanel` for security contexts, block/field policies, and violation inspection
 
 The host also delegates form state, computed values, freeze/batch updates,
 revert/refresh, change logs, aggregates, import/export, virtual paging,

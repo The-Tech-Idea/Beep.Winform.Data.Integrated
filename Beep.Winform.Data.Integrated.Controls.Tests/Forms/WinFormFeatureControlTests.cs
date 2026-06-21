@@ -1,5 +1,6 @@
 using Moq;
 using TheTechIdea.Beep.Editor.Forms.Hosts;
+using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Winform.Data.Integrated.Forms.FeatureControls;
 using Xunit;
 
@@ -46,5 +47,36 @@ public class WinFormFeatureControlTests
         Assert.DoesNotContain(
             typeof(IBeepFormsHost).Assembly.GetReferencedAssemblies(),
             assembly => assembly.Name?.Contains("WinForms", StringComparison.OrdinalIgnoreCase) == true);
+    });
+
+    [Fact]
+    public Task SecurityPanel_DelegatesPoliciesAndViolationQueries() => StaTest.RunAsync(() =>
+    {
+        var host = new Mock<IBeepFormsHost>();
+        var context = new SecurityContext { UserName = "reader" };
+        var policy = new FieldSecurity
+        {
+            BlockName = "ORDERS",
+            FieldName = "TOTAL",
+            Editable = false
+        };
+        var violations = new[]
+        {
+            new SecurityViolationEventArgs
+            {
+                BlockName = "ORDERS",
+                FieldName = "TOTAL",
+                Permission = SecurityPermission.Update
+            }
+        };
+        host.Setup(x => x.GetSecurityViolations()).Returns(violations);
+        using var panel = new WinFormSecurityPanel(host.Object, "ORDERS");
+
+        panel.ApplyContext(context);
+        panel.SetFieldPolicy("TOTAL", policy);
+
+        host.Verify(x => x.SetSecurityContext(context), Times.Once);
+        host.Verify(x => x.SetFieldSecurity("ORDERS", "TOTAL", policy), Times.Once);
+        Assert.Same(violations, panel.GetViolations());
     });
 }

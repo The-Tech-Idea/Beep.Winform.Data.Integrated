@@ -342,6 +342,34 @@ public class WinFormFormHostAdvancedTests
             block.Verify(m => m.SyncFromManager(), Times.Once);
         });
 
+    [Fact]
+    public Task SecurityContextAndPolicies_DelegateAndRefreshRegisteredBlocks() =>
+        StaTest.RunAsync(() =>
+        {
+            var triggers = new Mock<ITriggerManager>();
+            var messages = new Mock<IMessageQueueManager>();
+            var manager = CreateManager(triggers, messages);
+            var context = new SecurityContext { UserName = "reader" };
+            var policy = new FieldSecurity
+            {
+                BlockName = "ORDERS",
+                FieldName = "TOTAL",
+                Editable = false,
+                Masked = true
+            };
+            manager.Setup(m => m.BlockExists("ORDERS")).Returns(true);
+            using var host = new WinFormFormHost { FormsManager = manager.Object };
+            var block = CreateBlock("ORDERS");
+            host.RegisterBlock(block.Object);
+
+            host.SetSecurityContext(context);
+            host.SetFieldSecurity("ORDERS", "TOTAL", policy);
+
+            manager.Verify(m => m.SetSecurityContext(context), Times.Once);
+            manager.Verify(m => m.SetFieldSecurity("ORDERS", "TOTAL", policy), Times.Once);
+            block.Verify(m => m.SyncFromManager(), Times.Exactly(2));
+        });
+
     private static Mock<IUnitofWorksManager> CreateManager(
         Mock<ITriggerManager> triggers,
         Mock<IMessageQueueManager> messages)

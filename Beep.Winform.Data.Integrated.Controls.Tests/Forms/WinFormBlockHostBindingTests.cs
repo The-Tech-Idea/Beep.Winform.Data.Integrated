@@ -105,6 +105,39 @@ public class WinFormBlockHostBindingTests
         host.Verify(h => h.SetFieldValue("EMP", "Name", "Bob"), Times.Never);
     });
 
+    [Fact]
+    public Task SyncFromManager_AppliesEffectiveItemSecurityAndMaskedValue() => StaTest.RunAsync(() =>
+    {
+        var host = BuildHost();
+        host.Setup(h => h.GetFieldValue("EMP", "Name")).Returns("123456789");
+        host.Setup(h => h.GetFieldSecurity("EMP", "Name")).Returns(new FieldSecurity
+        {
+            BlockName = "EMP",
+            FieldName = "Name",
+            Masked = true,
+            MaskPattern = "***-**-####"
+        });
+        host.Setup(h => h.GetMaskedFieldValue("EMP", "Name", "123456789"))
+            .Returns("***-**-6789");
+        host.Setup(h => h.GetItemInfo("EMP", "Name")).Returns(new ItemInfo
+        {
+            BlockName = "EMP",
+            ItemName = "Name",
+            Enabled = false,
+            Visible = true,
+            Required = true
+        });
+
+        using var block = new WinFormBlockHost { BlockName = "EMP" };
+        block.Bind(host.Object);
+
+        var presenter = block.FindFieldPresenter("Name")!;
+        Assert.Equal("***-**-6789", presenter.Value);
+        Assert.False(presenter.IsEnabled);
+        Assert.True(presenter.IsVisible);
+        Assert.True(presenter.IsRequired);
+    });
+
     private static Mock<IBeepFormsHost> BuildHost()
     {
         var host = new Mock<IBeepFormsHost>();

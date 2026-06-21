@@ -147,10 +147,30 @@ public partial class WinFormBlockHost : UserControl, IBlockView
             _queryMode = _formsHost.GetBlockMode(ManagerBlockName) == DataBlockMode.EnterQuery;
             foreach (var presenter in _presenters)
             {
-                presenter.SetValue(_formsHost.GetFieldValue(ManagerBlockName, presenter.FieldName));
-                presenter.IsEnabled = _queryMode
-                    ? _formsHost.IsFieldQueryAllowed(ManagerBlockName, presenter.FieldName)
-                    : true;
+                var rawValue = _formsHost.GetFieldValue(
+                    ManagerBlockName,
+                    presenter.FieldName);
+                var security = _formsHost.GetFieldSecurity(
+                    ManagerBlockName,
+                    presenter.FieldName);
+                presenter.SetValue(security?.Masked == true
+                    ? _formsHost.GetMaskedFieldValue(
+                        ManagerBlockName,
+                        presenter.FieldName,
+                        rawValue)
+                    : rawValue);
+
+                var item = _formsHost.GetItemInfo(
+                    ManagerBlockName,
+                    presenter.FieldName);
+                presenter.IsVisible = item?.Visible ?? presenter.IsVisible;
+                presenter.IsRequired = item?.Required ?? presenter.IsRequired;
+                presenter.IsEnabled = (item?.Enabled ?? true) &&
+                    (_queryMode
+                        ? _formsHost.IsFieldQueryAllowed(
+                            ManagerBlockName,
+                            presenter.FieldName)
+                        : true);
             }
             RefreshNavigationBar();
         }

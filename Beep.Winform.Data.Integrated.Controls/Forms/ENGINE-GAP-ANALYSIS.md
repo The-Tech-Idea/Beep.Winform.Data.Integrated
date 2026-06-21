@@ -31,6 +31,7 @@ over the BeepDM Forms engine.
 | TEXT_IO | engine file APIs | host commands | Implemented |
 | Client/application properties | engine property APIs | host commands | Implemented |
 | Transactions/post/status | engine form APIs | host commands | Implemented |
+| Runtime security and field masking | engine security/item-property APIs | `WinFormSecurityPanel` and presenter synchronization | Implemented |
 
 ## Boundary verification
 
