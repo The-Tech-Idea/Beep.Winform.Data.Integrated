@@ -370,6 +370,51 @@ public class WinFormFormHostAdvancedTests
             block.Verify(m => m.SyncFromManager(), Times.Exactly(2));
         });
 
+    [Fact]
+    public Task UndoRedoAndDirtyState_DelegateAndRefreshBlocks() =>
+        StaTest.RunAsync(async () =>
+        {
+            var manager = CreateManager(new Mock<ITriggerManager>(), new Mock<IMessageQueueManager>());
+            manager.Setup(m => m.BlockExists("ORDERS")).Returns(true);
+            manager.Setup(m => m.GetDetailBlocks("ORDERS")).Returns([]);
+            manager.Setup(m => m.UndoBlock("ORDERS")).Returns(true);
+            manager.Setup(m => m.RedoBlock("ORDERS")).Returns(true);
+            manager.Setup(m => m.SaveDirtyBlocksAsync()).ReturnsAsync(true);
+            using var host = new WinFormFormHost { FormsManager = manager.Object };
+            var block = CreateBlock("ORDERS");
+            host.RegisterBlock(block.Object);
+
+            Assert.True(host.UndoBlock("ORDERS"));
+            Assert.True(host.RedoBlock("ORDERS"));
+            Assert.True(await host.SaveDirtyBlocksAsync());
+
+            block.Verify(m => m.SyncFromManager(), Times.Exactly(3));
+        });
+
+    [Fact]
+    public Task AuditValidationAndItemProperties_DelegateToEngine() =>
+        StaTest.RunAsync(() =>
+        {
+            var manager = CreateManager(new Mock<ITriggerManager>(), new Mock<IMessageQueueManager>());
+            var items = new Mock<IItemPropertyManager>();
+            var failures = new[] { "Order total is invalid." };
+            manager.SetupGet(m => m.ItemProperties).Returns(items.Object);
+            manager.Setup(m => m.ValidateCrossBlock()).Returns(failures);
+            items.Setup(x => x.GetItemProperty("ORDERS", "TOTAL", "FORMAT_MASK"))
+                .Returns("#,##0.00");
+            using var host = new WinFormFormHost { FormsManager = manager.Object };
+
+            host.SetAuditUser("tester");
+            host.SetItemProperty("ORDERS", "TOTAL", "FORMAT_MASK", "#,##0.00");
+
+            manager.Verify(m => m.SetAuditUser("tester"), Times.Once);
+            items.Verify(x => x.SetItemProperty(
+                "ORDERS", "TOTAL", "FORMAT_MASK", "#,##0.00"), Times.Once);
+            Assert.Equal("#,##0.00",
+                host.GetItemProperty("ORDERS", "TOTAL", "FORMAT_MASK"));
+            Assert.Same(failures, host.ValidateCrossBlock());
+        });
+
     private static Mock<IUnitofWorksManager> CreateManager(
         Mock<ITriggerManager> triggers,
         Mock<IMessageQueueManager> messages)

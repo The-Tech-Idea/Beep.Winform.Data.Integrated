@@ -79,4 +79,30 @@ public class WinFormFeatureControlTests
         host.Verify(x => x.SetFieldSecurity("ORDERS", "TOTAL", policy), Times.Once);
         Assert.Same(violations, panel.GetViolations());
     });
+
+    [Fact]
+    public Task RemainingFeaturePanels_DependOnlyOnFormsHost() => StaTest.RunAsync(async () =>
+    {
+        var host = new Mock<IBeepFormsHost>();
+        host.Setup(x => x.UndoBlock("ORDERS")).Returns(true);
+        host.Setup(x => x.ValidateCrossBlock()).Returns(["invalid"]);
+        host.Setup(x => x.GetDirtyBlocks()).Returns(["ORDERS"]);
+        host.Setup(x => x.SaveDirtyBlocksAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        host.Setup(x => x.GetItemProperty("ORDERS", "TOTAL", "FORMAT_MASK"))
+            .Returns("#,##0.00");
+
+        using var undo = new WinFormUndoRedoPanel(host.Object, "ORDERS");
+        using var validation = new WinFormCrossBlockValidationPanel(host.Object);
+        using var dirty = new WinFormDirtyStatePanel(host.Object);
+        using var items = new WinFormItemPropertyPanel(host.Object, "ORDERS");
+        using var audit = new WinFormAuditPanel(host.Object, "ORDERS");
+
+        Assert.True(undo.Undo());
+        Assert.Single(validation.Validate());
+        Assert.Single(dirty.GetDirtyBlocks());
+        Assert.True(await dirty.SaveAsync());
+        Assert.Equal("#,##0.00", items.GetProperty("TOTAL", "FORMAT_MASK"));
+        Assert.Empty(audit.GetEntries());
+    });
 }

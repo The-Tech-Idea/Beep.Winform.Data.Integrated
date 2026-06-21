@@ -138,6 +138,31 @@ public class WinFormBlockHostBindingTests
         Assert.True(presenter.IsRequired);
     });
 
+    [Fact]
+    public Task SyncFromManager_AppliesFullItemPresentationState() => StaTest.RunAsync(() =>
+    {
+        var host = BuildHost();
+        host.Setup(h => h.GetItemInfo("EMP", "Name")).Returns(new ItemInfo
+        {
+            BlockName = "EMP",
+            ItemName = "Name",
+            Enabled = true,
+            Visible = true,
+            Required = true,
+            UpdateAllowed = false,
+            PromptText = "Employee name",
+            HintText = "Read-only employee name"
+        });
+
+        using var block = new WinFormBlockHost { BlockName = "EMP" };
+        block.Bind(host.Object);
+
+        var presenter = block.FindFieldPresenter("Name")!;
+        Assert.Equal("Employee name", presenter.Label);
+        Assert.Equal("Read-only employee name", presenter.Prompt);
+        Assert.True(presenter.IsReadOnly);
+    });
+
     private static Mock<IBeepFormsHost> BuildHost()
     {
         var host = new Mock<IBeepFormsHost>();
