@@ -267,6 +267,32 @@ public partial class WinFormFormHost
         }
     }
 
+    public async Task<LOVValidationResult> ValidateLovValueAsync(
+        string blockName,
+        string fieldName,
+        object value)
+    {
+        var manager = _formsManager;
+        if (manager is null)
+        {
+            return LOVValidationResult.Invalid(
+                "A Forms manager is not assigned.");
+        }
+
+        try
+        {
+            return await manager.LOV.ValidateLOVValueAsync(
+                NormalizeBlockName(blockName),
+                fieldName,
+                value).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            ShowError(ex.Message);
+            return LOVValidationResult.Invalid(ex.Message);
+        }
+    }
+
     public Dictionary<string, object>? GetLovRelatedFieldValues(
         LOVDefinition lov,
         object? selectedItem)
