@@ -131,6 +131,105 @@ public partial class WinFormFormHost
         return result;
     }
 
+    public async Task<bool> SwitchToBlockAsync(
+        string blockName,
+        CancellationToken ct = default)
+    {
+        string? normalizedName = null;
+        RunOnUi(() =>
+        {
+            if (TryNormalizeBlockName(blockName, out var candidate) &&
+                _blocks.TryGetValue(candidate, out var block))
+            {
+                normalizedName = NormalizeBlockName(block.BlockName);
+            }
+        });
+        if (normalizedName is null || _formsManager is null ||
+            ct.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (!await _formsManager.SwitchToBlockAsync(normalizedName) ||
+                ct.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            var activated = false;
+            RunOnUi(
+                () => activated = TrySetActiveBlockCore(normalizedName));
+            return activated;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (Exception exception)
+        {
+            ShowError(exception.Message);
+            return false;
+        }
+    }
+
+    public async Task<bool> GoToItemAsync(
+        string blockName,
+        string fieldName,
+        CancellationToken ct = default)
+    {
+        string? normalizedBlock = null;
+        string? normalizedField = null;
+        RunOnUi(() =>
+        {
+            if (TryNormalizeBlockName(blockName, out var candidate) &&
+                _blocks.TryGetValue(candidate, out var block) &&
+                !string.IsNullOrWhiteSpace(fieldName))
+            {
+                var presenter = block.FindFieldPresenter(fieldName.Trim());
+                if (presenter is not null)
+                {
+                    normalizedBlock = NormalizeBlockName(block.BlockName);
+                    normalizedField = presenter.FieldName;
+                }
+            }
+        });
+        if (normalizedBlock is null || normalizedField is null ||
+            _formsManager is null || ct.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (!await _formsManager.GoItemAsync(
+                    normalizedBlock,
+                    normalizedField) ||
+                ct.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            var focused = false;
+            RunOnUi(() =>
+            {
+                if (_blocks.TryGetValue(normalizedBlock, out var block))
+                    focused = block.FocusField(normalizedField);
+            });
+            return focused;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (Exception exception)
+        {
+            ShowError(exception.Message);
+            return false;
+        }
+    }
+
     private bool TrySetActiveBlockCore(string blockName)
     {
         if (!TryNormalizeBlockName(blockName, out var normalizedName) ||

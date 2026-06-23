@@ -1,4 +1,5 @@
 using TheTechIdea.Beep.DataBase;
+using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Data.Integrated.Forms.FieldHost;
 using Xunit;
 
@@ -35,4 +36,22 @@ public class FieldPresenterTests
             Assert.IsType(expected, presenter);
         });
     }
+
+    [Fact]
+    public Task ComboPresenter_SetLovSelectionPreservesValueAndDisplayText() =>
+        StaTest.RunAsync(() =>
+        {
+            using var presenter = new WinFormComboFieldPresenter(
+                new EntityField
+                {
+                    FieldName = "EMPLOYEE_ID",
+                    Fieldtype = "int",
+                });
+
+            presenter.SetLovSelection(7, "Alice");
+
+            var editor = Assert.IsType<BeepComboBox>(presenter.View);
+            Assert.Equal(7, presenter.Value);
+            Assert.Equal("Alice", editor.SelectedText);
+        });
 }

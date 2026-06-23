@@ -24,11 +24,10 @@ public class WinFormFormHostEngineTests
             manager.Setup(m => m.PreviousRecordAsync("EMP")).ReturnsAsync(true);
             manager.Setup(m => m.NextRecordAsync("EMP")).ReturnsAsync(true);
             manager.Setup(m => m.LastRecordAsync("EMP")).ReturnsAsync(true);
+            manager.Setup(m => m.NavigateToRecordAsync("EMP", 4))
+                .ReturnsAsync(true);
             manager.Setup(m => m.GetDetailBlocks("EMP")).Returns(["DETAIL"]);
             manager.Setup(m => m.GetDetailBlocks("DETAIL")).Returns([]);
-            var locking = new Mock<ILockManager>(MockBehavior.Strict);
-            locking.Setup(m => m.SetCurrentRecordIndex("EMP", 4));
-            manager.SetupGet(m => m.Locking).Returns(locking.Object);
 
             using var host = new WinFormFormHost { FormsManager = manager.Object };
             var master = CreateBlock("EMP");
@@ -46,7 +45,9 @@ public class WinFormFormHostEngineTests
             manager.Verify(m => m.PreviousRecordAsync("EMP"), Times.Once);
             manager.Verify(m => m.NextRecordAsync("EMP"), Times.Once);
             manager.Verify(m => m.LastRecordAsync("EMP"), Times.Once);
-            locking.Verify(m => m.SetCurrentRecordIndex("EMP", 4), Times.Once);
+            manager.Verify(
+                m => m.NavigateToRecordAsync("EMP", 4),
+                Times.Once);
             master.Verify(m => m.SyncFromManager(), Times.Exactly(5));
             detail.Verify(m => m.SyncFromManager(), Times.Exactly(5));
         });

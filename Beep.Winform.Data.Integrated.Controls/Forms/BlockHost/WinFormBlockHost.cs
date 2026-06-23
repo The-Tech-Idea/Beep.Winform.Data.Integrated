@@ -3,6 +3,7 @@ using TheTechIdea.Beep.Editor.Forms.Hosts;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Editor.UOWManager.Models;
 using TheTechIdea.Beep.Winform.Controls;
+using TheTechIdea.Beep.Winform.Data.Integrated.Forms.FeatureControls;
 using TheTechIdea.Beep.Winform.Data.Integrated.Forms.FieldHost;
 
 namespace TheTechIdea.Beep.Winform.Data.Integrated.Forms.BlockHost;
@@ -32,6 +33,13 @@ public partial class WinFormBlockHost : UserControl, IBlockView
         _layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         _layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         Controls.Add(_layout);
+        LovDialogPresenter = dialog =>
+        {
+            var owner = FindForm();
+            return owner is null
+                ? dialog.ShowDialog()
+                : dialog.ShowDialog(owner);
+        };
     }
 
     public string BlockName { get; set; } = string.Empty;
@@ -42,6 +50,7 @@ public partial class WinFormBlockHost : UserControl, IBlockView
     public bool IsQueryMode => _queryMode;
     public bool IsMaster { get; set; }
     public bool AutoGenerateFields { get; set; } = true;
+    public Func<WinFormLovDialog, DialogResult> LovDialogPresenter { get; set; }
     public IBeepFormsHost? FormsHost => _formsHost;
     public object View => this;
     public IBlockNavigationBar? NavigationBar { get; set; }
@@ -51,6 +60,7 @@ public partial class WinFormBlockHost : UserControl, IBlockView
     public int CurrentRecordIndex => _currentIndex;
     public object? CurrentRecord => _formsHost?.GetCurrentBlockItem(ManagerBlockName);
     public IReadOnlyList<IFieldPresenter> FieldPresenters => _presenters;
+    public string? ActiveFieldName { get; private set; }
 
     public event EventHandler<TriggerExecutingEventArgs>? TriggerExecuting;
     public event EventHandler<TriggerExecutedEventArgs>? TriggerExecuted;
@@ -87,11 +97,29 @@ public partial class WinFormBlockHost : UserControl, IBlockView
         _formsHost = null;
         _queryMode = false;
         _currentIndex = -1;
+        ActiveFieldName = null;
     }
 
     public IFieldPresenter? FindFieldPresenter(string fieldName) =>
         _presenters.FirstOrDefault(p =>
             string.Equals(p.FieldName, fieldName, StringComparison.OrdinalIgnoreCase));
+
+    public bool FocusField(string fieldName)
+    {
+        var presenter = FindFieldPresenter(fieldName);
+        if (presenter?.View is not Control control ||
+            !presenter.IsVisible ||
+            !presenter.IsEnabled ||
+            !control.Enabled)
+        {
+            return false;
+        }
+
+        ActiveFieldName = presenter.FieldName;
+        control.Select();
+        control.Focus();
+        return true;
+    }
 
     public void AddFieldPresenter(IFieldPresenter presenter)
     {
@@ -110,7 +138,10 @@ public partial class WinFormBlockHost : UserControl, IBlockView
         presenter.ValueChanged -= PresenterOnValueChanged;
         _presenters.Remove(presenter);
         if (presenter.View is Control control)
+        {
+            DisconnectItemNavigation(control);
             _layout.Controls.Remove(control);
+        }
         if (_presenterLabels.Remove(presenter, out var label))
         {
             _layout.Controls.Remove(label);
@@ -142,6 +173,7 @@ public partial class WinFormBlockHost : UserControl, IBlockView
         _presenterLabels[presenter] = label;
         _layout.Controls.Add(label, 0, row);
         control.Dock = DockStyle.Top;
+        ConnectItemNavigation(control);
         _layout.Controls.Add(control, 1, row);
     }
 
@@ -354,6 +386,9 @@ public partial class WinFormBlockHost : UserControl, IBlockView
             if (presenter is null || pair.Value.IsValid) continue;
             presenter.ValidationError = pair.Value.FirstError;
         }
+        var firstInvalid = result.InvalidItems.FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(firstInvalid))
+            FocusField(firstInvalid);
         return result.IsValid;
     }
 
@@ -369,7 +404,18 @@ public partial class WinFormBlockHost : UserControl, IBlockView
         if (values is null || values.Count == 0) return false;
         var success = true;
         foreach (var pair in values)
-            success &= _formsHost.SetFieldValue(ManagerBlockName, pair.Key, pair.Value);
+        {
+            var isReturnValue = string.Equals(
+                pair.Key,
+                "__RETURN_VALUE__",
+                StringComparison.Ordinal);
+            if (!isReturnValue && !lov.AutoPopulateRelatedFields)
+                continue;
+            success &= _formsHost.SetFieldValue(
+                ManagerBlockName,
+                isReturnValue ? fieldName : pair.Key,
+                pair.Value);
+        }
         if (success) SyncFromManager();
         await Task.CompletedTask;
         return success;
@@ -418,6 +464,12 @@ public partial class WinFormBlockHost : UserControl, IBlockView
             foreach (var presenter in _ownedPresenters.OfType<IDisposable>())
                 presenter.Dispose();
             _ownedPresenters.Clear();
+            foreach (var control in _presenters
+                         .Select(presenter => presenter.View)
+                         .OfType<Control>())
+            {
+                DisconnectItemNavigation(control);
+            }
             foreach (var label in _presenterLabels.Values)
                 label.Dispose();
             _presenterLabels.Clear();

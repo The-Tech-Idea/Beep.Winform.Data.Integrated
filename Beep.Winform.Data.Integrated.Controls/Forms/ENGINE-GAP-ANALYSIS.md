@@ -8,6 +8,10 @@ over the BeepDM Forms engine.
 | Block lifecycle and active block | `WinFormFormHost` | `WinFormBlockHost` | Implemented |
 | Metadata fields and editing | `IBeepFormsHost` field access | Beep field presenters | Implemented |
 | Navigation and CRUD | host navigation/CRUD methods | block and navigation bar | Implemented |
+| Item validation and Tab/Enter forward/reverse lifecycle | engine validation and item/key triggers | `WinFormBlockHost` focus pipeline | Implemented |
+| Oracle Forms command keys | engine key triggers and host CRUD/query/LOV APIs | `WinFormBlockHost` command dispatcher | Implemented |
+| LOV return sentinel and optional related-field population | engine LOV mappings | block and dialog selection application | Implemented |
+| LOV selected value/display synchronization | engine return/display fields | `WinFormComboFieldPresenter` | Implemented |
 | Master-detail refresh | engine relationships | automatic host synchronization | Implemented |
 | Triggers and key triggers | trigger host methods/events | block trigger relay | Implemented |
 | Query by example | engine `QueryBuilder` | `WinFormQueryPanel` | Implemented |

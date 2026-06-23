@@ -339,7 +339,7 @@ public class WinFormFormHostAdvancedTests
 
             manager.Verify(m => m.FreezeBlock("ORDERS"), Times.Once);
             manager.Verify(m => m.UnfreezeBlock("ORDERS"), Times.Once);
-            block.Verify(m => m.SyncFromManager(), Times.Once);
+            block.Verify(m => m.SyncFromManager(), Times.Exactly(2));
         });
 
     [Fact]

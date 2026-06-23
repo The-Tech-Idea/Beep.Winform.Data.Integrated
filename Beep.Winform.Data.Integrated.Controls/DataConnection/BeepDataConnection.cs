@@ -21,18 +21,30 @@ namespace TheTechIdea.Beep.Winform.Controls
         private IBeepService? _beepService;
         private IConnectionCatalogRepository? _connectionRepository;
         private EventHandler? _repositoryChangedHandler;
-        private bool _ownsBeepService = true;
+        private bool _ownsBeepService = false;
 
         public IBeepService? BeepService => _beepService;
         public event EventHandler? ConnectionsChanged;
         public event PropertyChangedEventHandler? PropertyChanged;
 
+        /// <summary>
+        /// Default constructor for WinForms designer and runtime use.
+        /// At design-time, the service stays null until the design-server
+        /// manager attaches a shared lease via <see cref="AttachSharedBeepService"/>.
+        /// At runtime, a self-owned BeepService is created; hosts should call
+        /// <see cref="AttachSharedBeepService"/> to inject a shared instance.
+        /// </summary>
         public BeepDataConnection()
         {
-            InitializeBeepService();
             DataConnections = new List<ConnectionProperties>();
+            InitializeBeepService();
             InitializeRepository();
             ReloadConnections();
+        }
+
+        public BeepDataConnection(IBeepService beepService) : this()
+        {
+            AttachSharedBeepService(beepService);
         }
 
         [Browsable(true)]
@@ -160,7 +172,8 @@ namespace TheTechIdea.Beep.Winform.Controls
         private bool _useScopePrecedence = true;
 
         /// <summary>
-        /// Reloads connections from shared config when available; otherwise keeps local list.
+        /// Reloads connections from the catalog repository when available;
+        /// falls back to ConfigEditor.DataConnections when no repository is set.
         /// </summary>
         public IReadOnlyList<ConnectionProperties> ReloadConnections()
         {
@@ -190,7 +203,8 @@ namespace TheTechIdea.Beep.Winform.Controls
         }
 
         /// <summary>
-        /// Adds or updates a connection and persists it to DataConnections.json when service is available.
+        /// Adds or updates a connection and persists it through the catalog repository
+        /// or ConfigEditor when available.
         /// </summary>
         public bool AddOrUpdateConnection(ConnectionProperties connection, bool persist = true)
         {
@@ -211,7 +225,7 @@ namespace TheTechIdea.Beep.Winform.Controls
             }
             else
             {
-                changed = AddOrUpdateLocalConnection(connection);
+                changed = AddOrUpdateViaConfigEditor(connection, persist);
             }
 
             if (changed)
@@ -223,7 +237,8 @@ namespace TheTechIdea.Beep.Winform.Controls
         }
 
         /// <summary>
-        /// Removes a connection by name and persists changes when service is available.
+        /// Removes a connection by name and persists changes through the catalog repository
+        /// or ConfigEditor when available.
         /// </summary>
         public bool RemoveConnection(string connectionName, bool persist = true)
         {
@@ -244,7 +259,7 @@ namespace TheTechIdea.Beep.Winform.Controls
             }
             else
             {
-                removed = RemoveLocalConnection(connectionName);
+                removed = RemoveViaConfigEditor(connectionName, persist);
             }
 
             if (removed)
@@ -256,13 +271,13 @@ namespace TheTechIdea.Beep.Winform.Controls
         }
 
         /// <summary>
-        /// Persists the current local connection list to shared configuration.
+        /// Persists the current connection list through the catalog repository.
         /// </summary>
         public bool SaveConnections()
         {
             if (_connectionRepository == null)
             {
-                return false;
+                return SaveViaConfigEditor();
             }
 
             ApplyRepositorySettings();
@@ -298,21 +313,20 @@ namespace TheTechIdea.Beep.Winform.Controls
         }
 
         /// <summary>
-        /// Initializes the BeepService for design-time or runtime use.
+        /// Initializes the BeepService for runtime use. At design-time, the service
+        /// remains null until the design-server manager attaches a shared lease.
         /// </summary>
         private void InitializeBeepService()
         {
+            if (IsInDesignTime())
+            {
+                _beepService = null;
+                _ownsBeepService = false;
+                return;
+            }
+
             try
             {
-                // Designer load should stay lightweight and resilient. The design-server
-                // manager attaches a shared service lease when available.
-                if (IsInDesignTime())
-                {
-                    _beepService = null;
-                    _ownsBeepService = false;
-                    return;
-                }
-
                 var service = new BeepService();
                 var directory = string.IsNullOrWhiteSpace(DirectoryPath) ? AppContext.BaseDirectory : DirectoryPath;
                 var appRepo = string.IsNullOrWhiteSpace(AppRepoName) ? "BeepPlatformConnections" : AppRepoName;
@@ -402,11 +416,15 @@ namespace TheTechIdea.Beep.Winform.Controls
             ConnectionsChanged?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// Ensures the driver catalog is hydrated via the framework's
+        /// EnvironmentService.AddAllConnectionConfigurations. This delegates
+        /// driver-catalog management to the engine layer.
+        /// </summary>
         private void EnsureDriverCatalogHydrated()
         {
             var editor = _beepService?.DMEEditor;
-            var configEditor = editor?.ConfigEditor ?? _beepService?.Config_editor;
-            if (editor == null || configEditor == null)
+            if (editor == null)
             {
                 return;
             }
@@ -419,68 +437,10 @@ namespace TheTechIdea.Beep.Winform.Controls
             {
                 Trace.WriteLine($"[BeepDataConnection.EnsureDriverCatalogHydrated] AddAllConnectionConfigurations failed: {ex.GetType().Name}: {ex.Message}");
             }
-
-            try
-            {
-                configEditor.LoadConnectionDriversConfigValues();
-            }
-            catch (Exception ex)
-            {
-                Trace.WriteLine($"[BeepDataConnection.EnsureDriverCatalogHydrated] LoadConnectionDriversConfigValues failed: {ex.GetType().Name}: {ex.Message}");
-            }
-
-            configEditor.DataDriversClasses ??= new List<ConnectionDriversConfig>();
-            var changed = false;
-            var defaults = ConnectionHelper.GetAllConnectionConfigs();
-            foreach (var candidate in defaults)
-            {
-                if (candidate == null || string.IsNullOrWhiteSpace(candidate.PackageName))
-                {
-                    continue;
-                }
-
-                var exists = configEditor.DataDriversClasses.Any(existing => DriverCatalogItemMatches(existing, candidate));
-                if (exists)
-                {
-                    continue;
-                }
-
-                configEditor.DataDriversClasses.Add(candidate);
-                changed = true;
-            }
-
-            if (!changed)
-            {
-                return;
-            }
-
-            try
-            {
-                configEditor.SaveConnectionDriversConfigValues();
-            }
-            catch (Exception ex)
-            {
-                Trace.WriteLine($"[BeepDataConnection.EnsureDriverCatalogHydrated] SaveConnectionDriversConfigValues failed: {ex.GetType().Name}: {ex.Message}");
-            }
-        }
-
-        private static bool DriverCatalogItemMatches(ConnectionDriversConfig existing, ConnectionDriversConfig candidate)
-        {
-            if (existing == null || candidate == null)
-            {
-                return false;
-            }
-
-            if (!string.Equals(existing.PackageName, candidate.PackageName, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            return existing.DatasourceType == candidate.DatasourceType;
         }
 
         /// <summary>
-        /// Loads design-time connections from the BeepService configuration.
+        /// Loads design-time connections from ConfigEditor.DataConnections.
         /// </summary>
         private void LoadDesignTimeConnections()
         {
@@ -515,38 +475,58 @@ namespace TheTechIdea.Beep.Winform.Controls
             OnPropertyChanged(nameof(CurrentConnection));
         }
 
-        private bool AddOrUpdateLocalConnection(ConnectionProperties connection)
+        /// <summary>
+        /// Fallback CRUD via ConfigEditor when no catalog repository is available.
+        /// Uses the framework's ConfigEditor.AddDataConnection / RemoveDataConnection.
+        /// </summary>
+        private bool AddOrUpdateViaConfigEditor(ConnectionProperties connection, bool persist)
         {
+            var configEditor = _beepService?.Config_editor;
+            if (configEditor == null)
+            {
+                return false;
+            }
+
             if (string.IsNullOrWhiteSpace(connection.GuidID))
             {
                 connection.GuidID = Guid.NewGuid().ToString("D");
             }
 
-            var existing = DataConnections.FirstOrDefault(c =>
+            var existing = configEditor.DataConnections?.FirstOrDefault(c =>
                 (!string.IsNullOrWhiteSpace(c.GuidID) &&
                  string.Equals(c.GuidID, connection.GuidID, StringComparison.OrdinalIgnoreCase)) ||
                 string.Equals(c.ConnectionName, connection.ConnectionName, StringComparison.OrdinalIgnoreCase));
 
-            if (existing == null)
+            if (existing != null)
             {
-                DataConnections.Add(connection);
-                if (CurrentConnection == null)
-                {
-                    CurrentConnection = connection;
-                }
-
-                return true;
+                configEditor.UpdateDataConnection(connection, existing.GuidID);
+            }
+            else
+            {
+                configEditor.AddDataConnection(connection);
             }
 
-            var index = DataConnections.IndexOf(existing);
-            DataConnections[index] = connection;
-            CurrentConnection = connection;
+            if (persist)
+            {
+                configEditor.SaveDataconnectionsValues();
+            }
+
+            SetLocalConnections(configEditor.DataConnections);
             return true;
         }
 
-        private bool RemoveLocalConnection(string connectionName)
+        /// <summary>
+        /// Fallback removal via ConfigEditor when no catalog repository is available.
+        /// </summary>
+        private bool RemoveViaConfigEditor(string connectionName, bool persist)
         {
-            var existing = DataConnections.FirstOrDefault(c =>
+            var configEditor = _beepService?.Config_editor;
+            if (configEditor == null)
+            {
+                return false;
+            }
+
+            var existing = configEditor.DataConnections?.FirstOrDefault(c =>
                 !string.IsNullOrWhiteSpace(c.ConnectionName) &&
                 string.Equals(c.ConnectionName, connectionName, StringComparison.OrdinalIgnoreCase));
 
@@ -555,12 +535,28 @@ namespace TheTechIdea.Beep.Winform.Controls
                 return false;
             }
 
-            DataConnections.Remove(existing);
-            if (CurrentConnection == existing)
+            configEditor.RemoveDataConnection(connectionName);
+            if (persist)
             {
-                CurrentConnection = DataConnections.FirstOrDefault();
+                configEditor.SaveDataconnectionsValues();
             }
 
+            SetLocalConnections(configEditor.DataConnections);
+            return true;
+        }
+
+        /// <summary>
+        /// Fallback save via ConfigEditor when no catalog repository is available.
+        /// </summary>
+        private bool SaveViaConfigEditor()
+        {
+            var configEditor = _beepService?.Config_editor;
+            if (configEditor == null)
+            {
+                return false;
+            }
+
+            configEditor.SaveDataconnectionsValues();
             return true;
         }
 
@@ -573,10 +569,9 @@ namespace TheTechIdea.Beep.Winform.Controls
         }
 
         /// <summary>
-        /// Mirrors the Oracle Forms <c>TEST_CONNECTION</c> built-in.
         /// Opens a short-lived <see cref="IDataSource"/> against the named
         /// connection and reports success / failure with a human-readable
-        /// message. Throws are caught and translated to <c>success=false</c>.
+        /// message.
         /// </summary>
         public bool TestConnection(string connectionName, out string message)
         {
@@ -615,11 +610,11 @@ namespace TheTechIdea.Beep.Winform.Controls
                 // cancels via ConnectionLifecycleEventArgs.Cancel aborts the
                 // open, mirroring the Forms ON-ERROR-after-LOGON path.
                 var lifecycle = new ConnectionLifecycleEventArgs(connectionName, DateTime.UtcNow);
-                RaiseLogonStarting(connectionName);
+                LogonStarting?.Invoke(this, lifecycle);
                 if (lifecycle.Cancel)
                 {
                     message = $"Connection '{connectionName}' logon cancelled by handler.";
-                    UpdateConnectionState(connectionName, BeepConnectionState.Failed, message);
+                    UpdateConnectionState(connectionName, BeepConnectionLifecycle.Failed, message);
                     RaiseLogoffRequested(connectionName, "cancelled by handler");
                     return false;
                 }
@@ -633,28 +628,27 @@ namespace TheTechIdea.Beep.Winform.Controls
                 if (opened)
                 {
                     message = $"Connection '{connectionName}' opened successfully.";
-                    UpdateConnectionState(connectionName, BeepConnectionState.Connected, message);
+                    UpdateConnectionState(connectionName, BeepConnectionLifecycle.Connected, message);
                     RaiseLogonCompleted(connectionName, message);
                     return true;
                 }
 
                 message = $"Connection '{connectionName}' failed to open. Check connection string and credentials.";
-                UpdateConnectionState(connectionName, BeepConnectionState.Failed, message);
+                UpdateConnectionState(connectionName, BeepConnectionLifecycle.Failed, message);
                 RaiseLogoffRequested(connectionName, message);
                 return false;
             }
             catch (Exception ex)
             {
                 message = $"Connection '{connectionName}' threw {ex.GetType().Name}: {ex.Message}";
-                UpdateConnectionState(connectionName, BeepConnectionState.Failed, message);
+                UpdateConnectionState(connectionName, BeepConnectionLifecycle.Failed, message);
                 RaiseLogoffRequested(connectionName, message);
                 return false;
             }
         }
 
         /// <summary>
-        /// Asynchronous variant of <see cref="TestConnection"/>. Safe to call
-        /// from UI thread — does not block the message loop.
+        /// Asynchronous variant of <see cref="TestConnection"/>.
         /// </summary>
         public async Task<bool> TestConnectionAsync(string connectionName, CancellationToken cancellationToken = default)
         {
@@ -662,24 +656,24 @@ namespace TheTechIdea.Beep.Winform.Controls
                 .ConfigureAwait(false);
         }
 
-        private readonly Dictionary<string, BeepConnectionState> _connectionStates = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, BeepConnectionLifecycle> _connectionStates = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, DateTime> _lastConnectedAt = new(StringComparer.OrdinalIgnoreCase);
         private readonly object _connectionStateLock = new();
 
         /// <summary>
         /// Returns the most recently observed connection state for a named
-        /// connection. Defaults to <see cref="BeepConnectionState.Unknown"/> when
+        /// connection. Defaults to <see cref="BeepConnectionLifecycle.Unknown"/> when
         /// no test or open has been performed.
         /// </summary>
-        public BeepConnectionState GetConnectionState(string connectionName)
+        public BeepConnectionLifecycle GetConnectionState(string connectionName)
         {
             if (string.IsNullOrWhiteSpace(connectionName))
             {
-                return BeepConnectionState.Unknown;
+                return BeepConnectionLifecycle.Unknown;
             }
             lock (_connectionStateLock)
             {
-                return _connectionStates.TryGetValue(connectionName, out var s) ? s : BeepConnectionState.Unknown;
+                return _connectionStates.TryGetValue(connectionName, out var s) ? s : BeepConnectionLifecycle.Unknown;
             }
         }
 
@@ -699,13 +693,13 @@ namespace TheTechIdea.Beep.Winform.Controls
             }
         }
 
-        private void UpdateConnectionState(string connectionName, BeepConnectionState state, string? message)
+        private void UpdateConnectionState(string connectionName, BeepConnectionLifecycle state, string? message)
         {
             DateTime timestamp = DateTime.UtcNow;
             lock (_connectionStateLock)
             {
                 _connectionStates[connectionName] = state;
-                if (state == BeepConnectionState.Connected)
+                if (state == BeepConnectionLifecycle.Connected)
                 {
                     _lastConnectedAt[connectionName] = timestamp;
                 }
@@ -714,10 +708,7 @@ namespace TheTechIdea.Beep.Winform.Controls
         }
 
         /// <summary>
-        /// Raised whenever <see cref="TestConnection"/> (or the connection
-        /// lifecycle code) reports a new state. Subscribers can update the UI
-        /// to show the green / red indicator Oracle Forms shows next to a
-        /// connection name.
+        /// Raised whenever <see cref="TestConnection"/> reports a new state.
         /// </summary>
         public event EventHandler<ConnectionStateChangedEventArgs>? ConnectionStateChanged;
 
@@ -725,34 +716,20 @@ namespace TheTechIdea.Beep.Winform.Controls
 
         /// <summary>
         /// Raised immediately before the data source for a named connection
-        /// is opened. Hosts / developers can subscribe to fire the
-        /// <c>ON-LOGON</c> trigger equivalent (typically used to initialize
-        /// per-connection state in Oracle Forms apps). Returning
-        /// <c>false</c> from a handler by setting
-        /// <see cref="ConnectionLifecycleEventArgs.Cancel"/> aborts the
-        /// open.
+        /// is opened. Set <see cref="ConnectionLifecycleEventArgs.Cancel"/> to abort.
         /// </summary>
         public event EventHandler<ConnectionLifecycleEventArgs>? LogonStarting;
 
         /// <summary>
         /// Raised after the data source has been opened successfully.
-        /// Mirrors the <c>POST-LOGON</c> trigger Oracle Forms fires once
-        /// the user is connected.
         /// </summary>
         public event EventHandler<ConnectionLifecycleEventArgs>? LogonCompleted;
 
         /// <summary>
         /// Raised when the data source for a named connection is closed
-        /// (or fails to open). Mirrors the <c>ON-LOGOFF</c> trigger.
+        /// (or fails to open).
         /// </summary>
         public event EventHandler<ConnectionLifecycleEventArgs>? LogoffRequested;
-
-        private void RaiseLogonStarting(string connectionName)
-        {
-            var args = new ConnectionLifecycleEventArgs(connectionName, DateTime.UtcNow);
-            try { LogonStarting?.Invoke(this, args); }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BeepDataConnection.LogonStarting] {ex.Message}"); }
-        }
 
         private void RaiseLogonCompleted(string connectionName, string? message)
         {

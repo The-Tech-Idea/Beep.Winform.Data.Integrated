@@ -40,6 +40,18 @@ IBeepUIComponent controls
 
 Only `WinFormFormHost` accesses `IUnitofWorksManager`. Blocks use `IBeepFormsHost`; presenters only wrap Beep controls.
 
+Tab, Shift+Tab, Enter, and Shift+Enter navigation is routed through the Forms
+lifecycle rather than native control traversal. `WinFormBlockHost` validates the current item and
+executes WHEN-VALIDATE-ITEM, POST-TEXT-ITEM, KEY-NEXT/PREV-ITEM,
+PRE-TEXT-ITEM, and WHEN-NEW-ITEM-INSTANCE before changing focus. Failed
+validation or triggers retain focus on the current presenter.
+
+Oracle Forms keyboard commands are trigger-first: F4 duplicates a record, F6
+creates a record, Shift+F6 deletes, F7 enters query mode, F8 executes query,
+F9 opens the current item's LOV, F10 commits, Ctrl+R rolls back, Ctrl+Delete
+clears the record, and Ctrl+Up/Down navigates records. The corresponding key
+trigger must succeed before the host operation runs.
+
 Advanced Oracle Forms surfaces are also available:
 
 - `WinFormQueryPanel` for query-by-example and templates
@@ -55,6 +67,11 @@ Advanced Oracle Forms surfaces are also available:
 - `WinFormUndoRedoPanel` and `WinFormDirtyStatePanel`
 - `WinFormCrossBlockValidationPanel`
 - `WinFormItemPropertyPanel` for Oracle Forms item properties, values, errors, and tab order
+
+LOV return mappings translate the engine `__RETURN_VALUE__` sentinel back to
+the invoking field. Related fields are populated only when the LOV definition
+enables `AutoPopulateRelatedFields`. LOV combo presenters retain both the
+engine return value and the user-facing display text after dialog selection.
 
 The host also delegates form state, computed values, freeze/batch updates,
 revert/refresh, change logs, aggregates, import/export, virtual paging,

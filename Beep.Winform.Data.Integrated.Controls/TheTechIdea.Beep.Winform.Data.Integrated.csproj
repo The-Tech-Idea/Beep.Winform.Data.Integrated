@@ -80,7 +80,7 @@
 	  <Compile Update="BeepDataBlock.cs">
 	    <SubType>Component</SubType>
 	  </Compile>
-	  <Compile Update="BeepDataConnection.cs">
+	  <Compile Update="DataConnection\BeepDataConnection.cs">
 	    <SubType>Component</SubType>
 	  </Compile>
 	  <Compile Update="ITrees\BeepTreeView\BeepAppTree.cs" />

@@ -42,6 +42,50 @@ internal static class StaTest
     public static Task RunAsync(Action action) =>
         RunAsync(action, DefaultTimeout);
 
+    public static Task RunAsync(Func<Task> action) =>
+        RunAsync(action, DefaultTimeout);
+
+    public static Task RunAsync(Func<Task> action, TimeSpan timeout)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        var completion = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            using var context = new ApplicationContext();
+            SynchronizationContext.SetSynchronizationContext(
+                new WindowsFormsSynchronizationContext());
+            EventHandler? start = null;
+            start = async (_, _) =>
+            {
+                Application.Idle -= start;
+                try
+                {
+                    await action();
+                    completion.TrySetResult();
+                }
+                catch (Exception exception)
+                {
+                    completion.TrySetException(exception);
+                }
+                finally
+                {
+                    context.ExitThread();
+                }
+            };
+            Application.Idle += start;
+            Application.Run(context);
+        })
+        {
+            IsBackground = true
+        };
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        return completion.Task.WaitAsync(timeout);
+    }
+
     public static Task RunAsync(Action action, TimeSpan timeout)
     {
         ArgumentNullException.ThrowIfNull(action);

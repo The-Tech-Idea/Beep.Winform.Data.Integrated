@@ -138,6 +138,64 @@ public class WinFormFormHostRegistryTests
         Assert.Equal("DEPT", host.ActiveBlockName);
     });
 
+    [Fact]
+    public Task SwitchToBlock_UpdatesUiOnlyAfterEngineSuccess() =>
+        StaTest.RunAsync(async () =>
+        {
+            var manager = new Mock<IUnitofWorksManager>(MockBehavior.Strict);
+            manager.Setup(instance => instance.BlockExists("EMP")).Returns(true);
+            manager.Setup(instance => instance.BlockExists("DEPT")).Returns(true);
+            manager.SetupSequence(
+                    instance => instance.SwitchToBlockAsync("DEPT"))
+                .ReturnsAsync(false)
+                .ReturnsAsync(true);
+            using var host = new WinFormFormHost { FormsManager = manager.Object };
+            host.RegisterBlock(CreateBlock("EMP").Object);
+            host.RegisterBlock(CreateBlock("DEPT").Object);
+            var changes = 0;
+            host.ActiveBlockChanged += (_, _) => changes++;
+
+            Assert.False(await host.SwitchToBlockAsync("dept"));
+            Assert.Equal("EMP", host.ActiveBlockName);
+            Assert.Equal(0, changes);
+
+            Assert.True(await host.SwitchToBlockAsync("DEPT"));
+            Assert.Equal("DEPT", host.ActiveBlockName);
+            Assert.Equal(1, changes);
+        });
+
+    [Fact]
+    public Task GoToItem_FocusesOnlyAfterEngineSuccess() =>
+        StaTest.RunAsync(async () =>
+        {
+            var manager = new Mock<IUnitofWorksManager>(MockBehavior.Strict);
+            manager.Setup(instance => instance.BlockExists("EMP")).Returns(true);
+            manager.SetupSequence(
+                    instance => instance.GoItemAsync("EMP", "ENAME"))
+                .ReturnsAsync(false)
+                .ReturnsAsync(true);
+            var block = CreateBlock("EMP");
+            var presenter = new Mock<IFieldPresenter>();
+            presenter.SetupGet(instance => instance.FieldName).Returns("ENAME");
+            block.Setup(instance => instance.FindFieldPresenter(
+                    It.IsAny<string>()))
+                .Returns(presenter.Object);
+            block.Setup(instance => instance.FocusField("ENAME"))
+                .Returns(true);
+            using var host = new WinFormFormHost { FormsManager = manager.Object };
+            host.RegisterBlock(block.Object);
+
+            Assert.False(await host.GoToItemAsync(" emp ", " ename "));
+            block.Verify(
+                instance => instance.FocusField(It.IsAny<string>()),
+                Times.Never);
+
+            Assert.True(await host.GoToItemAsync("EMP", "ENAME"));
+            block.Verify(
+                instance => instance.FocusField("ENAME"),
+                Times.Once);
+        });
+
     private static Mock<IBlockView> CreateBlock(string name, object? view = null)
     {
         var block = new Mock<IBlockView>();

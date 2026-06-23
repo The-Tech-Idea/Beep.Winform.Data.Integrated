@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using TheTechIdea.Beep.ConfigUtil;
 
 namespace TheTechIdea.Beep.Winform.Controls
@@ -23,17 +21,25 @@ namespace TheTechIdea.Beep.Winform.Controls
             => new() { Success = false, Message = message };
     }
 
+    /// <summary>
+    /// Thin wrapper over <see cref="BeepDataConnection"/> for package import/export
+    /// and scope promotion. All persistence flows through the catalog repository;
+    /// no double-writes to ConfigEditor.
+    /// </summary>
     public sealed class ConnectionPackageManager
     {
         private readonly BeepDataConnection _dataConnection;
-        private readonly TheTechIdea.Beep.Editor.IDMEEditor? _editor;
 
         public ConnectionPackageManager(BeepDataConnection dataConnection)
         {
             _dataConnection = dataConnection ?? throw new ArgumentNullException(nameof(dataConnection));
-            _editor = dataConnection.BeepService?.DMEEditor;
         }
 
+        /// <summary>
+        /// Imports a connection package. Delegates entirely to
+        /// <see cref="BeepDataConnection.ImportEmbeddedDefaults"/> (catalog repository).
+        /// No separate ConfigEditor sync.
+        /// </summary>
         public ConnectionPackageResult Import(string filePath, ConnectionConflictPolicy conflictPolicy = ConnectionConflictPolicy.Skip, bool importWhenEmptyOnly = false)
         {
             if (!File.Exists(filePath))
@@ -42,21 +48,6 @@ namespace TheTechIdea.Beep.Winform.Controls
             if (_dataConnection.ImportEmbeddedDefaults(filePath, conflictPolicy, importWhenEmptyOnly, out var message))
             {
                 _dataConnection.ReloadConnections();
-
-                // Sync imported connections to ConfigEditor for global availability
-                var configEditor = _editor?.ConfigEditor;
-                if (configEditor != null)
-                {
-                    foreach (var conn in _dataConnection.DataConnections)
-                    {
-                        var existing = configEditor.DataConnections?
-                            .FirstOrDefault(c => string.Equals(c.GuidID, conn.GuidID, StringComparison.OrdinalIgnoreCase));
-                        if (existing == null)
-                            configEditor.AddDataConnection(conn);
-                    }
-                    configEditor.SaveDataconnectionsValues();
-                }
-
                 var connections = _dataConnection.DataConnections;
                 return ConnectionPackageResult.Ok(filePath, connections.Count);
             }
@@ -93,6 +84,11 @@ namespace TheTechIdea.Beep.Winform.Controls
             return ConnectionPackageResult.Fail(message);
         }
 
+        /// <summary>
+        /// Previews a package file by reading its JSON directly.
+        /// Conflict detection is a lightweight name intersection — the
+        /// repository's ImportPackage handles the real conflict resolution.
+        /// </summary>
         public PackagePreviewResult Preview(string filePath)
         {
             if (!File.Exists(filePath))
@@ -105,20 +101,24 @@ namespace TheTechIdea.Beep.Winform.Controls
                 if (package?.Records == null || package.Records.Count == 0)
                     return PackagePreviewResult.Fail("Package contains no connections.");
 
+                var packageConnectionNames = package.Records
+                    .Where(r => r.Connection != null)
+                    .Select(r => r.Connection!.ConnectionName ?? "Unknown")
+                    .ToList();
+
+                var existingNames = _dataConnection.DataConnections
+                    .Select(c => c.ConnectionName)
+                    .Where(n => !string.IsNullOrWhiteSpace(n))
+                    .ToList();
+
                 var preview = new PackagePreviewResult
                 {
                     Success = true,
                     TotalConnections = package.Records.Count,
                     ProfileName = package.ProfileName ?? "Default",
-                    ConnectionNames = package.Records
-                        .Where(r => r.Connection != null)
-                        .Select(r => r.Connection!.ConnectionName ?? "Unknown")
-                        .ToList(),
-                    ExistingConflicts = _dataConnection.DataConnections
-                        .Select(c => c.ConnectionName)
-                        .Intersect(package.Records
-                            .Where(r => r.Connection != null)
-                            .Select(r => r.Connection!.ConnectionName!), StringComparer.OrdinalIgnoreCase)
+                    ConnectionNames = packageConnectionNames,
+                    ExistingConflicts = existingNames
+                        .Intersect(packageConnectionNames, StringComparer.OrdinalIgnoreCase)
                         .ToList()
                 };
                 return preview;

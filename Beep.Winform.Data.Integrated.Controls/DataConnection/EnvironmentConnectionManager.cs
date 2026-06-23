@@ -2,15 +2,22 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TheTechIdea.Beep.ConfigUtil;
+using TheTechIdea.Beep.Environments;
+using TheTechIdea.Beep.Services.AppMap;
 
 namespace TheTechIdea.Beep.Winform.Controls
 {
+    /// <summary>
+    /// Manages environment-scoped connections by delegating to the framework's
+    /// <see cref="IEnvironmentManagementService"/> for environment discovery and
+    /// <see cref="BeepDataConnection"/> for connection CRUD. No double-writes,
+    /// no hardcoded environments.
+    /// </summary>
     public sealed class EnvironmentConnectionManager
     {
         private readonly BeepDataConnection _dataConnection;
         private readonly TheTechIdea.Beep.Editor.IDMEEditor _editor;
         private readonly object _switchLock = new();
-        private readonly Dictionary<string, ConnectionEnvironmentProfile> _profiles = new(StringComparer.OrdinalIgnoreCase);
 
         public event EventHandler<string>? EnvironmentChanged;
 
@@ -38,16 +45,48 @@ namespace TheTechIdea.Beep.Winform.Controls
                 ?? throw new InvalidOperationException("BeepDataConnection must have an initialized BeepService with DMEEditor.");
         }
 
-        public IReadOnlyList<string> GetEnvironments() =>
-            new[] { "Development", "Staging", "Production" };
-
-        public string GetCurrentDisplayName() => CurrentEnvironment switch
+        /// <summary>
+        /// Returns environment names from the framework's
+        /// <see cref="IEnvironmentManagementService"/> standard tiers,
+        /// falling back to BeepService.Environments keys if available.
+        /// </summary>
+        public IReadOnlyList<string> GetEnvironments()
         {
-            "Development" => "🛠 Development",
-            "Staging" => "🧪 Staging",
-            "Production" => "🚀 Production",
-            _ => $"📁 {CurrentEnvironment}"
-        };
+            var editorEnv = _editor.Environment;
+            if (editorEnv != null)
+            {
+                var tiers = editorEnv.GetStandardTiers();
+                if (tiers != null && tiers.Count > 0)
+                {
+                    return tiers.OrderBy(t => t.Order).Select(t => t.Name).ToList();
+                }
+            }
+
+            var beepService = _dataConnection.BeepService;
+            if (beepService?.Environments != null && beepService.Environments.Count > 0)
+            {
+                return beepService.Environments.Keys.Select(k => k.ToString()).ToList();
+            }
+
+            return new[] { "Default" };
+        }
+
+        public string GetCurrentDisplayName()
+        {
+            var editorEnv = _editor.Environment;
+            if (editorEnv != null)
+            {
+                var tiers = editorEnv.GetStandardTiers();
+                var match = tiers?.FirstOrDefault(t =>
+                    string.Equals(t.Name, CurrentEnvironment, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
+                {
+                    return match.Name;
+                }
+            }
+
+            return CurrentEnvironment;
+        }
 
         public IReadOnlyList<ConnectionProperties> GetConnectionsForEnvironment(string environment)
         {
@@ -86,6 +125,11 @@ namespace TheTechIdea.Beep.Winform.Controls
                 .FirstOrDefault(c => string.Equals(c.ConnectionName, connectionName, StringComparison.OrdinalIgnoreCase));
         }
 
+        /// <summary>
+        /// Adds a connection to the specified environment profile.
+        /// All persistence flows through BeepDataConnection (catalog repository or ConfigEditor).
+        /// No double-write to ConfigEditor.
+        /// </summary>
         public bool AddConnection(string environment, ConnectionProperties connection)
         {
             lock (_switchLock)
@@ -94,20 +138,7 @@ namespace TheTechIdea.Beep.Winform.Controls
                 try
                 {
                     _dataConnection.ActiveProfileName = environment;
-                    _dataConnection.AddOrUpdateConnection(connection);
-                    _dataConnection.SaveConnections();
-
-                    // Also sync through ConfigEditor for global availability
-                    var configEditor = _editor.ConfigEditor;
-                    if (configEditor != null)
-                    {
-                        if (string.IsNullOrWhiteSpace(connection.GuidID))
-                            connection.GuidID = Guid.NewGuid().ToString("D");
-                        configEditor.AddDataConnection(connection);
-                        configEditor.SaveDataconnectionsValues();
-                    }
-
-                    return true;
+                    return _dataConnection.AddOrUpdateConnection(connection);
                 }
                 finally
                 {
@@ -116,6 +147,11 @@ namespace TheTechIdea.Beep.Winform.Controls
             }
         }
 
+        /// <summary>
+        /// Removes a connection from the specified environment profile.
+        /// All persistence flows through BeepDataConnection (catalog repository or ConfigEditor).
+        /// No double-write to ConfigEditor.
+        /// </summary>
         public bool RemoveConnection(string environment, string connectionName)
         {
             lock (_switchLock)
@@ -124,23 +160,7 @@ namespace TheTechIdea.Beep.Winform.Controls
                 try
                 {
                     _dataConnection.ActiveProfileName = environment;
-                    _dataConnection.RemoveConnection(connectionName);
-                    _dataConnection.SaveConnections();
-
-                    // Also remove from ConfigEditor for global consistency
-                    var configEditor = _editor.ConfigEditor;
-                    if (configEditor != null)
-                    {
-                        var existing = configEditor.DataConnections?
-                            .FirstOrDefault(c => string.Equals(c.ConnectionName, connectionName, StringComparison.OrdinalIgnoreCase));
-                        if (existing != null)
-                        {
-                            configEditor.DataConnections!.Remove(existing);
-                            configEditor.SaveDataconnectionsValues();
-                        }
-                    }
-
-                    return true;
+                    return _dataConnection.RemoveConnection(connectionName);
                 }
                 finally
                 {
@@ -150,12 +170,5 @@ namespace TheTechIdea.Beep.Winform.Controls
         }
 
         public int GetConnectionCount() => _dataConnection.DataConnections.Count;
-    }
-
-    public sealed class ConnectionEnvironmentProfile
-    {
-        public string Environment { get; set; } = "Development";
-        public string DisplayName { get; set; } = string.Empty;
-        public List<ConnectionProperties> Connections { get; set; } = new();
     }
 }

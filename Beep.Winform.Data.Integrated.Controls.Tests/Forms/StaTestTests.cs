@@ -43,6 +43,20 @@ public class StaTestTests
     }
 
     [Fact]
+    public async Task RunAsync_AwaitsAsynchronousDelegate()
+    {
+        var completed = false;
+
+        await StaTest.RunAsync(async () =>
+        {
+            await Task.Delay(50);
+            completed = true;
+        });
+
+        Assert.True(completed);
+    }
+
+    [Fact]
     public async Task RunAsync_TimesOutBlockedDelegate()
     {
         await Assert.ThrowsAsync<TimeoutException>(

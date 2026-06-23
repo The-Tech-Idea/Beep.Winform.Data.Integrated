@@ -81,11 +81,7 @@ public partial class WinFormFormHost
 
         return ExecuteAndRefreshAsync(
             blockName,
-            (manager, name) =>
-            {
-                manager.Locking.SetCurrentRecordIndex(name, index);
-                return Task.FromResult(true);
-            });
+            (manager, name) => manager.NavigateToRecordAsync(name, index));
     }
 
     public Task<bool> InsertBlockRecordAsync(
@@ -306,6 +302,24 @@ public partial class WinFormFormHost
             manager => manager.LOV.GetRelatedFieldValues(lov, selectedItem),
             default(Dictionary<string, object>));
     }
+
+    public ItemValidationResult ValidateItem(
+        string blockName,
+        string fieldName,
+        object? value,
+        ValidationTiming timing = ValidationTiming.Manual) =>
+        TryReadManager(
+            manager => manager.Validation.ValidateItem(
+                NormalizeBlockName(blockName),
+                fieldName,
+                value!,
+                timing),
+            new ItemValidationResult
+            {
+                BlockName = NormalizeBlockName(blockName),
+                ItemName = fieldName,
+                Value = value!,
+            });
 
     public RecordValidationResult? ValidateBlockRecord(
         string blockName,

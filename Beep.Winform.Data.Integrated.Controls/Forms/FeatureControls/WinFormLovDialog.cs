@@ -154,9 +154,15 @@ public sealed class WinFormLovDialog : Form
         var success = true;
         foreach (var pair in values)
         {
+            var isReturnValue = string.Equals(
+                pair.Key,
+                "__RETURN_VALUE__",
+                StringComparison.Ordinal);
+            if (!isReturnValue && !definition!.AutoPopulateRelatedFields)
+                continue;
             success &= _host.SetFieldValue(
                 _blockName,
-                pair.Key,
+                isReturnValue ? _fieldName : pair.Key,
                 pair.Value);
         }
 
