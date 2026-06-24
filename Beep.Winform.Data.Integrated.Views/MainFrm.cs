@@ -18,7 +18,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views
     public partial class MainFrm : TemplateForm
     {
         private uc_SetupWizard? _setupWizard;
-        private uc_ImportExportWizardLauncher? _importExportWizard;
+        private uc_ImportExportLauncher? _importExportWizard;
         private uc_AppBootstrap? _appBootstrap;
         private BootstrapState? _bootstrapState;
         private System.Threading.CancellationTokenSource? _bootstrapCts;
@@ -157,8 +157,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views
             if (beepDisplayContainer1 == null)
                 return;
 
-            _importExportWizard ??= new uc_ImportExportWizardLauncher(_serviceprovider);
-            _importExportWizard.ApplySetupSnapshot(e.Snapshot);
+            _importExportWizard ??= new uc_ImportExportLauncher(_serviceprovider);
 
             if (!beepDisplayContainer1.IsControlExit(_importExportWizard))
             {
@@ -184,7 +183,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views
             if (branchText.Contains("Import", StringComparison.OrdinalIgnoreCase) ||
                 branchText.Contains("Export", StringComparison.OrdinalIgnoreCase))
             {
-                ShowHostedControl(_importExportWizard ??= new uc_ImportExportWizardLauncher(_serviceprovider), _importExportWizard.BranchText);
+                ShowHostedControl(_importExportWizard ??= new uc_ImportExportLauncher(_serviceprovider), _importExportWizard.BranchText);
             }
         }
 
@@ -222,7 +221,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views
             if (itemText.Contains("Import", StringComparison.OrdinalIgnoreCase) ||
                 itemText.Contains("Export", StringComparison.OrdinalIgnoreCase))
             {
-                ShowHostedControl(_importExportWizard ??= new uc_ImportExportWizardLauncher(_serviceprovider), _importExportWizard.BranchText);
+                ShowHostedControl(_importExportWizard ??= new uc_ImportExportLauncher(_serviceprovider), _importExportWizard.BranchText);
             }
         }
     }

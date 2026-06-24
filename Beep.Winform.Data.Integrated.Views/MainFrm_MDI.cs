@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -22,7 +22,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views
     public partial class MainFrm_MDI : TemplateForm
     {
         private uc_SetupWizard? _setupWizard;
-        private uc_ImportExportWizardLauncher? _importExportWizard;
+        private uc_ImportExportLauncher? _importExportWizard;
 
 
         IServiceProvider _serviceprovider;

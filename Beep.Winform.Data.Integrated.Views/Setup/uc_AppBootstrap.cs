@@ -1,32 +1,13 @@
-using System;
-using System.Drawing;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 using TheTechIdea.Beep.Addin;
 using TheTechIdea.Beep.Editor;
 using TheTechIdea.Beep.SetUp;
 using TheTechIdea.Beep.SetUp.Adapters;
-using TheTechIdea.Beep.SetUp.Steps;
 using TheTechIdea.Beep.Vis.Modules;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Default.Views.Template;
 
 namespace TheTechIdea.Beep.Winform.Default.Views.Setup
 {
-    /// <summary>
-    /// First-run bootstrap user control.
-    /// On a fresh install, shows a Welcome screen with three options:
-    ///   1. Quick Setup    - delegates to <see cref="ApplicationBootstrapper"/> which runs the 5-step
-    ///                       setup wizard (Driver → Connection → Schema → Seed → Run).
-    ///   2. Skip for Now   - marks the setup complete via the IFirstRunDetector and raises BootstrapCompleted.
-    ///   3. Enter App      - same as Skip.
-    /// On subsequent launches, the marker exists, the wizard is bypassed, and the host
-    /// form continues normal startup immediately.
-    ///
-    /// All UI updates from async/background work are marshalled to the UI thread via
-    /// <see cref="Control.InvokeRequired"/> + <see cref="Control.BeginInvoke(Action)"/>.
-    /// </summary>
     [AddinAttribute(Caption = "App Bootstrap", Name = "uc_AppBootstrap",
         misc = "Configuration", menu = "Configuration", addinType = AddinType.Control,
         displayType = DisplayType.InControl, ObjectType = "Beep")]
@@ -37,9 +18,9 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
     public partial class uc_AppBootstrap : TemplateUserControl, IAddinVisSchema
     {
         private readonly IServiceProvider? _services;
-        private readonly BootstrapState _state;
         private readonly CancellationTokenSource _cts = new();
-        private ApplicationBootstrapper? _bootstrapper;
+        private BeepBootstrapper? _bootstrapper;
+        private IFirstRunDetector? _firstRunDetector;
         private bool _bootstrapCompleted;
 
         private TableLayoutPanel? _rootLayout;
@@ -55,15 +36,12 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
 
         public uc_AppBootstrap()
         {
-            _state = new BootstrapState(new FileBasedFirstRunDetector(Editor ?? throw new InvalidOperationException(
-                "uc_AppBootstrap must be constructed with an IServiceProvider or after Editor is set.")));
             BuildUi();
         }
 
         public uc_AppBootstrap(IServiceProvider services) : base(services)
         {
             _services = services;
-            _state = BootstrapState.Resolve(services, Editor!);
             BuildUi();
         }
 
@@ -98,7 +76,6 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
                     _bootstrapper.ProgressChanged -= Bootstrapper_ProgressChanged;
                 _cts.Cancel();
                 _cts.Dispose();
-                _state.Dispose();
             }
             base.Dispose(disposing);
         }
@@ -109,19 +86,28 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             {
                 if (cancellationToken.IsCancellationRequested) return;
 
-                _bootstrapper = ResolveBootstrapper();
-                _bootstrapper.ProgressChanged += Bootstrapper_ProgressChanged;
+                _firstRunDetector = ResolveFirstRunDetector();
+                if (_firstRunDetector == null)
+                {
+                    SetStatus("Cannot detect first-run state. Entering application.");
+                    RaiseBootstrapCompleted(true, "No first-run detector available.");
+                    return;
+                }
 
-                await _state.InitializeAsync();
+                bool isFirstRun = await _firstRunDetector.IsFirstRunAsync();
                 if (cancellationToken.IsCancellationRequested) return;
 
-                if (!_state.IsFirstRun)
+                if (!isFirstRun)
                 {
                     SetStatus("Setup already completed. Loading application...");
                     await Task.Delay(500, cancellationToken);
                     RaiseBootstrapCompleted(true, "Not first run.");
                     return;
                 }
+
+                _bootstrapper = ResolveBootstrapper();
+                if (_bootstrapper != null)
+                    _bootstrapper.ProgressChanged += Bootstrapper_ProgressChanged;
 
                 SetStatus("First run detected. Choose how to set up the data platform.");
                 ShowWelcome();
@@ -136,29 +122,39 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
 
         public async Task ResetAsync()
         {
-            await _state.ResetAsync();
+            if (_firstRunDetector != null)
+                await _firstRunDetector.ClearSetupFlagAsync();
             SetStatus("Bootstrap reset. Restart the application to re-run setup.");
         }
 
-        private ApplicationBootstrapper ResolveBootstrapper()
+        private IFirstRunDetector? ResolveFirstRunDetector()
         {
             if (_services != null)
             {
                 var resolved = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
-                    .GetService<ApplicationBootstrapper>(_services);
+                    .GetService<IFirstRunDetector>(_services);
                 if (resolved != null) return resolved;
             }
 
-            if (Editor == null)
-                throw new InvalidOperationException("Cannot resolve bootstrapper: no Editor and no IServiceProvider.");
+            if (Editor == null) return null;
+            return new FileBasedFirstRunDetector(Editor);
+        }
 
-            var detector = new FileBasedFirstRunDetector(Editor);
+        private BeepBootstrapper? ResolveBootstrapper()
+        {
+            if (Editor == null) return null;
+
+            var detector = _firstRunDetector ?? new FileBasedFirstRunDetector(Editor);
             var factory = new DefaultSetupWizardFactory();
-            var (wizard, ctx) = BootstrapWizardBuilder.BuildForFirstRun(factory, Editor);
             var adapter = new DesktopSetupWizardAdapter(
-                progressCallback: args => { /* progress UI handled by ProgressChanged event */ },
-                completedCallback: _ => { /* completion handled by ApplicationBootstrapper */ });
-            return new ApplicationBootstrapper(detector, wizard, ctx, adapter);
+                progressCallback: _ => { },
+                completedCallback: _ => { });
+
+            return new BeepBootstrapper(
+                detector,
+                factory,
+                () => Editor!,
+                adapter);
         }
 
         private void Bootstrapper_ProgressChanged(string message, BootstrapPhase phase)
@@ -354,7 +350,8 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             try
             {
                 SetStatus("Marking setup complete...");
-                await _state.MarkSetupCompleteAsync();
+                if (_firstRunDetector != null)
+                    await _firstRunDetector.MarkSetupCompleteAsync();
                 if (!cancellationToken.IsCancellationRequested)
                     RaiseBootstrapCompleted(true, "User skipped setup.");
             }

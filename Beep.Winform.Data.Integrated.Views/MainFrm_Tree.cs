@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -20,7 +20,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views
     public partial class MainFrm_Tree : TemplateForm
     {
         private uc_SetupWizard? _setupWizard;
-        private uc_ImportExportWizardLauncher? _importExportWizard;
+        private uc_ImportExportLauncher? _importExportWizard;
         IServiceProvider _serviceProvider;
 
         public MainFrm_Tree()
@@ -75,8 +75,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views
             if (beepDisplayContainer1 == null)
                 return;
 
-            _importExportWizard ??= new uc_ImportExportWizardLauncher(_serviceProvider);
-            _importExportWizard.ApplySetupSnapshot(e.Snapshot);
+            _importExportWizard ??= new uc_ImportExportLauncher(_serviceProvider);
 
             if (!beepDisplayContainer1.IsControlExit(_importExportWizard))
             {
@@ -102,7 +101,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views
             if (branchText.Contains("Import", StringComparison.OrdinalIgnoreCase) ||
                 branchText.Contains("Export", StringComparison.OrdinalIgnoreCase))
             {
-                ShowHostedControl(_importExportWizard ??= new uc_ImportExportWizardLauncher(_serviceProvider), _importExportWizard.BranchText);
+                ShowHostedControl(_importExportWizard ??= new uc_ImportExportLauncher(_serviceProvider), _importExportWizard.BranchText);
             }
         }
 
