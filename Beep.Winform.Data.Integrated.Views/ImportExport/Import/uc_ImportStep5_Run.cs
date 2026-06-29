@@ -278,7 +278,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
                     _cts?.Dispose();
                     _importManager?.Dispose();
                     _statusTimer?.Dispose();
-                    components?.Dispose();
+                    //components?.Dispose();
                 }
                 _disposed = true;
             }

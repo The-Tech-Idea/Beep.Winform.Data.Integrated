@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Export
 {
     partial class uc_ExportStep2_Columns
@@ -14,71 +16,76 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Export
         private void InitializeComponent()
         {
             _rootPanel = new BeepPanel();
-            _headerPanel = new BeepPanel();
-            _split = new SplitContainer();
-            _leftPanel = new BeepPanel();
-            _rightPanel = new BeepPanel();
             lblTitle = new BeepLabel();
-            previewGrid = new BeepGridPro();
-            colGrid = new DataGridView();
             btnSelectAll = new BeepButton();
             btnSelectNone = new BeepButton();
-
-            _split.Panel1.SuspendLayout();
-            _split.Panel2.SuspendLayout();
-            _split.SuspendLayout();
+            previewGrid = new BeepGridPro();
+            colGrid = new DataGridView();
             _rootPanel.SuspendLayout();
             SuspendLayout();
 
-            _rootPanel.Controls.Add(_headerPanel);
-            _rootPanel.Controls.Add(_split);
+            // _rootPanel
+            _rootPanel.Controls.Add(colGrid);
+            _rootPanel.Controls.Add(previewGrid);
+            _rootPanel.Controls.Add(btnSelectNone);
+            _rootPanel.Controls.Add(btnSelectAll);
+            _rootPanel.Controls.Add(lblTitle);
             _rootPanel.Dock = DockStyle.Fill;
+            _rootPanel.Location = new Point(0, 0);
+            _rootPanel.Name = "_rootPanel";
+            _rootPanel.Size = new Size(900, 600);
 
-            _headerPanel.Controls.Add(lblTitle);
-            _headerPanel.Dock = DockStyle.Top;
-            _headerPanel.Height = 50;
+            // lblTitle
             lblTitle.Text = "Export: Select Columns";
             lblTitle.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
-            lblTitle.Dock = DockStyle.Fill;
+            lblTitle.Location = new Point(20, 15);
+            lblTitle.Name = "lblTitle";
+            lblTitle.Size = new Size(860, 35);
             lblTitle.TextAlign = ContentAlignment.MiddleLeft;
+            lblTitle.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
-            _split.Dock = DockStyle.Fill;
-            _split.SplitterDistance = 300;
+            // btnSelectAll
+            btnSelectAll.Text = "Select All";
+            btnSelectAll.Location = new Point(20, 58);
+            btnSelectAll.Name = "btnSelectAll";
+            btnSelectAll.Size = new Size(100, 30);
+            btnSelectAll.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            _leftPanel.Controls.Add(previewGrid);
-            _leftPanel.Dock = DockStyle.Fill;
-            previewGrid.Dock = DockStyle.Fill;
+            // btnSelectNone
+            btnSelectNone.Text = "Select None";
+            btnSelectNone.Location = new Point(130, 58);
+            btnSelectNone.Name = "btnSelectNone";
+            btnSelectNone.Size = new Size(100, 30);
+            btnSelectNone.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            _rightPanel.Controls.Add(btnSelectAll);
-            _rightPanel.Controls.Add(btnSelectNone);
-            _rightPanel.Controls.Add(colGrid);
-            _rightPanel.Dock = DockStyle.Fill;
-            btnSelectAll.Text = "Select All"; btnSelectAll.Dock = DockStyle.Top;
-            btnSelectNone.Text = "Select None"; btnSelectNone.Dock = DockStyle.Top;
-            colGrid.Dock = DockStyle.Fill;
+            // previewGrid
+            previewGrid.Location = new Point(20, 95);
+            previewGrid.Name = "previewGrid";
+            previewGrid.Size = new Size(420, 485);
+            previewGrid.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left;
+
+            // colGrid
+            colGrid.Location = new Point(460, 95);
+            colGrid.Name = "colGrid";
+            colGrid.Size = new Size(420, 485);
             colGrid.AllowUserToAddRows = false;
             colGrid.RowHeadersVisible = false;
+            colGrid.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
 
-            _split.Panel1.Controls.Add(_leftPanel);
-            _split.Panel2.Controls.Add(_rightPanel);
-
+            // uc_ExportStep2_Columns
             Controls.Add(_rootPanel);
-            _split.Panel1.ResumeLayout(false);
-            _split.Panel2.ResumeLayout(false);
-            _split.ResumeLayout(false);
+            Name = "uc_ExportStep2_Columns";
+            Size = new Size(900, 600);
             _rootPanel.ResumeLayout(false);
-            SuspendLayout();
+            ResumeLayout(false);
+            PerformLayout();
         }
 
         private BeepPanel _rootPanel;
-        private BeepPanel _headerPanel;
-        private SplitContainer _split;
-        private BeepPanel _leftPanel;
-        private BeepPanel _rightPanel;
         private BeepLabel lblTitle;
-        private BeepGridPro previewGrid;
-        private DataGridView colGrid;
         private BeepButton btnSelectAll;
         private BeepButton btnSelectNone;
+        private BeepGridPro previewGrid;
+        private DataGridView colGrid;
     }
 }

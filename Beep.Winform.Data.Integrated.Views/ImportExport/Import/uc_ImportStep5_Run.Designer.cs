@@ -1,132 +1,153 @@
+using System.ComponentModel;
+
 namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
 {
     partial class uc_ImportStep5_Run
     {
-        private System.ComponentModel.IContainer? components = null;
-
         private void InitializeComponent()
         {
             _rootPanel = new BeepPanel();
-            _headerPanel = new BeepPanel();
-            _summaryPanel = new BeepPanel();
-            _actionPanel = new BeepPanel();
-            _logPanel = new BeepPanel();
-            _errorPanel = new BeepPanel();
-            _progressPanel = new BeepPanel();
-            _splitLog = new SplitContainer();
             lblTitle = new BeepLabel();
             lblSummary = new BeepLabel();
+            progressBar = new BeepProgressBar();
             lblResult = new BeepLabel();
             btnStart = new BeepButton();
             btnPause = new BeepButton();
             btnResume = new BeepButton();
             btnCancel = new BeepButton();
             btnExportErrors = new BeepButton();
-            progressBar = new BeepProgressBar();
             rtbLog = new RichTextBox();
             errorGrid = new DataGridView();
-
-            _splitLog.Panel1.SuspendLayout();
-            _splitLog.Panel2.SuspendLayout();
-            _splitLog.SuspendLayout();
             _rootPanel.SuspendLayout();
             SuspendLayout();
 
-            _rootPanel.Controls.Add(_headerPanel);
-            _rootPanel.Controls.Add(_summaryPanel);
-            _rootPanel.Controls.Add(_progressPanel);
-            _rootPanel.Controls.Add(_actionPanel);
-            _rootPanel.Controls.Add(_splitLog);
+            // _rootPanel
+            _rootPanel.Controls.Add(errorGrid);
+            _rootPanel.Controls.Add(rtbLog);
+            _rootPanel.Controls.Add(btnExportErrors);
+            _rootPanel.Controls.Add(btnCancel);
+            _rootPanel.Controls.Add(btnResume);
+            _rootPanel.Controls.Add(btnPause);
+            _rootPanel.Controls.Add(btnStart);
+            _rootPanel.Controls.Add(lblResult);
+            _rootPanel.Controls.Add(progressBar);
+            _rootPanel.Controls.Add(lblSummary);
+            _rootPanel.Controls.Add(lblTitle);
             _rootPanel.Dock = DockStyle.Fill;
+            _rootPanel.Location = new Point(0, 0);
+            _rootPanel.Name = "_rootPanel";
+            _rootPanel.Size = new Size(900, 600);
 
-            _headerPanel.Controls.Add(lblTitle);
-            _headerPanel.Dock = DockStyle.Top;
-            _headerPanel.Height = 50;
+            // lblTitle
             lblTitle.Text = "Step 5: Review, Run & Summary";
             lblTitle.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
-            lblTitle.Dock = DockStyle.Fill;
+            lblTitle.Location = new Point(20, 15);
+            lblTitle.Name = "lblTitle";
+            lblTitle.Size = new Size(860, 35);
             lblTitle.TextAlign = ContentAlignment.MiddleLeft;
+            lblTitle.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
-            _summaryPanel.Controls.Add(lblSummary);
-            _summaryPanel.Dock = DockStyle.Top;
-            _summaryPanel.Height = 100;
+            // lblSummary
             lblSummary.Text = "Configuration summary will appear here.";
-            lblSummary.Dock = DockStyle.Fill;
             lblSummary.Font = new Font("Segoe UI", 9F);
+            lblSummary.Location = new Point(20, 55);
+            lblSummary.Name = "lblSummary";
+            lblSummary.Size = new Size(860, 70);
+            lblSummary.TextAlign = ContentAlignment.TopLeft;
+            lblSummary.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
-            _progressPanel.Controls.Add(progressBar);
-            _progressPanel.Controls.Add(lblResult);
-            _progressPanel.Dock = DockStyle.Top;
-            _progressPanel.Height = 50;
-            progressBar.Dock = DockStyle.Top;
-            progressBar.Height = 20;
+            // progressBar
+            progressBar.Location = new Point(20, 135);
+            progressBar.Name = "progressBar";
+            progressBar.Size = new Size(860, 22);
             progressBar.Minimum = 0;
             progressBar.Maximum = 100;
+            progressBar.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+
+            // lblResult
             lblResult.Text = "";
-            lblResult.Dock = DockStyle.Fill;
+            lblResult.Location = new Point(20, 162);
+            lblResult.Name = "lblResult";
+            lblResult.Size = new Size(860, 20);
             lblResult.TextAlign = ContentAlignment.MiddleLeft;
+            lblResult.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
-            _actionPanel.Controls.Add(btnStart);
-            _actionPanel.Controls.Add(btnPause);
-            _actionPanel.Controls.Add(btnResume);
-            _actionPanel.Controls.Add(btnCancel);
-            _actionPanel.Controls.Add(btnExportErrors);
-            _actionPanel.Dock = DockStyle.Top;
-            _actionPanel.Height = 40;
+            // btnStart
+            btnStart.Text = "Start Import";
+            btnStart.Location = new Point(20, 190);
+            btnStart.Name = "btnStart";
+            btnStart.Size = new Size(100, 30);
+            btnStart.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            btnStart.Text = "Start Import"; btnStart.Location = new Point(10, 5); btnStart.Size = new Size(100, 30);
-            btnPause.Text = "Pause"; btnPause.Location = new Point(120, 5); btnPause.Size = new Size(70, 30); btnPause.Enabled = false;
-            btnResume.Text = "Resume"; btnResume.Location = new Point(200, 5); btnResume.Size = new Size(80, 30);
-            btnCancel.Text = "Cancel"; btnCancel.Location = new Point(290, 5); btnCancel.Size = new Size(80, 30); btnCancel.Enabled = false;
-            btnExportErrors.Text = "Export Errors"; btnExportErrors.Location = new Point(380, 5); btnExportErrors.Size = new Size(110, 30); btnExportErrors.Enabled = false;
+            // btnPause
+            btnPause.Text = "Pause";
+            btnPause.Location = new Point(130, 190);
+            btnPause.Name = "btnPause";
+            btnPause.Size = new Size(70, 30);
+            btnPause.Enabled = false;
+            btnPause.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            _splitLog.Dock = DockStyle.Fill;
-            _splitLog.Orientation = Orientation.Vertical;
-            _splitLog.SplitterDistance = 400;
+            // btnResume
+            btnResume.Text = "Resume";
+            btnResume.Location = new Point(210, 190);
+            btnResume.Name = "btnResume";
+            btnResume.Size = new Size(80, 30);
+            btnResume.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            _logPanel.Controls.Add(rtbLog);
-            _logPanel.Dock = DockStyle.Fill;
-            rtbLog.Dock = DockStyle.Fill;
+            // btnCancel
+            btnCancel.Text = "Cancel";
+            btnCancel.Location = new Point(300, 190);
+            btnCancel.Name = "btnCancel";
+            btnCancel.Size = new Size(80, 30);
+            btnCancel.Enabled = false;
+            btnCancel.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            // btnExportErrors
+            btnExportErrors.Text = "Export Errors";
+            btnExportErrors.Location = new Point(390, 190);
+            btnExportErrors.Name = "btnExportErrors";
+            btnExportErrors.Size = new Size(110, 30);
+            btnExportErrors.Enabled = false;
+            btnExportErrors.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            // rtbLog
+            rtbLog.Location = new Point(20, 235);
+            rtbLog.Name = "rtbLog";
+            rtbLog.Size = new Size(420, 345);
             rtbLog.ReadOnly = true;
+            rtbLog.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left;
 
-            _errorPanel.Controls.Add(errorGrid);
-            _errorPanel.Dock = DockStyle.Fill;
-            errorGrid.Dock = DockStyle.Fill;
+            // errorGrid
+            errorGrid.Location = new Point(455, 235);
+            errorGrid.Name = "errorGrid";
+            errorGrid.Size = new Size(425, 345);
             errorGrid.AllowUserToAddRows = false;
             errorGrid.RowHeadersVisible = false;
             errorGrid.Columns.Add("rowIdx", "Row");
             errorGrid.Columns.Add("field", "Field");
             errorGrid.Columns.Add("value", "Value");
             errorGrid.Columns.Add("error", "Error");
+            errorGrid.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
 
-            _splitLog.Panel1.Controls.Add(_logPanel);
-            _splitLog.Panel2.Controls.Add(_errorPanel);
-
+            // uc_ImportStep5_Run
             Controls.Add(_rootPanel);
-            _splitLog.Panel1.ResumeLayout(false);
-            _splitLog.Panel2.ResumeLayout(false);
-            _splitLog.ResumeLayout(false);
+            Name = "uc_ImportStep5_Run";
+            Size = new Size(900, 600);
             _rootPanel.ResumeLayout(false);
-            SuspendLayout();
+            ResumeLayout(false);
+            PerformLayout();
         }
 
         private BeepPanel _rootPanel;
-        private BeepPanel _headerPanel;
-        private BeepPanel _summaryPanel;
-        private BeepPanel _actionPanel;
-        private BeepPanel _logPanel;
-        private BeepPanel _errorPanel;
-        private BeepPanel _progressPanel;
-        private SplitContainer _splitLog;
         private BeepLabel lblTitle;
         private BeepLabel lblSummary;
+        private BeepProgressBar progressBar;
         private BeepLabel lblResult;
         private BeepButton btnStart;
         private BeepButton btnPause;
         private BeepButton btnResume;
         private BeepButton btnCancel;
         private BeepButton btnExportErrors;
-        private BeepProgressBar progressBar;
         private RichTextBox rtbLog;
         private DataGridView errorGrid;
     }

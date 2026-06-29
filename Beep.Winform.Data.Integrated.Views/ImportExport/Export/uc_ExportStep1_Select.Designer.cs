@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Export
 {
     partial class uc_ExportStep1_Select
@@ -14,8 +16,6 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Export
         private void InitializeComponent()
         {
             _rootPanel = new BeepPanel();
-            _headerPanel = new BeepPanel();
-            _formPanel = new BeepPanel();
             lblTitle = new BeepLabel();
             lblSourceDS = new BeepLabel();
             cmbSourceDS = new BeepComboBox();
@@ -32,76 +32,155 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Export
             cmbDestDS = new BeepComboBox();
             lblDestEntity = new BeepLabel();
             cmbDestEntity = new BeepComboBox();
-
             _rootPanel.SuspendLayout();
-            _formPanel.SuspendLayout();
             SuspendLayout();
 
-            _rootPanel.Controls.Add(_headerPanel);
-            _rootPanel.Controls.Add(_formPanel);
+            // _rootPanel
+            _rootPanel.Controls.Add(cmbDestEntity);
+            _rootPanel.Controls.Add(lblDestEntity);
+            _rootPanel.Controls.Add(cmbDestDS);
+            _rootPanel.Controls.Add(lblDestDS);
+            _rootPanel.Controls.Add(btnBrowse);
+            _rootPanel.Controls.Add(txtFilePath);
+            _rootPanel.Controls.Add(lblFilePath);
+            _rootPanel.Controls.Add(cmbFormat);
+            _rootPanel.Controls.Add(lblFormat);
+            _rootPanel.Controls.Add(radioDestMode);
+            _rootPanel.Controls.Add(lblDestMode);
+            _rootPanel.Controls.Add(cmbSourceEntity);
+            _rootPanel.Controls.Add(lblSourceEntity);
+            _rootPanel.Controls.Add(cmbSourceDS);
+            _rootPanel.Controls.Add(lblSourceDS);
+            _rootPanel.Controls.Add(lblTitle);
             _rootPanel.Dock = DockStyle.Fill;
+            _rootPanel.Location = new Point(0, 0);
+            _rootPanel.Name = "_rootPanel";
+            _rootPanel.Size = new Size(900, 600);
 
-            _headerPanel.Controls.Add(lblTitle);
-            _headerPanel.Dock = DockStyle.Top;
-            _headerPanel.Height = 50;
+            // lblTitle
             lblTitle.Text = "Export: Select Source & Target";
             lblTitle.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
-            lblTitle.Dock = DockStyle.Fill;
+            lblTitle.Location = new Point(20, 15);
+            lblTitle.Name = "lblTitle";
+            lblTitle.Size = new Size(860, 35);
             lblTitle.TextAlign = ContentAlignment.MiddleLeft;
+            lblTitle.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
-            _formPanel.Dock = DockStyle.Fill;
-            _formPanel.AutoScroll = true;
+            // lblSourceDS
+            lblSourceDS.Text = "Source Data Source:";
+            lblSourceDS.Location = new Point(30, 68);
+            lblSourceDS.Name = "lblSourceDS";
+            lblSourceDS.Size = new Size(160, 24);
+            lblSourceDS.TextAlign = ContentAlignment.MiddleLeft;
+            lblSourceDS.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            int y = 20;
-            int labelX = 30, comboX = 200, comboW = 350, labelW = 160;
+            // cmbSourceDS
+            cmbSourceDS.Location = new Point(200, 65);
+            cmbSourceDS.Name = "cmbSourceDS";
+            cmbSourceDS.Size = new Size(350, 30);
+            cmbSourceDS.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            lblSourceDS.Text = "Source Data Source:"; lblSourceDS.Location = new Point(labelX, y + 3); lblSourceDS.Size = new Size(labelW, 24);
-            cmbSourceDS.Location = new Point(comboX, y); cmbSourceDS.Size = new Size(comboW, 30); y += 40;
+            // lblSourceEntity
+            lblSourceEntity.Text = "Source Entity:";
+            lblSourceEntity.Location = new Point(30, 108);
+            lblSourceEntity.Name = "lblSourceEntity";
+            lblSourceEntity.Size = new Size(160, 24);
+            lblSourceEntity.TextAlign = ContentAlignment.MiddleLeft;
+            lblSourceEntity.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            lblSourceEntity.Text = "Source Entity:"; lblSourceEntity.Location = new Point(labelX, y + 3); lblSourceEntity.Size = new Size(labelW, 24);
-            cmbSourceEntity.Location = new Point(comboX, y); cmbSourceEntity.Size = new Size(comboW, 30); y += 45;
+            // cmbSourceEntity
+            cmbSourceEntity.Location = new Point(200, 105);
+            cmbSourceEntity.Name = "cmbSourceEntity";
+            cmbSourceEntity.Size = new Size(350, 30);
+            cmbSourceEntity.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            lblDestMode.Text = "Destination:"; lblDestMode.Location = new Point(labelX, y + 3); lblDestMode.Size = new Size(labelW, 24);
-            radioDestMode.Location = new Point(comboX, y); radioDestMode.Size = new Size(300, 30); y += 40;
+            // lblDestMode
+            lblDestMode.Text = "Destination:";
+            lblDestMode.Location = new Point(30, 153);
+            lblDestMode.Name = "lblDestMode";
+            lblDestMode.Size = new Size(160, 24);
+            lblDestMode.TextAlign = ContentAlignment.MiddleLeft;
+            lblDestMode.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            lblFormat.Text = "Format:"; lblFormat.Location = new Point(labelX, y + 3); lblFormat.Size = new Size(labelW, 24);
-            cmbFormat.Location = new Point(comboX, y); cmbFormat.Size = new Size(150, 30); y += 40;
+            // radioDestMode
+            radioDestMode.Location = new Point(200, 150);
+            radioDestMode.Name = "radioDestMode";
+            radioDestMode.Size = new Size(300, 30);
+            radioDestMode.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            lblFilePath.Text = "File Path:"; lblFilePath.Location = new Point(labelX, y + 3); lblFilePath.Size = new Size(labelW, 24);
-            txtFilePath.Location = new Point(comboX, y); txtFilePath.Size = new Size(comboW - 40, 30);
-            btnBrowse.Text = "..."; btnBrowse.Location = new Point(comboX + comboW - 30, y); btnBrowse.Size = new Size(30, 30); y += 40;
+            // lblFormat
+            lblFormat.Text = "Format:";
+            lblFormat.Location = new Point(30, 198);
+            lblFormat.Name = "lblFormat";
+            lblFormat.Size = new Size(160, 24);
+            lblFormat.TextAlign = ContentAlignment.MiddleLeft;
+            lblFormat.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            lblDestDS.Text = "Dest Data Source:"; lblDestDS.Location = new Point(labelX, y + 3); lblDestDS.Size = new Size(labelW, 24);
-            cmbDestDS.Location = new Point(comboX, y); cmbDestDS.Size = new Size(comboW, 30); y += 40;
+            // cmbFormat
+            cmbFormat.Location = new Point(200, 195);
+            cmbFormat.Name = "cmbFormat";
+            cmbFormat.Size = new Size(150, 30);
+            cmbFormat.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            lblDestEntity.Text = "Dest Entity:"; lblDestEntity.Location = new Point(labelX, y + 3); lblDestEntity.Size = new Size(labelW, 24);
-            cmbDestEntity.Location = new Point(comboX, y); cmbDestEntity.Size = new Size(comboW, 30);
+            // lblFilePath
+            lblFilePath.Text = "File Path:";
+            lblFilePath.Location = new Point(30, 238);
+            lblFilePath.Name = "lblFilePath";
+            lblFilePath.Size = new Size(160, 24);
+            lblFilePath.TextAlign = ContentAlignment.MiddleLeft;
+            lblFilePath.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            _formPanel.Controls.Add(lblSourceDS);
-            _formPanel.Controls.Add(cmbSourceDS);
-            _formPanel.Controls.Add(lblSourceEntity);
-            _formPanel.Controls.Add(cmbSourceEntity);
-            _formPanel.Controls.Add(lblDestMode);
-            _formPanel.Controls.Add(radioDestMode);
-            _formPanel.Controls.Add(lblFormat);
-            _formPanel.Controls.Add(cmbFormat);
-            _formPanel.Controls.Add(lblFilePath);
-            _formPanel.Controls.Add(txtFilePath);
-            _formPanel.Controls.Add(btnBrowse);
-            _formPanel.Controls.Add(lblDestDS);
-            _formPanel.Controls.Add(cmbDestDS);
-            _formPanel.Controls.Add(lblDestEntity);
-            _formPanel.Controls.Add(cmbDestEntity);
+            // txtFilePath
+            txtFilePath.Location = new Point(200, 235);
+            txtFilePath.Name = "txtFilePath";
+            txtFilePath.Size = new Size(310, 30);
+            txtFilePath.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
+            // btnBrowse
+            btnBrowse.Text = "...";
+            btnBrowse.Location = new Point(520, 235);
+            btnBrowse.Name = "btnBrowse";
+            btnBrowse.Size = new Size(30, 30);
+            btnBrowse.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            // lblDestDS
+            lblDestDS.Text = "Dest Data Source:";
+            lblDestDS.Location = new Point(30, 283);
+            lblDestDS.Name = "lblDestDS";
+            lblDestDS.Size = new Size(160, 24);
+            lblDestDS.TextAlign = ContentAlignment.MiddleLeft;
+            lblDestDS.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            // cmbDestDS
+            cmbDestDS.Location = new Point(200, 280);
+            cmbDestDS.Name = "cmbDestDS";
+            cmbDestDS.Size = new Size(350, 30);
+            cmbDestDS.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            // lblDestEntity
+            lblDestEntity.Text = "Dest Entity:";
+            lblDestEntity.Location = new Point(30, 323);
+            lblDestEntity.Name = "lblDestEntity";
+            lblDestEntity.Size = new Size(160, 24);
+            lblDestEntity.TextAlign = ContentAlignment.MiddleLeft;
+            lblDestEntity.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            // cmbDestEntity
+            cmbDestEntity.Location = new Point(200, 320);
+            cmbDestEntity.Name = "cmbDestEntity";
+            cmbDestEntity.Size = new Size(350, 30);
+            cmbDestEntity.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            // uc_ExportStep1_Select
             Controls.Add(_rootPanel);
+            Name = "uc_ExportStep1_Select";
+            Size = new Size(900, 600);
             _rootPanel.ResumeLayout(false);
-            _formPanel.ResumeLayout(false);
-            SuspendLayout();
+            ResumeLayout(false);
+            PerformLayout();
         }
 
         private BeepPanel _rootPanel;
-        private BeepPanel _headerPanel;
-        private BeepPanel _formPanel;
         private BeepLabel lblTitle;
         private BeepLabel lblSourceDS;
         private BeepComboBox cmbSourceDS;

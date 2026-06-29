@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
 {
     partial class uc_ImportStep3_Mapping
@@ -14,83 +16,100 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
         private void InitializeComponent()
         {
             _rootPanel = new BeepPanel();
-            _headerPanel = new BeepPanel();
-            _toolbarPanel = new BeepPanel();
-            _gridPanel = new BeepPanel();
             lblTitle = new BeepLabel();
-            lblMappingStatus = new BeepLabel();
             lblTemplateLoad = new BeepLabel();
             cmbTemplateLoad = new BeepComboBox();
-            btnTemplateSave = new BeepButton();
             btnTemplateLoad = new BeepButton();
+            btnTemplateSave = new BeepButton();
+            lblMappingStatus = new BeepLabel();
             mappingGrid = new DataGridView();
-
             _rootPanel.SuspendLayout();
-            _toolbarPanel.SuspendLayout();
-            _gridPanel.SuspendLayout();
             SuspendLayout();
 
-            _rootPanel.Controls.Add(_headerPanel);
-            _rootPanel.Controls.Add(_toolbarPanel);
-            _rootPanel.Controls.Add(_gridPanel);
+            // _rootPanel
+            _rootPanel.Controls.Add(mappingGrid);
+            _rootPanel.Controls.Add(lblMappingStatus);
+            _rootPanel.Controls.Add(btnTemplateSave);
+            _rootPanel.Controls.Add(btnTemplateLoad);
+            _rootPanel.Controls.Add(cmbTemplateLoad);
+            _rootPanel.Controls.Add(lblTemplateLoad);
+            _rootPanel.Controls.Add(lblTitle);
             _rootPanel.Dock = DockStyle.Fill;
+            _rootPanel.Location = new Point(0, 0);
+            _rootPanel.Name = "_rootPanel";
+            _rootPanel.Size = new Size(900, 600);
 
-            _headerPanel.Controls.Add(lblTitle);
-            _headerPanel.Dock = DockStyle.Top;
-            _headerPanel.Height = 50;
+            // lblTitle
             lblTitle.Text = "Step 3: Map Fields";
             lblTitle.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
-            lblTitle.Dock = DockStyle.Fill;
+            lblTitle.Location = new Point(20, 15);
+            lblTitle.Name = "lblTitle";
+            lblTitle.Size = new Size(860, 35);
             lblTitle.TextAlign = ContentAlignment.MiddleLeft;
+            lblTitle.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
-            _toolbarPanel.Controls.Add(lblMappingStatus);
-            _toolbarPanel.Controls.Add(lblTemplateLoad);
-            _toolbarPanel.Controls.Add(cmbTemplateLoad);
-            _toolbarPanel.Controls.Add(btnTemplateLoad);
-            _toolbarPanel.Controls.Add(btnTemplateSave);
-            _toolbarPanel.Dock = DockStyle.Top;
-            _toolbarPanel.Height = 40;
-
+            // lblTemplateLoad
             lblTemplateLoad.Text = "Template:";
-            lblTemplateLoad.Location = new Point(10, 10);
-            lblTemplateLoad.Size = new Size(60, 20);
-            cmbTemplateLoad.Location = new Point(75, 7);
-            cmbTemplateLoad.Size = new Size(200, 26);
-            btnTemplateLoad.Text = "Load";
-            btnTemplateLoad.Location = new Point(285, 5);
-            btnTemplateLoad.Size = new Size(70, 28);
-            btnTemplateSave.Text = "Save As";
-            btnTemplateSave.Location = new Point(365, 5);
-            btnTemplateSave.Size = new Size(70, 28);
-            lblMappingStatus.Text = "";
-            lblMappingStatus.Location = new Point(450, 10);
-            lblMappingStatus.Size = new Size(300, 20);
+            lblTemplateLoad.Location = new Point(20, 68);
+            lblTemplateLoad.Name = "lblTemplateLoad";
+            lblTemplateLoad.Size = new Size(70, 24);
+            lblTemplateLoad.TextAlign = ContentAlignment.MiddleLeft;
+            lblTemplateLoad.Anchor = AnchorStyles.Top | AnchorStyles.Left;
 
-            _gridPanel.Controls.Add(mappingGrid);
-            _gridPanel.Dock = DockStyle.Fill;
-            mappingGrid.Dock = DockStyle.Fill;
+            // cmbTemplateLoad
+            cmbTemplateLoad.Location = new Point(95, 65);
+            cmbTemplateLoad.Name = "cmbTemplateLoad";
+            cmbTemplateLoad.Size = new Size(220, 30);
+            cmbTemplateLoad.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            // btnTemplateLoad
+            btnTemplateLoad.Text = "Load";
+            btnTemplateLoad.Location = new Point(325, 63);
+            btnTemplateLoad.Name = "btnTemplateLoad";
+            btnTemplateLoad.Size = new Size(75, 30);
+            btnTemplateLoad.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            // btnTemplateSave
+            btnTemplateSave.Text = "Save As";
+            btnTemplateSave.Location = new Point(410, 63);
+            btnTemplateSave.Name = "btnTemplateSave";
+            btnTemplateSave.Size = new Size(80, 30);
+            btnTemplateSave.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+
+            // lblMappingStatus
+            lblMappingStatus.Text = "";
+            lblMappingStatus.Location = new Point(505, 68);
+            lblMappingStatus.Name = "lblMappingStatus";
+            lblMappingStatus.Size = new Size(375, 24);
+            lblMappingStatus.TextAlign = ContentAlignment.MiddleLeft;
+            lblMappingStatus.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+
+            // mappingGrid
+            mappingGrid.Location = new Point(20, 105);
+            mappingGrid.Name = "mappingGrid";
+            mappingGrid.Size = new Size(860, 475);
             mappingGrid.AllowUserToAddRows = false;
             mappingGrid.AllowUserToDeleteRows = false;
             mappingGrid.RowHeadersVisible = false;
             mappingGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            mappingGrid.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
 
+            // uc_ImportStep3_Mapping
             Controls.Add(_rootPanel);
+            Name = "uc_ImportStep3_Mapping";
+            Size = new Size(900, 600);
             _rootPanel.ResumeLayout(false);
-            _toolbarPanel.ResumeLayout(false);
-            _gridPanel.ResumeLayout(false);
-            SuspendLayout();
+            ResumeLayout(false);
+            PerformLayout();
         }
 
         private BeepPanel _rootPanel;
-        private BeepPanel _headerPanel;
-        private BeepPanel _toolbarPanel;
-        private BeepPanel _gridPanel;
         private BeepLabel lblTitle;
-        private BeepLabel lblMappingStatus;
         private BeepLabel lblTemplateLoad;
         private BeepComboBox cmbTemplateLoad;
-        private BeepButton btnTemplateSave;
         private BeepButton btnTemplateLoad;
+        private BeepButton btnTemplateSave;
+        private BeepLabel lblMappingStatus;
         private DataGridView mappingGrid;
     }
 }
