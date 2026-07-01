@@ -2,6 +2,8 @@
   <Project Path="../Beep.Desktop/TheTechIdea.Beep.Desktop.Common.Util/TheTechIdea.Beep.Desktop.Common.Util.csproj" />
   <Project Path="../Beep.Desktop/TheTechIdea.Beep.Desktop.Common/TheTechIdea.Beep.Desktop.Common.csproj" />
   <Project Path="../Beep.Shared/Beep.Shared/TheTechIdea.Beep.Shared.csproj" />
+  <Project Path="../Beep.Shared/TheTechIdea.Beep.Fonts/TheTechIdea.Beep.Fonts.csproj" />
+  <Project Path="../Beep.Shared/TheTechIdea.Beep.Icons/TheTechIdea.Beep.Icons.csproj" />
   <Project Path="../Beep.Winform/TheTechIdea.Beep.Vis.Modules2.0/TheTechIdea.Beep.Vis.Modules.csproj" />
   <Project Path="../Beep.Winform/TheTechIdea.Beep.Winform.Controls.Design.Server/TheTechIdea.Beep.Winform.Controls.Design.Server.csproj" />
   <Project Path="../Beep.Winform/TheTechIdea.Beep.Winform.Controls/TheTechIdea.Beep.Winform.Controls.csproj" />
