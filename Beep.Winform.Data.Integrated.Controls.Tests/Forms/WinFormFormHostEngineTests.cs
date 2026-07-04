@@ -35,11 +35,11 @@ public class WinFormFormHostEngineTests
             host.RegisterBlock(master.Object);
             host.RegisterBlock(detail.Object);
 
-            Assert.True(host.MoveFirstAsync("EMP").GetAwaiter().GetResult());
-            Assert.True(host.MovePreviousAsync("EMP").GetAwaiter().GetResult());
-            Assert.True(host.MoveNextAsync("EMP").GetAwaiter().GetResult());
-            Assert.True(host.MoveLastAsync("EMP").GetAwaiter().GetResult());
-            Assert.True(host.MoveToRecordAsync("EMP", 4).GetAwaiter().GetResult());
+            Assert.True(host.MoveFirstAsync("EMP"));
+            Assert.True(host.MovePreviousAsync("EMP"));
+            Assert.True(host.MoveNextAsync("EMP"));
+            Assert.True(host.MoveLastAsync("EMP"));
+            Assert.True(host.MoveToRecordAsync("EMP", 4));
 
             manager.Verify(m => m.FirstRecordAsync("EMP"), Times.Once);
             manager.Verify(m => m.PreviousRecordAsync("EMP"), Times.Once);
@@ -68,10 +68,10 @@ public class WinFormFormHostEngineTests
         var block = CreateBlock("EMP");
         host.RegisterBlock(block.Object);
 
-        Assert.True(host.InsertBlockRecordAsync("EMP").GetAwaiter().GetResult());
-        Assert.True(host.DeleteBlockCurrentRecordAsync("EMP").GetAwaiter().GetResult());
-        Assert.True(host.DuplicateCurrentRecordAsync("EMP").GetAwaiter().GetResult());
-        Assert.False(host.ExecuteQueryAsync("EMP").GetAwaiter().GetResult());
+        Assert.True(host.InsertBlockRecordAsync("EMP"));
+        Assert.True(host.DeleteBlockCurrentRecordAsync("EMP"));
+        Assert.True(host.DuplicateCurrentRecordAsync("EMP"));
+        Assert.False(host.ExecuteQueryAsync("EMP"));
 
         manager.Verify(m => m.InsertRecordAsync("EMP", null), Times.Once);
         manager.Verify(m => m.DeleteCurrentRecordAsync("EMP"), Times.Once);
@@ -99,10 +99,10 @@ public class WinFormFormHostEngineTests
         var block = CreateBlock("EMP");
         host.RegisterBlock(block.Object);
 
-        Assert.True(host.SaveBlockAsync("EMP").GetAwaiter().GetResult());
-        Assert.True(host.RollbackBlockAsync("EMP").GetAwaiter().GetResult());
-        Assert.True(host.ClearBlockAsync("EMP").GetAwaiter().GetResult());
-        Assert.True(host.ClearRecordAsync("EMP").GetAwaiter().GetResult());
+        Assert.True(host.SaveBlockAsync("EMP"));
+        Assert.True(host.RollbackBlockAsync("EMP"));
+        Assert.True(host.ClearBlockAsync("EMP"));
+        Assert.True(host.ClearRecordAsync("EMP"));
 
         unit.Verify(m => m.Commit(), Times.Once);
         unit.Verify(m => m.Rollback(), Times.Once);
@@ -123,8 +123,8 @@ public class WinFormFormHostEngineTests
         var block = CreateBlock("EMP");
         host.RegisterBlock(block.Object);
 
-        Assert.True(host.EnterQueryModeAsync("EMP").GetAwaiter().GetResult());
-        Assert.True(host.ExitQueryModeAsync("EMP").GetAwaiter().GetResult());
+        Assert.True(host.EnterQueryModeAsync("EMP"));
+        Assert.True(host.ExitQueryModeAsync("EMP"));
 
         manager.Verify(m => m.EnterQueryAsync("EMP"), Times.Once);
         manager.Verify(m => m.ExitingQueryModeAsync("EMP"), Times.Once);
@@ -194,7 +194,7 @@ public class WinFormFormHostEngineTests
         host.RegisterBlock(target.Object);
         host.RegisterBlock(detail.Object);
 
-        Assert.True(host.ExecuteQueryAsync("EMP").GetAwaiter().GetResult());
+        Assert.True(host.ExecuteQueryAsync("EMP"));
 
         target.Verify(m => m.SyncFromManager(), Times.Once);
         detail.Verify(m => m.SyncFromManager(), Times.Once);
@@ -216,7 +216,7 @@ public class WinFormFormHostEngineTests
         host.RegisterBlock(target.Object);
         host.RegisterBlock(detail.Object);
 
-        Assert.True(host.SaveBlockAsync("EMP").GetAwaiter().GetResult());
+        Assert.True(host.SaveBlockAsync("EMP"));
 
         unit.Verify(m => m.Commit(), Times.Once);
         target.Verify(m => m.SyncFromManager(), Times.Once);
@@ -249,8 +249,8 @@ public class WinFormFormHostEngineTests
 
         Assert.True(host.HasLov("EMP", "Name"));
         Assert.Same(lov, host.GetLov("EMP", "Name"));
-        Assert.Same(loaded, host.LoadLovDataAsync("EMP", "Name", "A").GetAwaiter().GetResult());
-        Assert.Same(shown, host.ShowLovAsync("EMP", "Name", "A").GetAwaiter().GetResult());
+        Assert.Same(loaded, host.LoadLovDataAsync("EMP", "Name", "A"));
+        Assert.Same(shown, host.ShowLovAsync("EMP", "Name", "A"));
         Assert.Same(related, host.GetLovRelatedFieldValues(lov, record));
         Assert.Same(
             validationResult,
@@ -263,9 +263,9 @@ public class WinFormFormHostEngineTests
         {
             using var host = new WinFormFormHost();
 
-            Assert.False(host.MoveNextAsync("EMP").GetAwaiter().GetResult());
-            Assert.False(host.SaveBlockAsync("EMP").GetAwaiter().GetResult());
-            Assert.False(host.ExecuteQueryAsync("EMP").GetAwaiter().GetResult());
+            Assert.False(host.MoveNextAsync("EMP"));
+            Assert.False(host.SaveBlockAsync("EMP"));
+            Assert.False(host.ExecuteQueryAsync("EMP"));
             Assert.Null(host.GetBlockInfo("EMP"));
             Assert.Null(host.GetBlockFields("EMP"));
             Assert.Null(host.GetBlockData("EMP"));
@@ -275,7 +275,7 @@ public class WinFormFormHostEngineTests
             Assert.Empty(host.GetDetailBlockNames("EMP"));
             Assert.False(host.HasLov("EMP", "Name"));
             Assert.Null(host.GetLov("EMP", "Name"));
-            Assert.False(host.LoadLovDataAsync("EMP", "Name").GetAwaiter().GetResult().Success);
+            Assert.False(host.LoadLovDataAsync("EMP", "Name").Success);
             Assert.Null(host.ValidateBlockRecord(
                 "EMP",
                 new Dictionary<string, object>(),
@@ -294,7 +294,7 @@ public class WinFormFormHostEngineTests
             var block = CreateBlock("EMP");
             host.RegisterBlock(block.Object);
 
-            Assert.False(host.MoveNextAsync("EMP").GetAwaiter().GetResult());
+            Assert.False(host.MoveNextAsync("EMP"));
             block.Verify(m => m.SyncFromManager(), Times.Never);
             host.ShowInfo("info");
             host.ShowWarning("warning");
@@ -309,7 +309,7 @@ public class WinFormFormHostEngineTests
         manager.Setup(m => m.GetDetailBlocks("EMP")).Returns([]);
         using var host = new WinFormFormHost { FormsManager = manager.Object };
 
-        Assert.True(host.MoveNextAsync(" EMP ").GetAwaiter().GetResult());
+        Assert.True(host.MoveNextAsync(" EMP "));
 
         manager.Verify(m => m.NextRecordAsync("EMP"), Times.Once);
     });

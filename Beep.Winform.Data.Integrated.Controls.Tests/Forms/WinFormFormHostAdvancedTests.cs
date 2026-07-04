@@ -111,7 +111,7 @@ public class WinFormFormHostAdvancedTests
         var triggers = new Mock<ITriggerManager>();
         var messages = new Mock<IMessageQueueManager>();
         var manager = CreateManager(triggers, messages);
-        manager.Setup(m => m.ShowAlertAsync(
+        manager.Setup(m => m.ShowAlert(
                 "Delete",
                 "Delete record?",
                 AlertStyle.Question,
@@ -124,7 +124,7 @@ public class WinFormFormHostAdvancedTests
 
         host.SetMessage("Saved", MessageLevel.Success);
         host.ClearMessage();
-        var result = await host.ShowAlertAsync(
+        var result = await host.ShowAlert(
             "Delete", "Delete record?", AlertStyle.Question, "Yes", "No");
 
         manager.Verify(m => m.SetMessage("Saved", MessageLevel.Success), Times.Once);

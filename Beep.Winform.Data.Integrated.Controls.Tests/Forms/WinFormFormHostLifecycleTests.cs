@@ -496,6 +496,6 @@ public class WinFormFormHostLifecycleTests
             Thread.Sleep(1);
         }
 
-        task.GetAwaiter().GetResult();
+        task;
     }
 }
