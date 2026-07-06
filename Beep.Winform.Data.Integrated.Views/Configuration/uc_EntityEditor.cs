@@ -9,6 +9,7 @@ using TheTechIdea.Beep.Addin;
 using TheTechIdea.Beep.Utilities;
 using TheTechIdea.Beep.Vis;
 using TheTechIdea.Beep.Winform.Controls;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Controls.Models;
 using TheTechIdea.Beep.Winform.Default.Views.Template;
 using TheTechIdea.Beep.Container.Services;
@@ -39,14 +40,20 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         private EntityEditorMode _mode = EntityEditorMode.CreateNew;
         private bool _isApplyingSchema;
         private string _lastSummary = "Idle";
+        // Skill § 5.2: layout is now declarative via TableLayoutPanel.
+        // The 6 designer-generated controls are re-parented into this table at construction time,
+        // which collapses 5 hand-rolled layout math calls into one Cell/Column/Row/ColumnSpan expression.
+        private TableLayoutPanel? _layoutRoot;
 
         public uc_EntityEditor(IServiceProvider services): base(services)
         {
             InitializeComponent();
-          
+
             Details.AddinName = "Entity Editor";
             Resize -= Uc_EntityEditor_Resize;
             Resize += Uc_EntityEditor_Resize;
+
+            EnsureResponsiveLayout();
 
         }
         #region "IAddinVisSchema"
@@ -174,7 +181,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             ApplybeepButton.ToolTipText = "Applies create or update operation based on current mode.";
             ConfigureContextIcons();
 
-            ApplyResponsiveLayout();
+            // Skill § 5.2: layout is now declarative via TableLayoutPanel; no manual relayout needed.
             RefreshProgressiveDisclosure(GetEntityNameFromUi());
         }
 
@@ -849,51 +856,95 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
         private void Uc_EntityEditor_Resize(object? sender, EventArgs e)
         {
-            ApplyResponsiveLayout();
+            // Skill § 5.2: layout is declarative — TableLayoutPanel + Dock=Fill handles resize.
+            // No manual recalculation needed. The call is kept for backward compatibility.
+            _ = 0;
         }
 
-        private void ApplyResponsiveLayout()
+        /// <summary>
+        /// Skill § 5.2 + § 10.9: build a single <see cref="TableLayoutPanel"/> that hosts all 6
+        /// designer-generated children. The panel is created once and re-used; the IDE does not
+        /// touch the children (they remain designer-owned). All sizing comes from
+        /// <see cref="BeepLayoutMetrics"/> tokens, with column/row styles that scale at any DPI.
+        ///
+        /// <para>Layout grid (3 columns × 4 rows):</para>
+        /// <code>
+        /// ┌────────────────────────────────────┬──────────────────┐
+        /// │ _titleLabel (spans 3 cols, AutoSize)                  │ row 0
+        /// ├──────────────────────┬─────────────┬──────────────────┤
+        /// │ DatasourcebeepComboBox │ Entities    │ ApplybeepButton  │ row 1
+        /// │ (Percent 40)          │ (Percent 40)│ (Absolute 170)   │
+        /// ├──────────────────────┴─────────────┴──────────────────┤
+        /// │ _stateLabel (spans 3 cols, AutoSize)                │ row 2
+        /// ├─────────────────────────────────────────────────────┤
+        /// │ EntityFieldsbeepGridPro (spans 3 cols, Percent 100)  │ row 3
+        /// └─────────────────────────────────────────────────────┘
+        /// </code>
+        /// </summary>
+        private void EnsureResponsiveLayout()
         {
-            if (IsDisposed)
+            if (IsDisposed || _layoutRoot != null) return;
+
+            int buttonColWidth = BeepLayoutMetrics.ButtonLarge.Width.ScaleValue(this)
+                               + BeepLayoutMetrics.ButtonGap.ScaleValue(this) * 4;
+
+            _layoutRoot = new TableLayoutPanel
             {
-                return;
-            }
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 4,
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this),
+            };
 
-            const int outerMargin = 16;
-            const int sectionGap = 12;
-            const int topY = 44;
-            const int controlHeight = 44;
-            const int applyWidth = 170;
-            const int minComboWidth = 180;
-            const int gridTop = 132;
-            const int gridBottomGap = 16;
+            // Columns: 2 stretchy combo columns + 1 fixed-width Apply column.
+            _layoutRoot.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));
+            _layoutRoot.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));
+            _layoutRoot.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, buttonColWidth));
 
-            _titleLabel.Location = new System.Drawing.Point(outerMargin, 12);
-            _titleLabel.Size = new System.Drawing.Size(Math.Max(220, Width / 3), 24);
+            // Rows: title (AutoSize), combos (AutoSize), status (AutoSize), grid (Percent 100).
+            _layoutRoot.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // row 0: title
+            _layoutRoot.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // row 1: combos + button
+            _layoutRoot.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // row 2: status
+            _layoutRoot.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // row 3: grid stretches
 
-            var contentWidth = Math.Max(0, Width - (outerMargin * 2));
-            var totalGap = sectionGap * 2;
-            var availableForCombo = Math.Max((minComboWidth * 2), contentWidth - applyWidth - totalGap);
-            var comboWidth = Math.Max(minComboWidth, availableForCombo / 2);
+            _layoutRoot.SuspendLayout();
 
-            DatasourcebeepComboBox.Location = new System.Drawing.Point(outerMargin, topY);
-            DatasourcebeepComboBox.Size = new System.Drawing.Size(comboWidth, controlHeight);
+            // Re-parent the 6 designer-generated children out of `this.Controls` and into the table.
+            // Skill § 10.9: controls stay designer-owned; only their parent changes.
+            _titleLabel?.Parent?.Controls.Remove(_titleLabel);
+            _stateLabel?.Parent?.Controls.Remove(_stateLabel);
+            DatasourcebeepComboBox?.Parent?.Controls.Remove(DatasourcebeepComboBox);
+            EntitiesbeepComboBox?.Parent?.Controls.Remove(EntitiesbeepComboBox);
+            ApplybeepButton?.Parent?.Controls.Remove(ApplybeepButton);
+            EntityFieldsbeepGridPro?.Parent?.Controls.Remove(EntityFieldsbeepGridPro);
 
-            EntitiesbeepComboBox.Location = new System.Drawing.Point(DatasourcebeepComboBox.Right + sectionGap, topY);
-            EntitiesbeepComboBox.Size = new System.Drawing.Size(comboWidth, controlHeight);
+            // Populate the grid.
+            // Row 0: title — spans all 3 columns.
+            _layoutRoot.Controls.Add(_titleLabel, 0, 0);
+            _layoutRoot.SetColumnSpan(_titleLabel, 3);
 
-            ApplybeepButton.Location = new System.Drawing.Point(Math.Max(outerMargin, Width - outerMargin - applyWidth), topY + 4);
-            ApplybeepButton.Size = new System.Drawing.Size(applyWidth, 36);
-            ApplybeepButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            // Row 1: two combos side by side + Apply button on the right.
+            _layoutRoot.Controls.Add(DatasourcebeepComboBox, 0, 1);
+            _layoutRoot.Controls.Add(EntitiesbeepComboBox, 1, 1);
+            _layoutRoot.Controls.Add(ApplybeepButton, 2, 1);
+            // Skill § 5.2: inputs fill the cell; the cell sizes them.
+            DatasourcebeepComboBox.Dock = DockStyle.Fill;
+            EntitiesbeepComboBox.Dock = DockStyle.Fill;
+            ApplybeepButton.Dock = DockStyle.Fill;
 
-            _stateLabel.Location = new System.Drawing.Point(outerMargin, 96);
-            _stateLabel.Size = new System.Drawing.Size(Math.Max(120, Width - (outerMargin * 2)), 24);
+            // Row 2: status — spans all 3 columns.
+            _layoutRoot.Controls.Add(_stateLabel, 0, 2);
+            _layoutRoot.SetColumnSpan(_stateLabel, 3);
 
-            EntityFieldsbeepGridPro.Location = new System.Drawing.Point(outerMargin, gridTop);
-            EntityFieldsbeepGridPro.Size = new System.Drawing.Size(
-                Math.Max(240, Width - (outerMargin * 2)),
-                Math.Max(180, Height - gridTop - gridBottomGap));
-            EntityFieldsbeepGridPro.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            // Row 3: grid — spans all 3 columns, fills remaining vertical space.
+            _layoutRoot.Controls.Add(EntityFieldsbeepGridPro, 0, 3);
+            _layoutRoot.SetColumnSpan(EntityFieldsbeepGridPro, 3);
+            EntityFieldsbeepGridPro.Dock = DockStyle.Fill;
+
+            // Mount the table on the UserControl.
+            Controls.Add(_layoutRoot);
+
+            _layoutRoot.ResumeLayout(true);
         }
 
         private void RefreshProgressiveDisclosure(string? entityName)

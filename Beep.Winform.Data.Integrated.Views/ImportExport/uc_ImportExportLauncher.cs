@@ -1,6 +1,7 @@
 using TheTechIdea.Beep.Container.Services;
 using TheTechIdea.Beep.Editor.Importing;
 using TheTechIdea.Beep.Editor.Importing.Factories;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Default.Views.ImportExport.Models;
 using TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import;
 using TheTechIdea.Beep.Winform.Default.Views.ImportExport.Export;
@@ -59,7 +60,8 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport
             {
                 Title = "Import Wizard",
                 Description = "Import data from source to destination",
-                Size = new Size(950, 700),
+                // Skill § 1: use BeepLayoutMetrics tokens for dialog sizes; ScaleSize() DPI-scales the value.
+                Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this),
                 Style = WizardStyle.HorizontalStepper,
             };
 
@@ -85,7 +87,8 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport
             {
                 Title = "Export Wizard",
                 Description = "Export data to file or another data source",
-                Size = new Size(950, 700),
+                // Skill § 1: use BeepLayoutMetrics tokens for dialog sizes; ScaleSize() DPI-scales the value.
+                Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this),
                 Style = WizardStyle.HorizontalStepper,
             };
 

@@ -47,6 +47,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             GraphicsPath graphicsPath22 = new GraphicsPath();
             _rootPanel = new BeepPanel();
             _contentHost = new BeepPanel();
+            _lblStagedPackages = new BeepLabel();
             _lblFallback3 = new BeepLabel();
             _lblFallback2 = new BeepLabel();
             _lblFallback1 = new BeepLabel();
@@ -277,6 +278,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             _contentHost.ContentRect = new Rectangle(0, 0, 0, 0);
             graphicsPath4.FillMode = FillMode.Alternate;
             _contentHost.ContentShape = graphicsPath4;
+            _contentHost.Controls.Add(_lblStagedPackages);
             _contentHost.Controls.Add(_lblFallback3);
             _contentHost.Controls.Add(_lblFallback2);
             _contentHost.Controls.Add(_lblFallback1);
@@ -422,7 +424,24 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             _contentHost.UseGradientBackground = false;
             _contentHost.UseRichToolTip = true;
             _contentHost.UseThemeFont = true;
-            // 
+            //
+            // _lblStagedPackages
+            //
+            _lblStagedPackages.BackColor = SystemColors.Info;
+            _lblStagedPackages.BorderPainter = BeepControlStyle.Material3;
+            _lblStagedPackages.BorderRadius = 4;
+            _lblStagedPackages.BorderStyle = BorderStyle.FixedSingle;
+            _lblStagedPackages.BorderThickness = 1;
+            _lblStagedPackages.Dock = DockStyle.Bottom;
+            _lblStagedPackages.Font = new Font("Segoe UI", 9F, FontStyle.Italic);
+            _lblStagedPackages.ForeColor = Color.FromArgb(33, 33, 33);
+            _lblStagedPackages.Name = "_lblStagedPackages";
+            _lblStagedPackages.Padding = new Padding(8, 6, 8, 6);
+            _lblStagedPackages.Size = new Size(667, 32);
+            _lblStagedPackages.TabIndex = 0;
+            _lblStagedPackages.Text = "Staged drivers (from ConfigEditor.DataDriversClasses):";
+            _lblStagedPackages.TextAlign = ContentAlignment.MiddleLeft;
+            //
             // _lblFallback3
             // 
             _lblFallback3.AccessibleDescription = "- Download missing packages from configured sources.";
@@ -1617,5 +1636,6 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
         private TheTechIdea.Beep.Winform.Controls.BeepLabel _lblFallback1;
         private TheTechIdea.Beep.Winform.Controls.BeepLabel _lblFallback2;
         private TheTechIdea.Beep.Winform.Controls.BeepLabel _lblFallback3;
+        private TheTechIdea.Beep.Winform.Controls.BeepLabel _lblStagedPackages;
     }
 }

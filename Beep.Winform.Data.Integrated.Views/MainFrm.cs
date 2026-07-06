@@ -7,6 +7,7 @@ using TheTechIdea.Beep.Vis;
 using TheTechIdea.Beep.Vis.Modules;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.Integrated.NuggetsManage;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Default.Views.ImportExport;
 using TheTechIdea.Beep.Winform.Default.Views.Setup;
 using TheTechIdea.Beep.Winform.Default.Views.Template;
@@ -107,32 +108,81 @@ namespace TheTechIdea.Beep.Winform.Default.Views
             if (IsDisposed || Disposing) return;
             if (_appBootstrap != null) return;
 
-            _appBootstrap = new uc_AppBootstrap(_serviceprovider);
-            _appBootstrap.BootstrapCompleted -= AppBootstrap_BootstrapCompleted;
-            _appBootstrap.BootstrapCompleted += AppBootstrap_BootstrapCompleted;
-            _appBootstrap.Dock = DockStyle.Fill;
-            Controls.Add(_appBootstrap);
-            _appBootstrap.BringToFront();
-        }
+            // Skill § 9.1 (parent rule) + § 9.6 (runtime popup allowed):
+            //   The bootstrap is a *user-requested first-run popup*, not a layout surface, so
+            //   wrapping it in a modal Form is the right pattern. The host Form is the dialog;
+            //   uc_AppBootstrap is its single child.
+            //
+            // Why a modal popup instead of Controls.Add(_appBootstrap):
+            //   - The main form is correctly disabled until the user finishes / skips / escapes.
+            //   - Pressing Esc closes the dialog (CancelButton = the invisible Esc-handler below).
+            //   - The user can close via the X button (DialogResult.Cancel) or complete the wizard
+            //     (BootstrapCompleted → DialogResult.OK) — both are explicit user choices.
+            var host = new Form
+            {
+                Text = "First Run Setup",
+                // Skill § 1: dialog size flows from BeepLayoutMetrics tokens; DPI-aware.
+                Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MinimizeBox = false,
+                MaximizeBox = false,
+                ShowInTaskbar = false,
+                KeyPreview = true,   // so Esc reaches the Form before child controls
+            };
 
-        private async void AppBootstrap_BootstrapCompleted(object? sender, BootstrapCompletedEventArgs e)
-        {
+            _appBootstrap = new uc_AppBootstrap(_serviceprovider)
+            {
+                Dock = DockStyle.Fill
+            };
+            _appBootstrap.BootstrapCompleted += AppBootstrap_BootstrapCompleted;
+            host.Controls.Add(_appBootstrap);
+
+            // Esc binding: a Cancel-only button doesn't have to be visible — assigning it to
+            // CancelButton is what wires the Esc key to close the dialog with DialogResult.Cancel.
+            var escHandler = new Button
+            {
+                Text = "Cancel",
+                DialogResult = DialogResult.Cancel,
+                Visible = false,     // hidden — only the Esc keybinding matters
+                TabStop = false
+            };
+            host.CancelButton = escHandler;
+            host.AcceptButton = escHandler; // also bind Enter → Cancel (defensive)
+
+            // Skill § 9.1: blocking modal call. Pass owner so dialog stays on top of MainFrm.
+            DialogResult result = host.ShowDialog(this);
+
+            // Cleanup after the dialog closes (Esc, X, or BootstrapCompleted).
+            // The host Dispose cascade also disposes _appBootstrap; the explicit Dispose here
+            // runs first so event handlers can still unhook cleanly.
             if (_appBootstrap != null)
             {
-                if (InvokeRequired) BeginInvoke(RemoveBootstrapControl);
-                else RemoveBootstrapControl();
+                _appBootstrap.BootstrapCompleted -= AppBootstrap_BootstrapCompleted;
+                _appBootstrap.Dispose();
+                _appBootstrap = null;
+            }
+            host.Dispose();
+
+            // Only initialize the workspace if the user completed (or skipped) the bootstrap
+            // (DialogResult.OK). Esc / X button / window-close leave it untouched.
+            if (result == DialogResult.OK)
+            {
+                InitializeWorkspaceControls();
             }
         }
 
-        private void RemoveBootstrapControl()
+        private void AppBootstrap_BootstrapCompleted(object? sender, BootstrapCompletedEventArgs e)
         {
+            // Skill § 9.6: the user has explicitly completed the bootstrap. Close the host
+            // dialog with OK so ShowDialog returns and the workspace initializes.
             if (_appBootstrap == null) return;
-            _appBootstrap.BootstrapCompleted -= AppBootstrap_BootstrapCompleted;
-            Controls.Remove(_appBootstrap);
-            _appBootstrap.Dispose();
-            _appBootstrap = null;
 
-            InitializeWorkspaceControls();
+            var host = _appBootstrap.Parent as Form;
+            if (host == null || host.IsDisposed) return;
+
+            if (host.InvokeRequired) host.BeginInvoke(() => { host.DialogResult = DialogResult.OK; host.Close(); });
+            else { host.DialogResult = DialogResult.OK; host.Close(); }
         }
 
         private void InitializeWorkspaceControls()

@@ -7,6 +7,7 @@ using System.Windows.Forms;
 using TheTechIdea.Beep.Tools;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.CheckBoxes;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Controls.Models;
 using TheTechIdea.Beep.Winform.Controls.Wizards;
 using TheTechIdea.Beep.Winform.Controls.Wizards.Forms;
@@ -41,9 +42,11 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
         private void BuildLayout()
         {
             Dock = DockStyle.Fill;
-            Padding = new Padding(12);
+            // Skill § 5.6: Token-based padding — scales with DPI automatically.
+            Padding = BeepLayoutMetrics.DialogPadding.ScalePadding(this);
             var t = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 6 };
-            t.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
+            // Skill § 5.2: Label column = Absolute token; input column = Percent.
+            t.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BeepLayoutMetrics.LabelColumnWidth.ScaleValue(this)));
             t.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             t.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             t.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -52,20 +55,21 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
             t.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             t.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            _lblPackage = new BeepLabel { Text = "Package:", AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 6, 6, 6) };
+            var smallGap = BeepLayoutMetrics.SmallGap.ScaleValue(this);
+            _lblPackage = new BeepLabel { Text = "Package:", AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, smallGap, smallGap, smallGap) };
             t.SetColumnSpan(_lblPackage, 2);
 
-            _lblVersion = new BeepLabel { Text = "Version:", AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 6, 6) };
-            _cmbVersion  = new BeepComboBox { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 6) };
+            _lblVersion = new BeepLabel { Text = "Version:", AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, smallGap, smallGap) };
+            _cmbVersion  = new BeepComboBox { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, smallGap) };
             _cmbVersion.SelectedIndexChanged += (s, e) => IsComplete = _cmbVersion.SelectedItem != null;
             t.Controls.Add(_lblVersion, 0, 1);
             t.Controls.Add(_cmbVersion,  1, 1);
 
-            _lblPath = new BeepLabel { Text = "Install path:", AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 6, 6) };
+            _lblPath = new BeepLabel { Text = "Install path:", AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, smallGap, smallGap) };
             var pathPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
             pathPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            pathPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
-            _txtPath  = new BeepTextBox { Dock = DockStyle.Fill, PlaceholderText = "(default)", Margin = new Padding(0, 0, 4, 0) };
+            pathPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BeepLayoutMetrics.ButtonStandard.Width.ScaleValue(this)));
+            _txtPath  = new BeepTextBox { Dock = DockStyle.Fill, PlaceholderText = "(default)", Margin = new Padding(0, 0, BeepLayoutMetrics.ButtonGap, 0) };
             _btnBrowse = new BeepButton { Text = "Browse…", Dock = DockStyle.Fill };
             _btnBrowse.Click += (s, e) =>
             {
@@ -77,19 +81,19 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
             t.Controls.Add(_lblPath, 0, 2);
             t.Controls.Add(pathPanel, 1, 2);
 
-            _chkLoad    = new BeepCheckBoxBool { Text = "Load after install",  AutoSize = true, Dock = DockStyle.Fill, CurrentValue = true,  Margin = new Padding(0, 4, 0, 4) };
-            _chkShared  = new BeepCheckBoxBool { Text = "Use single shared context", AutoSize = true, Dock = DockStyle.Fill, CurrentValue = true,  Margin = new Padding(0, 0, 0, 4) };
-            _chkProcess = new BeepCheckBoxBool { Text = "Use process host",   AutoSize = true, Dock = DockStyle.Fill, CurrentValue = false, Margin = new Padding(0, 0, 0, 4) };
+            _chkLoad    = new BeepCheckBoxBool { Text = "Load after install",  AutoSize = true, Dock = DockStyle.Fill, CurrentValue = true,  Margin = new Padding(0, BeepLayoutMetrics.SmallGap.ScaleValue(this), 0, BeepLayoutMetrics.SmallGap.ScaleValue(this)) };
+            _chkShared  = new BeepCheckBoxBool { Text = "Use single shared context", AutoSize = true, Dock = DockStyle.Fill, CurrentValue = true,  Margin = new Padding(0, 0, 0, BeepLayoutMetrics.SmallGap.ScaleValue(this)) };
+            _chkProcess = new BeepCheckBoxBool { Text = "Use process host",   AutoSize = true, Dock = DockStyle.Fill, CurrentValue = false, Margin = new Padding(0, 0, 0, BeepLayoutMetrics.SmallGap.ScaleValue(this)) };
             t.SetColumnSpan(_chkLoad, 2);    t.Controls.Add(_chkLoad,    0, 3);
             t.SetColumnSpan(_chkShared, 2);  t.Controls.Add(_chkShared,  0, 4);
             t.SetColumnSpan(_chkProcess, 2); t.Controls.Add(_chkProcess, 0, 5);
 
-            _lblStatus = new BeepLabel { Text = string.Empty, AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 4, 0, 0) };
+            _lblStatus = new BeepLabel { Text = string.Empty, AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, BeepLayoutMetrics.SmallGap.ScaleValue(this), 0, 0) };
             // Status bar pinned at bottom
             _lblStatus.Dock = DockStyle.Bottom;
-            _lblStatus.Height = 22;
+            _lblStatus.Height = BeepLayoutMetrics.LabelStandard.Height.ScaleValue(this);
             _lblStatus.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            _lblStatus.Padding = new Padding(4, 0, 0, 0);
+            _lblStatus.Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this);
 
             Controls.Add(t);
             Controls.Add(_lblStatus);

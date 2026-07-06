@@ -1,21 +1,25 @@
 using System;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TheTechIdea.Beep.SetUp;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.ProgressBars;
-using TheTechIdea.Beep.Winform.Controls.Wizards;
+using TheTechIdea.Beep.Winform.Default.Views.Template;
 
 namespace TheTechIdea.Beep.Winform.Default.Views.Setup
 {
-    public partial class uc_SetupReviewRunStep : UserControl, IWizardStepContent
+    // Full refactor: the review panel binds to the canonical ISetupStep + SetupContext.
+    // The Run button invokes step.Validate(context) and step.Execute(context, progress)
+    // on the canonical framework — no local SetupExecutor, no legacy wizard types.
+    public partial class uc_SetupReviewRunStep : TemplateUserControl
     {
         public event EventHandler? RunSetupRequested;
 
-        private SetupReport? _lastReport;
-        private WizardContext? _wizardContext;
-        private bool _isComplete;
+        private ISetupStep? _canonicalStep;
+        private SetupContext? _canonicalContext;
+        private CancellationTokenSource? _runCts;
 
         public uc_SetupReviewRunStep()
         {
@@ -23,129 +27,84 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             _btnRunSetup.Click += BtnRunSetup_Click;
         }
 
-        public bool IsComplete
+        /// <summary>
+        /// Bind the review panel to a canonical <see cref="ISetupStep"/> + <see cref="SetupContext"/>.
+        /// The Run button will invoke step.Validate(context) then step.Execute(context, progress).
+        /// </summary>
+        public void BindToCanonicalStep(ISetupStep step, SetupContext context)
         {
-            get => _isComplete;
-            private set
-            {
-                if (_isComplete == value) return;
-                _isComplete = value;
-                ValidationStateChanged?.Invoke(this, new StepValidationEventArgs(_isComplete, _isComplete ? string.Empty : "Review not ready"));
-            }
+            _canonicalStep = step;
+            _canonicalContext = context;
+            _lblSummary.Text = $"Step: {step.StepName} — {step.Description}";
         }
 
-        public event EventHandler<StepValidationEventArgs>? ValidationStateChanged;
-
-        public string NextButtonText { get; set; } = string.Empty;
-
-        public void SetSummary(string summary)
-        {
-            _lblSummary.Text = summary;
-        }
-
+        public void SetSummary(string summary) => _lblSummary.Text = summary;
         public void SetProgress(int value, string status)
         {
             _progressBar.Value = value < 0 ? 0 : value > 100 ? 100 : value;
             _lblProgressStatus.Text = status;
         }
+        public void SetExecutionPath(string executionPath) => _lblExecutionPath.Text = $"Execution Path: {executionPath}";
+        public void SetLastRunSummary(string summary) => _lblLastRunSummary.Text = $"Last Run: {summary}";
+        public void SetRunningState(bool isRunning) => _btnRunSetup.Enabled = !isRunning;
 
-        public void SetExecutionPath(string executionPath)
+        private void BtnRunSetup_Click(object? sender, EventArgs e)
         {
-            _lblExecutionPath.Text = $"Execution Path: {executionPath}";
-        }
-
-        public void SetLastRunSummary(string summary)
-        {
-            _lblLastRunSummary.Text = $"Last Run: {summary}";
-        }
-
-        public void SetRunningState(bool isRunning)
-        {
-            _btnRunSetup.Enabled = !isRunning;
-        }
-
-        public void SetReport(SetupReport? report)
-        {
-            _lastReport = report;
-            if (report == null)
+            if (_canonicalStep == null || _canonicalContext == null)
+            {
+                SetLastRunSummary("Canonical step / context not bound. The wizard host should call BindToCanonicalStep before showing the review step.");
                 return;
-
-            var sb = new StringBuilder();
-            sb.AppendLine($"Wizard: {report.WizardId} (Run {report.RunId})");
-            sb.AppendLine($"Environment: {report.Environment}");
-            sb.AppendLine($"Started: {report.StartedAt.LocalDateTime:yyyy-MM-dd HH:mm:ss}");
-            sb.AppendLine($"Finished: {report.FinishedAt.LocalDateTime:yyyy-MM-dd HH:mm:ss}");
-            sb.AppendLine($"Total: {report.TotalElapsed}");
-            sb.AppendLine($"Succeeded: {report.Succeeded}");
-            sb.AppendLine($"Content hash: {report.ContentHash}");
-            sb.AppendLine();
-            sb.AppendLine("Step results:");
-
-            if (report.StepResults == null || report.StepResults.Count == 0)
-            {
-                sb.AppendLine("  (no steps reported)");
             }
-            else
+
+            // Fire-and-forget but exceptions are routed to status instead of crashing the host.
+            _ = RunSetupSafelyAsync();
+        }
+
+        private async Task RunSetupSafelyAsync()
+        {
+            _runCts?.Cancel();
+            _runCts?.Dispose();
+            _runCts = new CancellationTokenSource();
+            var token = _runCts.Token;
+
+            try
             {
-                int idx = 1;
-                foreach (var result in report.StepResults)
+                SetRunningState(true);
+                if (_canonicalContext != null)
+                    _canonicalContext.State.StartedAt = DateTimeOffset.UtcNow;
+
+                var progress = new Progress<PassedArgs>(args =>
                 {
-                    var status = result.Succeeded
-                        ? (result.Skipped ? "SKIPPED" : "OK")
-                        : "FAILED";
-                    sb.AppendLine($"  {idx++}. [{status}] {result.StepName} ({result.StepId}) - {result.Message} ({result.Elapsed})");
+                    if (args.ParameterInt1 > 0)
+                        SetProgress(args.ParameterInt1, args.Messege ?? string.Empty);
+                    _lblProgressStatus.Text = args.Messege ?? string.Empty;
+                });
+
+                var result = _canonicalStep.Validate(_canonicalContext!);
+                if (result.Flag == Errors.Failed)
+                {
+                    SetLastRunSummary($"Validation failed: {result.Message}");
+                    return;
                 }
+
+                result = _canonicalStep.Execute(_canonicalContext!, progress);
+                if (result.Flag == Errors.Ok)
+                    _canonicalContext?.State.CompletedStepIds.Add(_canonicalStep.StepId);
+
+                SetLastRunSummary(result.Flag == Errors.Ok
+                    ? "Setup step completed successfully."
+                    : $"Setup step failed: {result.Message}");
+                SetProgress(result.Flag == Errors.Ok ? 100 : 0, _lblProgressStatus.Text);
             }
-
-            _lblLastRunSummary.Text = sb.ToString();
+            catch (Exception ex)
+            {
+                SetLastRunSummary($"Setup step crashed: {ex.Message}");
+            }
+            finally
+            {
+                SetRunningState(false);
+            }
         }
 
-        public SetupReport? LastReport => _lastReport;
-
-        public void ApplyTheme(string theme)
-        {
-            ApplyThemeToControl(_rootPanel, theme);
-            ApplyThemeToControl(_headerPanel, theme);
-            ApplyThemeToControl(_contentPanel, theme);
-            ApplyThemeToControl(_lblTitle, theme);
-            ApplyThemeToControl(_lblDescription, theme);
-            ApplyThemeToControl(_lblSummary, theme);
-            ApplyThemeToControl(_lblExecutionPath, theme);
-            ApplyThemeToControl(_lblLastRunSummary, theme);
-            ApplyThemeToControl(_lblProgressStatus, theme);
-            ApplyThemeToControl(_progressBar, theme);
-            ApplyThemeToControl(_btnRunSetup, theme);
-        }
-
-        private void BtnRunSetup_Click(object? sender, System.EventArgs e)
-        {
-            RunSetupRequested?.Invoke(this, System.EventArgs.Empty);
-        }
-
-        private static void ApplyThemeToControl(Control control, string theme)
-        {
-            if (control is IBeepUIComponent beepComponent)
-                beepComponent.Theme = theme;
-        }
-
-        void IWizardStepContent.OnStepEnter(WizardContext context)
-        {
-            _wizardContext = context;
-            IsComplete = true;
-        }
-
-        void IWizardStepContent.OnStepLeave(WizardContext context)
-        {
-        }
-
-        WizardValidationResult IWizardStepContent.Validate()
-        {
-            return WizardValidationResult.Success();
-        }
-
-        Task<WizardValidationResult> IWizardStepContent.ValidateAsync()
-        {
-            return Task.FromResult(WizardValidationResult.Success());
-        }
     }
 }

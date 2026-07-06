@@ -10,6 +10,7 @@ using TheTechIdea.Beep.Tools;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.CheckBoxes;
 using TheTechIdea.Beep.Winform.Controls.GridX;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Controls.Models;
 using TheTechIdea.Beep.Winform.Controls.Wizards;
 using TheTechIdea.Beep.Winform.Controls.Wizards.Forms;
@@ -49,29 +50,31 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
         private void BuildLayout()
         {
             Dock = DockStyle.Fill;
-            Padding = new Padding(8);
+            // Skill § 5.6: Token-based padding scales with DPI.
+            Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this);
 
             var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5 };
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, BeepLayoutMetrics.LabelStandard.Height.ScaleValue(this) * 3));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             // Search bar
-            var bar = new TableLayoutPanel { Dock = DockStyle.Top, Height = 32, ColumnCount = 5 };
+            var bar = new TableLayoutPanel { Dock = DockStyle.Top, Height = BeepLayoutMetrics.ButtonStandard.Height.ScaleValue(this), ColumnCount = 5 };
             bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BeepLayoutMetrics.ComboBox.Width.ScaleValue(this)));
             bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
-            bar.Padding = new Padding(0, 0, 0, 4);
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BeepLayoutMetrics.ButtonSmall.Width.ScaleValue(this)));
+            var smallGap = BeepLayoutMetrics.SmallGap.ScaleValue(this);
+            bar.Padding = new Padding(0, 0, 0, smallGap);
 
-            _lblSource    = new BeepLabel { Text = "Source:", AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 6, 4, 0) };
-            _cmbSource    = new BeepComboBox { Dock = DockStyle.Fill, Margin = new Padding(0, 4, 4, 4) };
-            _txtSearch    = new BeepTextBox { Dock = DockStyle.Fill, PlaceholderText = "Search packages…", Margin = new Padding(0, 4, 4, 4) };
-            _chkPrerelease= new BeepCheckBoxBool { Text = "Prerelease", AutoSize = true, Dock = DockStyle.Fill, CurrentValue = false, Margin = new Padding(0, 8, 4, 0) };
-            _btnSearch    = new BeepButton { Text = "Search", Dock = DockStyle.Fill, Margin = new Padding(0, 4, 0, 4) };
+            _lblSource    = new BeepLabel { Text = "Source:", AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, smallGap + 2, smallGap, 0) };
+            _cmbSource    = new BeepComboBox { Dock = DockStyle.Fill, Margin = new Padding(0, smallGap, smallGap, smallGap) };
+            _txtSearch    = new BeepTextBox { Dock = DockStyle.Fill, PlaceholderText = "Search packages…", Margin = new Padding(0, smallGap, smallGap, smallGap) };
+            _chkPrerelease= new BeepCheckBoxBool { Text = "Prerelease", AutoSize = true, Dock = DockStyle.Fill, CurrentValue = false, Margin = new Padding(0, smallGap + 4, smallGap, 0) };
+            _btnSearch    = new BeepButton { Text = "Search", Dock = DockStyle.Fill, Margin = new Padding(0, smallGap, 0, smallGap) };
 
             _txtSearch.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) _ = SearchAsync(); };
             _btnSearch.Click   += (s, e) => _ = SearchAsync();
@@ -110,24 +113,24 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
                 AutoSize = true,
                 Dock = DockStyle.Left,
                 Font = new System.Drawing.Font(System.Drawing.SystemFonts.MessageBoxFont ?? System.Drawing.SystemFonts.DefaultFont, System.Drawing.FontStyle.Bold),
-                Margin = new Padding(0, 4, 0, 0)
+                Margin = new Padding(0, smallGap, 0, 0)
             };
             root.Controls.Add(_lblSourcesTitle, 0, 2);
 
             // Sources edit
-            var src = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 6, Height = 32 };
-            src.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+            var src = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 6, Height = BeepLayoutMetrics.ButtonStandard.Height.ScaleValue(this) };
+            src.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BeepLayoutMetrics.LabelColumnWidth.ScaleValue(this) + smallGap * 3));
             src.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             src.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            src.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
-            src.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
-            src.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
+            src.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BeepLayoutMetrics.ButtonSmall.Width.ScaleValue(this)));
+            src.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BeepLayoutMetrics.ButtonSmall.Width.ScaleValue(this)));
+            src.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BeepLayoutMetrics.ButtonSmall.Width.ScaleValue(this)));
 
-            _txtSourceName    = new BeepTextBox { Dock = DockStyle.Fill, PlaceholderText = "Source name",    Margin = new Padding(0, 2, 4, 0) };
-            _txtSourceUrl     = new BeepTextBox { Dock = DockStyle.Fill, PlaceholderText = "URL or local path", Margin = new Padding(0, 2, 4, 0) };
-            _chkSourceEnabled = new BeepCheckBoxBool { Text = "Enabled", AutoSize = true, Dock = DockStyle.Fill, CurrentValue = true, Margin = new Padding(0, 8, 4, 0) };
-            _btnAddSource     = new BeepButton { Text = "Add",    Dock = DockStyle.Fill, Margin = new Padding(0, 2, 4, 0) };
-            _btnRemoveSource  = new BeepButton { Text = "Remove", Dock = DockStyle.Fill, Margin = new Padding(0, 2, 4, 0) };
+            _txtSourceName    = new BeepTextBox { Dock = DockStyle.Fill, PlaceholderText = "Source name",    Margin = new Padding(0, 2, smallGap, 0) };
+            _txtSourceUrl     = new BeepTextBox { Dock = DockStyle.Fill, PlaceholderText = "URL or local path", Margin = new Padding(0, 2, smallGap, 0) };
+            _chkSourceEnabled = new BeepCheckBoxBool { Text = "Enabled", AutoSize = true, Dock = DockStyle.Fill, CurrentValue = true, Margin = new Padding(0, smallGap + 4, smallGap, 0) };
+            _btnAddSource     = new BeepButton { Text = "Add",    Dock = DockStyle.Fill, Margin = new Padding(0, 2, smallGap, 0) };
+            _btnRemoveSource  = new BeepButton { Text = "Remove", Dock = DockStyle.Fill, Margin = new Padding(0, 2, smallGap, 0) };
             _btnTestSource    = new BeepButton { Text = "Test",   Dock = DockStyle.Fill, Margin = new Padding(0, 2, 0, 0) };
 
             _btnAddSource.Click    += BtnAddSource_Click;
@@ -143,7 +146,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
             root.Controls.Add(src, 0, 3);
 
             // Status
-            _lblStatus = new BeepLabel { Text = "Ready", Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0, 4, 0, 0) };
+            _lblStatus = new BeepLabel { Text = "Ready", Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0, smallGap, 0, 0) };
             root.Controls.Add(_lblStatus, 0, 4);
 
             Controls.Add(root);

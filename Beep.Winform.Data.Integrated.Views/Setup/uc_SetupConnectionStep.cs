@@ -1,21 +1,25 @@
 using System;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using TheTechIdea.Beep.ConfigUtil;
 using TheTechIdea.Beep.Helpers;
 using TheTechIdea.Beep.Services;
+using TheTechIdea.Beep.SetUp;
 using TheTechIdea.Beep.SetUp.Steps;
 using TheTechIdea.Beep.Winform.Controls;
-using TheTechIdea.Beep.Winform.Controls.Wizards;
 using TheTechIdea.Beep.Winform.Default.Views.DataSource_Connection_Controls;
+using TheTechIdea.Beep.Winform.Default.Views.Template;
 
 namespace TheTechIdea.Beep.Winform.Default.Views.Setup
 {
-    public partial class uc_SetupConnectionStep : UserControl, IWizardStepContent
+    // Full refactor: UI step wraps a typed ConnectionConfigStepOptions directly.
+    // No more IWizardStepContent / WizardContext / Properties[] dictionary hack.
+    // The canonical ConnectionConfigStep reads options.ConnectionProperties during Execute,
+    // so UI mutations take effect immediately.
+    public partial class uc_SetupConnectionStep : TemplateUserControl
     {
         private uc_DataConnectionBase? _connectionEditor;
-        private WizardContext? _wizardContext;
-        private bool _isComplete;
+        private ConnectionConfigStepOptions? _options;
+        private SetupContext? _context;
 
         public event EventHandler<ConnectionSavedEventArgs>? ConnectionSaved;
         public event EventHandler? ConnectionCancelled;
@@ -48,81 +52,45 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             InitializeComponent();
         }
 
-        public bool IsComplete
+        /// <summary>
+        /// Bind the connection editor to the typed <see cref="ConnectionConfigStepOptions"/>.
+        /// The wizard host passes the same options object that will be handed to the canonical
+        /// <see cref="ConnectionConfigStep"/> when execution starts, so UI changes flow into
+        /// Execute without a string-keyed dictionary.
+        /// </summary>
+        public void InitializeStep(ConnectionConfigStepOptions options, SetupContext context)
         {
-            get => _isComplete;
-            private set
-            {
-                if (_isComplete == value) return;
-                _isComplete = value;
-                ValidationStateChanged?.Invoke(this, new StepValidationEventArgs(_isComplete, _isComplete ? string.Empty : "Connection not ready"));
-            }
-        }
+            _options = options ?? throw new ArgumentNullException(nameof(options));
+            _context = context ?? throw new ArgumentNullException(nameof(context));
 
-        public event EventHandler<StepValidationEventArgs>? ValidationStateChanged;
-
-        public string NextButtonText { get; set; } = string.Empty;
-
-        public void InitializeStep(IBeepService? beepService, string theme)
-        {
             _contentHost.Controls.Clear();
 
-            _connectionEditor = new uc_DataConnectionBase
-            {
-                Dock = DockStyle.Fill
-            };
+            // Seed the editor with whatever the wizard host has pre-populated.
+            var initial = options.ConnectionProperties ?? new ConnectionProperties();
 
-            if (beepService != null)
-                _connectionEditor.BeepService = beepService;
+            _connectionEditor = new uc_DataConnectionBase { Dock = DockStyle.Fill };
+            if (_context.Properties.TryGetValue("beepService", out var svcObj) && svcObj is IBeepService svc)
+                _connectionEditor.BeepService = svc;
 
             _connectionEditor.ConnectionSaved += ConnectionEditor_ConnectionSaved;
             _connectionEditor.ConnectionCancelled += ConnectionEditor_ConnectionCancelled;
             _connectionEditor.ConnectionTestCompleted += ConnectionEditor_ConnectionTestCompleted;
 
-            _connectionEditor.InitializeDialog(new ConnectionProperties());
+            _connectionEditor.InitializeDialog(initial);
             _contentHost.Controls.Add(_connectionEditor);
-
-            ApplyTheme(theme);
-        }
-
-        public ConnectionProperties? GetConnectionProperties()
-        {
-            return _connectionEditor?.GetUpdatedProperties();
-        }
-
-        public void SetConnectionProperties(ConnectionProperties connectionProperties)
-        {
-            if (_connectionEditor == null)
-                return;
-
-            _connectionEditor.InitializeDialog(connectionProperties ?? new ConnectionProperties());
         }
 
         /// <summary>
-        /// Returns a connection-properties snapshot seeded with the best-matching driver
-        /// resolved through <see cref="ConnectionHelper"/>, ready to feed a
-        /// <see cref="ConnectionConfigStep"/>.
+        /// Returns the current connection-properties snapshot from the editor. Useful for callers
+        /// that want to read state without subscribing to <see cref="ConnectionSaved"/>.
         /// </summary>
-        public ConnectionProperties? GetConnectionPropertiesForStep()
-        {
-            var cp = GetConnectionProperties();
-            if (cp == null)
-                return null;
+        public ConnectionProperties? GetConnectionProperties()
+            => _connectionEditor?.GetUpdatedProperties();
 
-            var editor = _connectionEditor?.BeepService?.DMEEditor;
-            if (editor?.ConfigEditor != null)
-            {
-                var driver = ConnectionHelper.GetBestMatchingDriver(cp, editor.ConfigEditor);
-                if (driver != null)
-                {
-                    cp.DriverName = driver.PackageName;
-                    cp.DriverVersion = driver.version;
-                }
-            }
-
-            return cp;
-        }
-
+        /// <summary>
+        /// True when the user has supplied a connection name + type + connection string.
+        /// Drives the next-button enabled state on the wizard host.
+        /// </summary>
         public bool IsReadyForSetup()
         {
             var cp = GetConnectionProperties();
@@ -133,11 +101,11 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             return true;
         }
 
+        /// <summary>One-line human-readable summary for the review step.</summary>
         public string GetStepSummary()
         {
             var cp = GetConnectionProperties();
-            if (cp == null)
-                return "Connection: Not initialized.";
+            if (cp == null) return "Connection: Not initialized.";
 
             var name = string.IsNullOrWhiteSpace(cp.ConnectionName) ? "(unnamed)" : cp.ConnectionName;
             var dbType = cp.DatabaseType.ToString();
@@ -147,26 +115,13 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             return $"Connection: Name={name}, Type={dbType}, ConnectionString={hasConnectionString}, Driver={driver}, Status={ready}";
         }
 
-        public void ApplyTheme(string theme)
-        {
-            ApplyThemeToControl(_rootPanel, theme);
-            ApplyThemeToControl(_headerPanel, theme);
-            ApplyThemeToControl(_contentHost, theme);
-            ApplyThemeToControl(_lblTitle, theme);
-            ApplyThemeToControl(_lblDescription, theme);
-
-            if (_connectionEditor is IBeepUIComponent beepControl)
-                beepControl.Theme = theme;
-        }
-
-        private static void ApplyThemeToControl(Control control, string theme)
-        {
-            if (control is IBeepUIComponent beepComponent)
-                beepComponent.Theme = theme;
-        }
-
         private void ConnectionEditor_ConnectionSaved(object? sender, uc_DataConnectionBase.ConnectionSavedEventArgs e)
         {
+            // Skill: write the user-edited connection DIRECTLY into the typed options, so the
+            // canonical ConnectionConfigStep reads it during Execute. No dictionary, no reflection.
+            if (_options != null)
+                _options.ConnectionProperties = e.ConnectionProperties;
+
             ConnectionSaved?.Invoke(this, new ConnectionSavedEventArgs(e.ConnectionProperties));
         }
 
@@ -178,35 +133,6 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
         private void ConnectionEditor_ConnectionTestCompleted(object? sender, uc_DataConnectionBase.ConnectionTestCompletedEventArgs e)
         {
             ConnectionTestCompleted?.Invoke(this, new ConnectionTestCompletedEventArgs(e.Success, e.Message));
-        }
-
-        void IWizardStepContent.OnStepEnter(WizardContext context)
-        {
-            _wizardContext = context;
-            IsComplete = IsReadyForSetup();
-        }
-
-        void IWizardStepContent.OnStepLeave(WizardContext context)
-        {
-            var cp = GetConnectionPropertiesForStep();
-            if (cp != null && !string.IsNullOrWhiteSpace(cp.ConnectionName))
-            {
-                context.SetValue("connectionProperties", cp);
-                context.SetValue("connectionName", cp.ConnectionName);
-            }
-        }
-
-        WizardValidationResult IWizardStepContent.Validate()
-        {
-            if (!IsReadyForSetup())
-                return WizardValidationResult.Error("Connection configuration is incomplete. Fill all required fields before continuing.");
-
-            return WizardValidationResult.Success();
-        }
-
-        Task<WizardValidationResult> IWizardStepContent.ValidateAsync()
-        {
-            return Task.FromResult(((IWizardStepContent)this).Validate());
         }
     }
 }

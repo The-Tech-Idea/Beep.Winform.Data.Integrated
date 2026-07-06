@@ -6,6 +6,7 @@ using System.Windows.Forms;
 using TheTechIdea.Beep.NuGet;
 using TheTechIdea.Beep.Tools;
 using TheTechIdea.Beep.Winform.Controls;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Controls.ProgressBars;
 using TheTechIdea.Beep.Winform.Controls.Wizards;
 using TheTechIdea.Beep.Winform.Controls.Wizards.Forms;
@@ -46,30 +47,33 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
         private void BuildLayout()
         {
             Dock = DockStyle.Fill;
-            Padding = new Padding(12);
+            // Skill § 5.6: Token-based padding scales with DPI.
+            Padding = BeepLayoutMetrics.DialogPadding.ScalePadding(this);
 
             _lblSummary = new BeepLabel
             {
                 Dock = DockStyle.Fill,
                 Font = new System.Drawing.Font("Consolas", 10F),
                 Text = string.Empty,
-                Padding = new Padding(8),
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this),
                 BorderStyle = BorderStyle.FixedSingle,
                 TextAlign = System.Drawing.ContentAlignment.TopLeft
             };
 
-            _progress = new BeepProgressBar { Dock = DockStyle.Bottom, Height = 6, Visible = false };
+            // Skill § default-size tokens: ProgressBar = 16 px high (UI idiom for thin progress strips).
+            _progress = new BeepProgressBar { Dock = DockStyle.Bottom, Height = BeepLayoutMetrics.ProgressBar.Height.ScaleValue(this) / 3, Visible = false };
 
             _lblStatus = new BeepLabel
             {
                 Dock = DockStyle.Bottom,
-                Height = 22,
+                Height = BeepLayoutMetrics.LabelStandard.Height.ScaleValue(this),
                 Text = "Click Install to proceed.",
                 TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
-                Padding = new Padding(4, 0, 0, 0)
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this)
             };
 
-            _btnInstall = new BeepButton { Text = "Install", Dock = DockStyle.Bottom, Height = 36 };
+            // Skill § default-size tokens: Primary CTA = ButtonLarge (130 × 36).
+            _btnInstall = new BeepButton { Text = "Install", Dock = DockStyle.Bottom, Height = BeepLayoutMetrics.ButtonLarge.Height.ScaleValue(this) };
             _btnInstall.Click += async (s, e) => await RunInstallAsync();
 
             // Z-order: Fill on top, then bottom controls

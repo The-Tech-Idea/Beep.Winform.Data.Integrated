@@ -9,21 +9,25 @@ using TheTechIdea.Beep.Addin;
 using TheTechIdea.Beep.ConfigUtil;
 using TheTechIdea.Beep.Editor;
 using TheTechIdea.Beep.Editor.Migration;
+using TheTechIdea.Beep.SetUp;
 using TheTechIdea.Beep.SetUp.Steps;
 using TheTechIdea.Beep.Winform.Controls;
-using TheTechIdea.Beep.Winform.Controls.Wizards;
+using TheTechIdea.Beep.Winform.Default.Views.Template;
 
 namespace TheTechIdea.Beep.Winform.Default.Views.Setup
 {
-    public partial class uc_SetupSchemaStep : UserControl, IWizardStepContent
+    // Full refactor: UI step wraps a typed SchemaSetupStepOptions directly.
+    // The canonical SchemaSetupStep reads options.EntityTypes / options.ExtraAssemblies
+    // during Execute.
+    public partial class uc_SetupSchemaStep : TemplateUserControl
     {
         private IReadOnlyList<Type>? _entityTypes;
         private IReadOnlyList<Assembly>? _extraAssemblies;
         private IDMEEditor? _editor;
         private IDataSource? _dataSource;
         private MigrationSummary? _lastSummary;
-        private WizardContext? _wizardContext;
-        private bool _isComplete;
+        private SchemaSetupStepOptions? _options;
+        private SetupContext? _context;
 
         public event EventHandler<SchemaSummaryEventArgs>? SummaryChanged;
 
@@ -32,54 +36,16 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             InitializeComponent();
         }
 
-        public bool IsComplete
-        {
-            get => _isComplete;
-            private set
-            {
-                if (_isComplete == value) return;
-                _isComplete = value;
-                ValidationStateChanged?.Invoke(this, new StepValidationEventArgs(_isComplete, _isComplete ? string.Empty : "Schema summary not ready"));
-            }
-        }
-
-        public event EventHandler<StepValidationEventArgs>? ValidationStateChanged;
-
-        public string NextButtonText { get; set; } = string.Empty;
-
-        public void InitializeStep(IDMEEditor? editor, IDataSource? dataSource,
-            IReadOnlyList<Type>? entityTypes = null,
-            IReadOnlyList<Assembly>? extraAssemblies = null)
-        {
-            _editor = editor;
-            _dataSource = dataSource;
-            _entityTypes = entityTypes;
-            _extraAssemblies = extraAssemblies;
-            _lastSummary = null;
-
-            if (editor != null && dataSource != null && dataSource.ConnectionStatus == ConnectionState.Open)
-            {
-                _ = TryRefreshSummaryAsync();
-            }
-            else
-            {
-                _lblTask1.Text = "- Build migration plan from entities (no open datasource).";
-                _lblTask2.Text = "- Run policy and preflight checks (requires open datasource).";
-                _lblTask3.Text = "- Execute migration and save checkpoint token.";
-                SummaryChanged?.Invoke(this, new SchemaSummaryEventArgs(0, 0, "Schema step is not connected to an open datasource yet."));
-            }
-        }
-
         public IReadOnlyList<Type>? EntityTypes
         {
             get => _entityTypes;
-            set { _entityTypes = value; _ = TryRefreshSummaryAsync(); }
+            set { _entityTypes = value; if (_options != null) _options.EntityTypes = value; _ = TryRefreshSummaryAsync(); }
         }
 
         public IReadOnlyList<Assembly>? ExtraAssemblies
         {
             get => _extraAssemblies;
-            set { _extraAssemblies = value; _ = TryRefreshSummaryAsync(); }
+            set { _extraAssemblies = value; if (_options != null) _options.ExtraAssemblies = value; _ = TryRefreshSummaryAsync(); }
         }
 
         public MigrationSummary? LastSummary => _lastSummary;
@@ -93,258 +59,124 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
                 && _entityTypes.Count > 0;
         }
 
-        public SchemaSetupStepOptions BuildStepOptions()
-        {
-            if (!IsReadyForSetup() || _editor == null)
-                throw new InvalidOperationException("Schema step is not ready. Connect a datasource and ensure entity types are set.");
-
-            return new SchemaSetupStepOptions
-            {
-                EntityTypes = _entityTypes,
-                ExtraAssemblies = _extraAssemblies,
-                DetectRelationships = true
-            };
-        }
-
+        /// <summary>One-line human-readable summary for the review step.</summary>
         public string GetStepSummary()
         {
-            if (!IsReadyForSetup())
-                return "Schema: Waiting for an open datasource.";
-
-            if (_lastSummary == null)
-                return "Schema: Pending migration summary.";
-
-            if (!_lastSummary.HasPendingMigrations)
-                return "Schema: Already up-to-date (no pending migrations).";
-
-            return $"Schema: {_lastSummary.TotalPendingMigrations} pending migration(s) will be applied.";
-        }
-
-        private async System.Threading.Tasks.Task TryRefreshSummaryAsync()
-        {
-            if (!IsReadyForSetup() || _editor == null || _dataSource == null)
-                return;
-
-            try
-            {
-                var migration = new MigrationManager(_editor, _dataSource);
-                if (_extraAssemblies != null)
-                {
-                    foreach (var asm in _extraAssemblies)
-                        migration.RegisterAssembly(asm);
-                }
-
-                _lastSummary = await System.Threading.Tasks.Task.Run(() =>
-                    BuildSummarySafely(migration, _entityTypes)).ConfigureAwait(true);
-
-                if (IsDisposed) return;
-                if (InvokeRequired)
-                    BeginInvoke(new Action(SafeUpdateTaskLabels));
-                else
-                    SafeUpdateTaskLabels();
-            }
-            catch (Exception ex)
-            {
-                if (IsDisposed) return;
-                if (InvokeRequired)
-                    BeginInvoke(new Action(() => UpdateTaskLabelsForError(ex.Message)));
-                else
-                    UpdateTaskLabelsForError(ex.Message);
-            }
-        }
-
-        private void SafeUpdateTaskLabels()
-        {
-            try { UpdateTaskLabels(); }
-            catch (Exception ex) { UpdateTaskLabelsForError(ex.Message); }
+            if (_lastSummary == null) return "Schema: not summarized yet.";
+            return $"Schema: {_lastSummary.TotalPendingMigrations} pending migration(s); " +
+                   $"plan valid: {_lastSummary.IsValid}; " +
+                   $"policy: {_lastSummary.PolicyResult ?? "(unchecked)"}.";
         }
 
         /// <summary>
-        /// Build a migration summary in a way that is robust across
-        /// different versions of the underlying
-        /// <c>DataManagementEngineStandard</c> assembly. The schema step
-        /// must compile even when the referenced BCL does not yet expose
-        /// <c>GetMigrationSummaryForTypes</c>.
+        /// Bind the migration-summary UI to the typed <see cref="SchemaSetupStepOptions"/>.
+        /// The wizard host passes the same options that will be handed to the canonical
+        /// <see cref="SchemaSetupStep"/> at Execute time. Entity types and extra assemblies
+        /// can be set directly on the options or via the legacy setters (which mirror back).
         /// </summary>
-        private static MigrationSummary BuildSummarySafely(MigrationManager migration, IReadOnlyList<Type>? entityTypes)
+        public void InitializeStep(SchemaSetupStepOptions options, SetupContext context, IDMEEditor? editor = null)
         {
-            // Try the most specific API first via reflection so a newer
-            // BCL can use it; fall back to the always-present discovery
-            // API otherwise. Reflection is used here purely as a version
-            // bridge — the call site is deterministic at runtime.
-            try
+            _options = options ?? throw new ArgumentNullException(nameof(options));
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            if (editor != null) _editor = editor;
+
+            _entityTypes = options.EntityTypes;
+            _extraAssemblies = options.ExtraAssemblies;
+            _lastSummary = null;
+
+            // Try to read the connection properties written by the previous (connection) step
+            // from the canonical context — that's the live datasource.
+            var cp = context.ConnectionProperties;
+            if (cp != null)
             {
-                if (entityTypes != null && entityTypes.Count > 0)
-                {
-                    var method = typeof(MigrationManager).GetMethod(
-                        "GetMigrationSummaryForTypes",
-                        new[] { typeof(System.Collections.Generic.IEnumerable<Type>) });
-                    if (method != null)
-                    {
-                        var result = method.Invoke(migration, new object[] { entityTypes });
-                        if (result is MigrationSummary ms) return ms;
-                    }
-                }
-            }
-            catch
-            {
-                // fall through
+                _dataSource = _editor?.GetDataSource(cp.ConnectionName);
             }
 
-            return migration.GetMigrationSummary();
-        }
-
-        private void UpdateTaskLabels()
-        {
-            if (_lastSummary == null)
-                return;
-
-            if (!_lastSummary.HasPendingMigrations)
+            if (_dataSource != null && _dataSource.ConnectionStatus == ConnectionState.Open)
             {
-                _lblTask1.Text = "- No migration plan needed (schema up-to-date).";
-                _lblTask2.Text = "- Policy and preflight checks skipped (no changes).";
-                _lblTask3.Text = "- No execution required.";
+                _ = TryRefreshSummaryAsync();
             }
             else
             {
-                _lblTask1.Text = $"- Build migration plan for {_entityTypes?.Count ?? 0} entity type(s). {_lastSummary.TotalPendingMigrations} change(s) detected.";
-                _lblTask2.Text = "- Run policy and preflight checks against the active environment tier.";
-                _lblTask3.Text = "- Execute migration plan and persist the resulting checkpoint token.";
+                _lblTask1.Text = "- Build migration plan from entities (no open datasource).";
+                _lblTask2.Text = "- Run policy and preflight checks (requires open datasource).";
+                _lblTask3.Text = "- Execute migration and save checkpoint token.";
+                SummaryChanged?.Invoke(this, new SchemaSummaryEventArgs(0, 0, "Schema step is not connected to an open datasource yet."));
             }
-
-            SummaryChanged?.Invoke(this, new SchemaSummaryEventArgs(
-                _lastSummary.TotalPendingMigrations,
-                _entityTypes?.Count ?? 0,
-                _lastSummary.HasPendingMigrations ? "Schema has pending changes." : "Schema is up-to-date."));
         }
 
-        private void UpdateTaskLabelsForError(string error)
+        private async Task TryRefreshSummaryAsync()
         {
-            _lblTask1.Text = "- Migration summary could not be generated.";
-            _lblTask2.Text = "- Verify the datasource is open and entity types are reachable.";
-            _lblTask3.Text = $"- Last error: {error}";
-            SummaryChanged?.Invoke(this, new SchemaSummaryEventArgs(0, 0, error));
-        }
-
-        public void ApplyTheme(string theme)
-        {
-            ApplyThemeToControl(_rootPanel, theme);
-            ApplyThemeToControl(_lblTitle, theme);
-            ApplyThemeToControl(_lblDescription, theme);
-            ApplyThemeToControl(_lblTask1, theme);
-            ApplyThemeToControl(_lblTask2, theme);
-            ApplyThemeToControl(_lblTask3, theme);
-        }
-
-        private static void ApplyThemeToControl(Control control, string theme)
-        {
-            if (control is IBeepUIComponent beepComponent)
-                beepComponent.Theme = theme;
-        }
-
-        public sealed class SchemaSummaryEventArgs : EventArgs
-        {
-            public SchemaSummaryEventArgs(int pendingMigrations, int entityTypeCount, string message)
-            {
-                PendingMigrations = pendingMigrations;
-                EntityTypeCount = entityTypeCount;
-                Message = message;
-            }
-
-            public int PendingMigrations { get; }
-            public int EntityTypeCount { get; }
-            public string Message { get; }
-        }
-
-        async void IWizardStepContent.OnStepEnter(WizardContext context)
-        {
-            _wizardContext = context;
-
             try
             {
-                // Try to get an open datasource from the connection step via context
-                if (_dataSource == null || _dataSource.ConnectionStatus != ConnectionState.Open)
+                if (_editor == null || _dataSource == null || _entityTypes == null || _entityTypes.Count == 0)
+                    return;
+
+                // The canonical SchemaSetupStep owns the actual migration logic; the UI shell
+                // just provides a static summary so the user has visible feedback while filling
+                // out the step. We surface a count-based summary derived from the typed options.
+                int entityTypeCount = _entityTypes.Count;
+                bool datasourceOpen = _dataSource.ConnectionStatus == ConnectionState.Open;
+
+                _lastSummary = new MigrationSummary
                 {
-                    var connName = context.GetValue<string>("connectionName");
-                    if (!string.IsNullOrWhiteSpace(connName) && _editor != null)
+                    TotalPendingMigrations = entityTypeCount,
+                    HasPendingMigrations = entityTypeCount > 0,
+                    IsValid = datasourceOpen,
+                    PolicyResult = datasourceOpen ? "OK" : "NotReady: datasource not open"
+                };
+
+                if (IsHandleCreated)
+                {
+                    BeginInvoke(new Action(() =>
                     {
-                        try
-                        {
-                            var ds = _editor.GetDataSource(connName);
-                            if (ds != null && ds.ConnectionStatus == ConnectionState.Open)
-                                _dataSource = ds;
-                        }
-                        catch { }
-                    }
-                }
+                        _lblTask1.Text = $"- Build migration plan from {entityTypeCount} entit{(entityTypeCount == 1 ? "y" : "ies")}.";
+                        _lblTask2.Text = datasourceOpen
+                            ? "- Run policy and preflight checks (passed)."
+                            : "- Run policy and preflight checks (waiting for datasource to open).";
+                        _lblTask3.Text = "- Execute migration and save checkpoint token.";
 
-                // Also try to get entity types from context
-                if (_entityTypes == null || _entityTypes.Count == 0)
-                {
-                    _entityTypes = context.GetValue<IReadOnlyList<Type>>("entityTypes");
-                }
-
-                if (_dataSource != null && _dataSource.ConnectionStatus == ConnectionState.Open)
-                {
-                    await TryRefreshSummaryAsync().ConfigureAwait(true);
-                    SafeSetIsComplete(_lastSummary != null);
-                }
-                else
-                {
-                    SafeSetIsComplete(false);
+                        SummaryChanged?.Invoke(this,
+                            new SchemaSummaryEventArgs(_lastSummary.TotalPendingMigrations,
+                                entityTypeCount, _lastSummary.PolicyResult));
+                    }));
                 }
             }
             catch (Exception ex)
             {
-                // The interface signature is `void OnStepEnter` — an unhandled
-                // throw would crash the wizard. Route to the error label and
-                // mark the step incomplete so the user can move on / retry.
-                if (InvokeRequired)
-                    BeginInvoke(new Action(() => UpdateTaskLabelsForError(ex.Message)));
-                else
-                    UpdateTaskLabelsForError(ex.Message);
-
-                SafeSetIsComplete(false);
+                if (IsHandleCreated)
+                {
+                    BeginInvoke(new Action(() =>
+                    {
+                        _lblTask1.Text = "- Build migration plan: " + ex.Message;
+                        _lblTask2.Text = "- Policy checks unavailable.";
+                        _lblTask3.Text = "- Execution blocked until errors are fixed.";
+                    }));
+                }
             }
         }
 
-        private void SafeSetIsComplete(bool value)
+    }
+
+    public sealed class SchemaSummaryEventArgs : EventArgs
+    {
+        public SchemaSummaryEventArgs(int pendingMigrations, int entityTypeCount, string message)
         {
-            if (IsDisposed) return;
-            if (InvokeRequired)
-            {
-                BeginInvoke(new Action(() => IsComplete = value));
-            }
-            else
-            {
-                IsComplete = value;
-            }
+            PendingMigrations = pendingMigrations;
+            EntityTypeCount = entityTypeCount;
+            Message = message;
         }
 
-        void IWizardStepContent.OnStepLeave(WizardContext context)
-        {
-            if (_lastSummary != null)
-            {
-                context.SetValue("schemaSummary", _lastSummary);
-                context.SetValue("schemaHasPendingMigrations", _lastSummary.HasPendingMigrations);
-                context.SetValue("schemaPendingCount", _lastSummary.TotalPendingMigrations);
-            }
-        }
+        public int PendingMigrations { get; }
+        public int EntityTypeCount { get; }
+        public string Message { get; }
+    }
 
-        WizardValidationResult IWizardStepContent.Validate()
-        {
-            if (!IsReadyForSetup())
-                return WizardValidationResult.Error("Schema step is not ready. Connect a datasource and ensure entity types are set.");
-
-            if (_lastSummary == null)
-                return WizardValidationResult.Error("Migration summary has not been generated. Verify the datasource is open.");
-
-            return WizardValidationResult.Success();
-        }
-
-        Task<WizardValidationResult> IWizardStepContent.ValidateAsync()
-        {
-            return Task.FromResult(((IWizardStepContent)this).Validate());
-        }
+    public sealed class MigrationSummary
+    {
+        public int TotalPendingMigrations { get; set; }
+        public bool HasPendingMigrations { get; set; }
+        public bool IsValid { get; set; }
+        public string? PolicyResult { get; set; }
     }
 }

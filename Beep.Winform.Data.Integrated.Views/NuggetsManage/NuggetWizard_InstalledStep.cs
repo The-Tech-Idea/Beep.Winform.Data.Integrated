@@ -7,6 +7,7 @@ using System.Windows.Forms;
 using TheTechIdea.Beep.Tools;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.GridX;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Controls.Models;
 using TheTechIdea.Beep.Winform.Controls.Wizards;
 using TheTechIdea.Beep.Winform.Controls.Wizards.Forms;
@@ -48,13 +49,16 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
         private void BuildLayout()
         {
             Dock = DockStyle.Fill;
-            Padding = new Padding(8);
+            // Skill § 5.6: Token-based padding scales with DPI.
+            Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this);
 
             var split = new SplitContainer
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical,
-                SplitterDistance = 480
+                // Skill § 5.3: Use BeepLayoutMetrics.Sidebar.Width for the initial splitter distance
+                // so the left pane stays in proportion at any DPI.
+                SplitterDistance = (int)(BeepLayoutMetrics.Sidebar.Width.ScaleValue(this) * 1.6)
             };
 
             // ── Left: Installed packages ──────────────────────────────────────
@@ -63,12 +67,13 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
             left.RowStyles.Add(new RowStyle(SizeType.Percent, 60F));
             left.RowStyles.Add(new RowStyle(SizeType.Percent, 40F));
 
-            var bar = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Padding = new Padding(0, 0, 0, 4) };
-            _btnRefresh = new BeepButton { Text = "Refresh", AutoSize = true, Margin = new Padding(0, 4, 4, 0) };
-            _btnLoad    = new BeepButton { Text = "Load",    AutoSize = true, Margin = new Padding(0, 4, 4, 0) };
-            _btnUnload  = new BeepButton { Text = "Unload",  AutoSize = true, Margin = new Padding(0, 4, 4, 0) };
-            _btnUpdate  = new BeepButton { Text = "Update",  AutoSize = true, Margin = new Padding(0, 4, 4, 0) };
-            _btnRemove  = new BeepButton { Text = "Remove",  AutoSize = true, Margin = new Padding(0, 4, 0, 0) };
+            var smallGap = BeepLayoutMetrics.SmallGap.ScaleValue(this);
+            var bar = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Padding = new Padding(0, 0, 0, smallGap) };
+            _btnRefresh = new BeepButton { Text = "Refresh", AutoSize = true, Margin = new Padding(0, smallGap, smallGap, 0) };
+            _btnLoad    = new BeepButton { Text = "Load",    AutoSize = true, Margin = new Padding(0, smallGap, smallGap, 0) };
+            _btnUnload  = new BeepButton { Text = "Unload",  AutoSize = true, Margin = new Padding(0, smallGap, smallGap, 0) };
+            _btnUpdate  = new BeepButton { Text = "Update",  AutoSize = true, Margin = new Padding(0, smallGap, smallGap, 0) };
+            _btnRemove  = new BeepButton { Text = "Remove",  AutoSize = true, Margin = new Padding(0, smallGap, 0, 0) };
             _btnRefresh.Click += async (s, e) => await RefreshInstalledAsync();
             _btnLoad.Click    += (s, e) => LoadSelected();
             _btnUnload.Click  += (s, e) => UnloadSelected();
@@ -97,7 +102,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
                 Dock = DockStyle.Fill,
                 Text = "(none selected)",
                 Font = new System.Drawing.Font("Consolas", 9F),
-                Padding = new Padding(6),
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this),
                 BorderStyle = BorderStyle.FixedSingle
             };
 
@@ -113,8 +118,8 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
             right.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            var logBar = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Padding = new Padding(0, 0, 0, 4) };
-            _cmbFilter  = new BeepComboBox { Width = 120, Margin = new Padding(0, 4, 4, 0) };
+            var logBar = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Padding = new Padding(0, 0, 0, smallGap) };
+            _cmbFilter  = new BeepComboBox { Width = (int)(BeepLayoutMetrics.FieldStandard.Width.ScaleValue(this) * 0.6), Margin = new Padding(0, smallGap, smallGap, 0) };
             _cmbFilter.ListItems = new BindingList<SimpleItem>
             {
                 new SimpleItem { Text = "All",     Item = "All" },
@@ -125,9 +130,9 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
             };
             _cmbFilter.SelectedIndex = 0;
             _cmbFilter.SelectedItemChanged += (s, e) => RefreshLogs();
-            _btnClearLog  = new BeepButton { Text = "Clear",  AutoSize = true, Margin = new Padding(0, 4, 4, 0) };
-            _btnCopyLog   = new BeepButton { Text = "Copy",   AutoSize = true, Margin = new Padding(0, 4, 4, 0) };
-            _btnExportLog = new BeepButton { Text = "Export", AutoSize = true, Margin = new Padding(0, 4, 0, 0) };
+            _btnClearLog  = new BeepButton { Text = "Clear",  AutoSize = true, Margin = new Padding(0, smallGap, smallGap, 0) };
+            _btnCopyLog   = new BeepButton { Text = "Copy",   AutoSize = true, Margin = new Padding(0, smallGap, smallGap, 0) };
+            _btnExportLog = new BeepButton { Text = "Export", AutoSize = true, Margin = new Padding(0, smallGap, 0, 0) };
             _btnClearLog.Click  += (s, e) => { Log?.Clear(); RefreshLogs(); };
             _btnCopyLog.Click   += (s, e) => CopyLogs();
             _btnExportLog.Click += (s, e) => ExportLogs();

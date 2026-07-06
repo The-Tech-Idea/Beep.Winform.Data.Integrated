@@ -4,6 +4,7 @@ using TheTechIdea.Beep.SetUp;
 using TheTechIdea.Beep.SetUp.Adapters;
 using TheTechIdea.Beep.Vis.Modules;
 using TheTechIdea.Beep.Winform.Controls;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Default.Views.Template;
 
 namespace TheTechIdea.Beep.Winform.Default.Views.Setup
@@ -175,10 +176,14 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
 
         private void BuildUi()
         {
+            // Skill § 10.9: building a single UserControl programmatically (not as a wizard step)
+            // is allowed when each instance is rendered as one cohesive layout — the parent
+            // Control IS the visual surface. We still bracket with SuspendLayout/ResumeLayout(true).
             SuspendLayout();
             Dock = DockStyle.Fill;
             BackColor = Color.White;
-            Padding = new Padding(24);
+            // Skill § 5.6: dialog padding scales with DPI through BeepLayoutMetrics tokens.
+            Padding = BeepLayoutMetrics.DialogPadding.ScalePadding(this);
 
             _rootLayout = new TableLayoutPanel
             {
@@ -187,11 +192,13 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
                 Dock = DockStyle.Fill,
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                Padding = new Padding(20)
+                Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this)
             };
             _rootLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            // Skill § 1: a single row height token drives every spacer row — change once, update all.
+            int spacerRowHeight = BeepLayoutMetrics.ButtonToolbar.Height.ScaleValue(this);
             for (int i = 0; i < 6; i++)
-                _rootLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+                _rootLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, spacerRowHeight));
             _rootLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             _titleLabel = new BeepLabel
@@ -218,11 +225,12 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.Gray
             };
+            // Skill § default-size tokens: ButtonLarge for primary CTA, ButtonStandard for secondary, ButtonSmall for utility.
             _quickSetupButton = new BeepButton
             {
                 Text = "Quick Setup (5 steps)",
                 Dock = DockStyle.Fill,
-                Height = 40
+                Height = BeepLayoutMetrics.ButtonLarge.Height.ScaleValue(this)
             };
             _quickSetupButton.Click += QuickSetupButton_Click;
 
@@ -230,7 +238,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             {
                 Text = "Skip for Now",
                 Dock = DockStyle.Fill,
-                Height = 40
+                Height = BeepLayoutMetrics.ButtonLarge.Height.ScaleValue(this)
             };
             _skipButton.Click += async (_, _) => await SkipAsync(_cts.Token);
 
@@ -238,7 +246,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             {
                 Text = "Reset Setup Flag",
                 Dock = DockStyle.Fill,
-                Height = 30,
+                Height = BeepLayoutMetrics.ButtonSmall.Height.ScaleValue(this),
                 Visible = false
             };
             _resetButton.Click += async (_, _) => await ResetAsync();
@@ -247,7 +255,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             {
                 Text = "Enter Application",
                 Dock = DockStyle.Fill,
-                Height = 40,
+                Height = BeepLayoutMetrics.ButtonLarge.Height.ScaleValue(this),
                 Visible = false
             };
             _enterAppButton.Click += (_, _) => RaiseBootstrapCompleted(true, "User chose to enter app.");
@@ -262,7 +270,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
             buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
             buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
-            buttons.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+            buttons.RowStyles.Add(new RowStyle(SizeType.Absolute, BeepLayoutMetrics.ButtonLarge.Height.ScaleValue(this) + BeepLayoutMetrics.ButtonGap.ScaleValue(this)));
             buttons.Controls.Add(_quickSetupButton, 0, 0);
             buttons.Controls.Add(_skipButton, 1, 0);
             buttons.Controls.Add(_enterAppButton, 2, 0);

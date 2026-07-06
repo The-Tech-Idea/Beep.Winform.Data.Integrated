@@ -6,6 +6,7 @@ using TheTechIdea.Beep.Editor.Mapping;
 using TheTechIdea.Beep.Utilities;
 using TheTechIdea.Beep.Vis;
 using TheTechIdea.Beep.Winform.Controls.GridX;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Controls.Models;
 using TheTechIdea.Beep.Winform.Default.Views.Template;
 
@@ -141,7 +142,8 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         {
             beepGridPro1.ShowNavigator = true;
             beepGridPro1.ShowTopFilterPanel = true;
-            beepGridPro1.TopFilterPanelHeight = 34;
+            // Skill § 1: filter row height = text-field row height, scales with DPI.
+            beepGridPro1.TopFilterPanelHeight = BeepLayoutMetrics.FieldStandard.Height.ScaleValue(this);
             beepGridPro1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             beepGridPro1.AutoSizeTriggerMode = AutoSizeTriggerMode.OnDataBind;
             beepGridPro1.SortIconVisibility = HeaderIconVisibility.Always;
@@ -154,6 +156,12 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
         private void ConfigureBaselineColumns()
         {
+            // Skill § 1: small fixed column widths come from the layout tokens.
+            // Sel (checkbox) ≈ 36, RowNum ≈ 56, RowID ≈ 80 — designed for icon+padding.
+            int colSel   = (int)(BeepLayoutMetrics.FieldStandard.Width.ScaleValue(this) * 0.18); // ~36
+            int colRow   = (int)(BeepLayoutMetrics.FieldStandard.Width.ScaleValue(this) * 0.28); // ~56
+            int colRowId = (int)(BeepLayoutMetrics.FieldStandard.Width.ScaleValue(this) * 0.40); // ~80
+
             beepGridPro1.Columns.Clear();
             beepGridPro1.Columns.Add(new BeepColumnConfig
             {
@@ -161,7 +169,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                 ColumnCaption = "Sel",
                 IsSelectionCheckBox = true,
                 CellEditor = BeepColumnType.CheckBoxBool,
-                Width = 36,
+                Width = colSel,
                 ReadOnly = false,
                 AllowSort = false,
                 ShowFilterIcon = false,
@@ -172,7 +180,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                 ColumnName = "RowNum",
                 ColumnCaption = "#",
                 IsRowNumColumn = true,
-                Width = 56,
+                Width = colRow,
                 ReadOnly = true,
                 AllowSort = false,
                 ShowFilterIcon = false
@@ -182,7 +190,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                 ColumnName = "RowID",
                 ColumnCaption = "RowID",
                 IsRowID = true,
-                Width = 80,
+                Width = colRowId,
                 ReadOnly = true,
                 Visible = false,
                 ShowFilterIcon = false
@@ -247,6 +255,11 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
         private void ApplyEntityColumnPolicies()
         {
+            // Skill § 1: keep the small fixed-width column tokens in sync with ConfigureBaselineColumns().
+            int colSel   = (int)(BeepLayoutMetrics.FieldStandard.Width.ScaleValue(this) * 0.18);
+            int colRow   = (int)(BeepLayoutMetrics.FieldStandard.Width.ScaleValue(this) * 0.28);
+            int colRowId = (int)(BeepLayoutMetrics.FieldStandard.Width.ScaleValue(this) * 0.40);
+
             foreach (var column in beepGridPro1.Columns)
             {
                 if (column == null || string.IsNullOrWhiteSpace(column.ColumnName))
@@ -257,7 +270,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                 var columnName = column.ColumnName;
                 if (string.Equals(columnName, "Sel", StringComparison.OrdinalIgnoreCase))
                 {
-                    column.Width = 36;
+                    column.Width = colSel;
                     column.AllowSort = false;
                     column.ShowFilterIcon = false;
                     column.ShowSortIcon = false;
@@ -267,7 +280,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
                 if (string.Equals(columnName, "RowNum", StringComparison.OrdinalIgnoreCase))
                 {
-                    column.Width = 56;
+                    column.Width = colRow;
                     column.ReadOnly = true;
                     column.AllowSort = false;
                     column.ShowFilterIcon = false;
@@ -279,7 +292,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
                 if (string.Equals(columnName, "RowID", StringComparison.OrdinalIgnoreCase))
                 {
-                    column.Width = 80;
+                    column.Width = colRowId;
                     column.ReadOnly = true;
                     column.Visible = false;
                     column.ShowFilterIcon = false;

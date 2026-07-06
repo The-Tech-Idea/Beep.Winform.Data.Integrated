@@ -82,8 +82,9 @@ namespace TheTechIdea.Beep.Winform.Default.Views.DataSource_Connection_Controls
     /// 
     /// uc_DataConnectionBase dialog = new uc_DataConnectionBase();
     /// dialog.InitializeDialog(newConn);
-    /// 
-    /// Form form = new Form { Size = new Size(700, 800) };
+    ///
+    /// // Beep WinForms design skill § 1 — always size dialogs from BeepLayoutMetrics tokens.
+    /// Form form = new Form { Size = BeepLayoutMetrics.DialogMedium, AutoScaleMode = AutoScaleMode.Dpi };
     /// dialog.Dock = DockStyle.Fill;
     /// form.Controls.Add(dialog);
     /// 

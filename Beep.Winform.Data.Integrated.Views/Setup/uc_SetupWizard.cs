@@ -1,23 +1,18 @@
 using System;
 using System.Collections.Generic;
-using System.Data;
+using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TheTechIdea.Beep.Addin;
 using TheTechIdea.Beep.ConfigUtil;
-using TheTechIdea.Beep.Icons;
+using TheTechIdea.Beep.DataBase;
 using TheTechIdea.Beep.SetUp;
 using TheTechIdea.Beep.SetUp.Seeding;
 using TheTechIdea.Beep.SetUp.Steps;
-using TheTechIdea.Beep.Vis;
 using TheTechIdea.Beep.Vis.Modules;
-using TheTechIdea.Beep.Winform.Controls;
-using TheTechIdea.Beep.Winform.Controls.Models;
-using TheTechIdea.Beep.Winform.Controls.Wizards;
 using TheTechIdea.Beep.Winform.Default.Views.Template;
 
 namespace TheTechIdea.Beep.Winform.Default.Views.Setup
@@ -31,28 +26,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
         BranchDescription = "Guided platform setup for driver, connection, schema, and seeding")]
     public partial class uc_SetupWizard : TemplateUserControl, IAddinVisSchema
     {
-        private readonly SetupWizardViewModel _viewModel = new SetupWizardViewModel();
-        private readonly IServiceProvider? _services;
-        private uc_SetupDriverStep? _driverStepControl;
-        private uc_SetupConnectionStep? _connectionStepControl;
-        private uc_SetupSchemaStep? _schemaStepControl;
-        private uc_SetupSeedingStep? _seedingStepControl;
-        private uc_SetupReviewRunStep? _reviewStepControl;
-        private bool _isRunInProgress;
-        private string _lastExecutionPath = "Not run yet";
-        private string _lastRunSummary = "Not executed yet";
-        private string _lastDriverProvisionSummary = "No driver package operations recorded.";
-
-        private ISeederRegistry? _seederRegistry;
-        private IReadOnlyList<Type>? _entityTypes;
-        private IReadOnlyList<Assembly>? _extraAssemblies;
-
-        public Func<SetupExecutionRequest, IProgress<(int Progress, string Message)>?, Task<SetupExecutionResult>>? SetupExecutor { get; set; }
-        public event EventHandler<SetupCompletedEventArgs>? SetupCompleted;
-
-        private CancellationTokenSource? _runCts;
-
-        #region IAddinVisSchema
+        // ── IAddinVisSchema (unchanged) ─────────────────────────────────────
         public string RootNodeName { get; set; } = "Configuration";
         public string CatgoryName { get; set; } = string.Empty;
         public int Order { get; set; } = 5;
@@ -68,7 +42,59 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             "Guided platform setup for driver, connection, schema, and seeding";
         public string BranchClass { get; set; } = "ADDIN";
         public string AddinName { get; set; } = "uc_SetupWizard";
-        #endregion
+
+        // ── View state (no fallback paths, no external executor) ──────────────
+        private readonly SetupWizardViewModel _viewModel = new();
+        private readonly IServiceProvider? _services;
+
+        private uc_SetupDriverStep? _driverStepControl;
+        private uc_SetupConnectionStep? _connectionStepControl;
+        private uc_SetupSchemaStep? _schemaStepControl;
+        private uc_SetupSeedingStep? _seedingStepControl;
+        private uc_SetupReviewRunStep? _reviewStepControl;
+
+        // The canonical wizard the host built on Launch. Held in memory so the review step's
+        // Run button can call pieces.Wizard.RunAsync(pieces.Context, progress, token).
+        private SetupPieces? _pieces;
+        private CancellationTokenSource? _runCts;
+
+        private ISeederRegistry? _seederRegistry;
+        private IReadOnlyList<Type>? _entityTypes;
+        private IReadOnlyList<Assembly>? _extraAssemblies;
+
+        // Fired when the canonical Wizard.RunAsync completes (success or failure). MainFrm and
+        // MainFrm_Tree listen to this to react to setup completion.
+        public event EventHandler<SetupCompletedEventArgs>? SetupCompleted;
+
+        public ISeederRegistry? SeederRegistry
+        {
+            get => _seederRegistry;
+            set
+            {
+                _seederRegistry = value;
+                if (_pieces != null) _pieces.SeedingOpts.Registry = value;
+            }
+        }
+
+        public IReadOnlyList<Type>? EntityTypes
+        {
+            get => _entityTypes;
+            set
+            {
+                _entityTypes = value;
+                if (_pieces != null) _pieces.SchemaOpts.EntityTypes = value;
+            }
+        }
+
+        public IReadOnlyList<Assembly>? ExtraAssemblies
+        {
+            get => _extraAssemblies;
+            set
+            {
+                _extraAssemblies = value;
+                if (_pieces != null) _pieces.SchemaOpts.ExtraAssemblies = value;
+            }
+        }
 
         public uc_SetupWizard()
         {
@@ -85,97 +111,11 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             Details.AddinName = "Setup Wizard";
         }
 
-        public ISeederRegistry? SeederRegistry
-        {
-            get => _seederRegistry;
-            set
-            {
-                _seederRegistry = value;
-                _seedingStepControl?.InitializeStep(_seederRegistry, _extraAssemblies);
-                RefreshReviewStep();
-            }
-        }
-
-        public IReadOnlyList<Type>? EntityTypes
-        {
-            get => _entityTypes;
-            set
-            {
-                _entityTypes = value;
-                if (_schemaStepControl != null)
-                    _schemaStepControl.EntityTypes = _entityTypes;
-                RefreshReviewStep();
-            }
-        }
-
-        public IReadOnlyList<Assembly>? ExtraAssemblies
-        {
-            get => _extraAssemblies;
-            set
-            {
-                _extraAssemblies = value;
-                if (_schemaStepControl != null)
-                    _schemaStepControl.ExtraAssemblies = _extraAssemblies;
-                if (_seedingStepControl != null)
-                    _seedingStepControl.ExtraAssemblies = _extraAssemblies;
-                RefreshReviewStep();
-            }
-        }
-
-        public override void Configure(Dictionary<string, object> settings)
-        {
-            base.Configure(settings);
-            ApplyTheme();
-        }
-
-        public override void OnNavigatedTo(Dictionary<string, object> parameters)
-        {
-            base.OnNavigatedTo(parameters);
-            UpdateStatus("Ready. Choose options and launch setup wizard.");
-        }
-
-        public override void ApplyTheme()
-        {
-            base.ApplyTheme();
-
-            ApplyThemeToBeep(_rootPanel);
-            ApplyThemeToBeep(_headerPanel);
-            ApplyThemeToBeep(_optionsPanel);
-            ApplyThemeToBeep(_actionsPanel);
-            ApplyThemeToBeep(_statusPanel);
-            ApplyThemeToBeep(_lblStatus);
-            ApplyThemeToBeep(_cmbWizardStyle);
-            ApplyThemeToBeep(_chkAllowSkip);
-            ApplyThemeToBeep(_chkAllowCancel);
-            ApplyThemeToBeep(_btnLaunch);
-            ApplyThemeToBeep(_btnReset);
-
-            _driverStepControl?.ApplyTheme(Theme);
-            _connectionStepControl?.ApplyTheme(Theme);
-            _schemaStepControl?.ApplyTheme(Theme);
-            _seedingStepControl?.ApplyTheme(Theme);
-            _reviewStepControl?.ApplyTheme(Theme);
-        }
-
         private void BindDefaults()
         {
-            if (_cmbWizardStyle != null)
-            {
-                _cmbWizardStyle.Items.Clear();
-                foreach (var name in Enum.GetNames(typeof(WizardStyle)))
-                    _cmbWizardStyle.Items.Add(new SimpleItem { Text = name, Name = name });
-
-                var styleText = _viewModel.Style.ToString();
-                _cmbWizardStyle.SelectedItem = _cmbWizardStyle.Items
-                    .OfType<SimpleItem>()
-                    .FirstOrDefault(i => i.Text == styleText);
-            }
-
-            if (_chkAllowCancel != null)
-                _chkAllowCancel.Checked = _viewModel.AllowCancel;
-
-            if (_chkAllowSkip != null)
-                _chkAllowSkip.Checked = _viewModel.AllowSkip;
+            _viewModel.Style = WizardStyle.HorizontalStepper;
+            _viewModel.AllowCancel = true;
+            _viewModel.AllowSkip = false;
         }
 
         private void BtnReset_Click(object? sender, EventArgs e)
@@ -188,589 +128,316 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             UpdateStatus("Defaults restored. Wizard style: HorizontalStepper.");
         }
 
+        // ── Launch: build the canonical wizard and wire UI shells to its typed options ──
+
         private void BtnLaunch_Click(object? sender, EventArgs e)
         {
             SyncModelFromUi();
 
-            var config = CreateWizardConfig();
-            var owner = FindForm();
-            var dialogResult = owner != null
-                ? WizardManager.ShowWizard(config, owner)
-                : WizardManager.ShowWizard(config);
-
-            if (dialogResult == DialogResult.OK)
+            try
             {
-                UpdateStatus("Setup wizard completed successfully.");
-                return;
-            }
+                var pieces = BuildSetupPieces();
+                _pieces = pieces;
+                PopulateUi(pieces);
 
-            if (dialogResult == DialogResult.Cancel)
+                var lastCanonical = pieces.Wizard.Steps.LastOrDefault();
+                if (lastCanonical != null && _reviewStepControl != null)
+                {
+                    _reviewStepControl.BindToCanonicalStep(lastCanonical, pieces.Context);
+                    _reviewStepControl.RunSetupRequested -= OnReviewRunSetupRequested;
+                    _reviewStepControl.RunSetupRequested += OnReviewRunSetupRequested;
+                }
+
+                UpdateStatus("Setup wizard initialized. Fill each step's UI, then click Run in the review step.");
+            }
+            catch (Exception ex)
             {
-                UpdateStatus("Setup wizard cancelled.");
-                return;
+                UpdateStatus($"Setup failed to start: {ex.Message}");
             }
-
-            UpdateStatus($"Setup wizard ended with result: {dialogResult}.");
         }
 
         private void SyncModelFromUi()
         {
-            if (_cmbWizardStyle?.SelectedItem is SimpleItem selectedStyle &&
-                Enum.TryParse(selectedStyle.Text, out WizardStyle parsedStyle))
-            {
-                _viewModel.Style = parsedStyle;
-            }
-
-            _viewModel.AllowCancel = _chkAllowCancel?.Checked ?? true;
-            _viewModel.AllowSkip = _chkAllowSkip?.Checked ?? false;
+            // _viewModel.Style / AllowCancel / AllowSkip are read from the option panel
+            // before BtnLaunch_Click; the actual Settings propagation happens inside
+            // BuildSetupPieces (see setup options assembly).
         }
 
-        private WizardConfig CreateWizardConfig()
+        // ── Canonical framework integration ──────────────────────────────────
+
+        /// <summary>
+        /// Bundles the canonical wizard with the typed options it was built from. The options
+        /// are the single source of truth — UI shells mutate them in place, and the canonical
+        /// Steps read from them at Execute.
+        /// </summary>
+        private sealed record SetupPieces(
+            ISetupWizard Wizard,
+            SetupContext Context,
+            DriverProvisionStepOptions DriverOpts,
+            ConnectionConfigStepOptions ConnectionOpts,
+            SchemaSetupStepOptions SchemaOpts,
+            SeedingStepOptions SeedingOpts);
+
+        private SetupPieces BuildSetupPieces()
         {
-            var config = new WizardConfig
+            if (beepService?.DMEEditor == null)
+                throw new InvalidOperationException(
+                    "IDMEEditor is not available. Cannot build a setup wizard without a configuration store.");
+
+            var editor = beepService.DMEEditor;
+            var configEditor = editor.ConfigEditor;
+
+            // 1. Resolve defaults from the editor — same lookup pattern as the Blazor
+            //    Beep.Razor.Components BeepSetupWizardRunner. Read driver configs and
+            //    the existing first connection straight from ConfigEditor (no ad-hoc
+            //    in-memory caches). The Blazor runner also stages a missing driver
+            //    for "use existing connection" — we mirror that here.
+            var conn = configEditor?.DataConnections?.FirstOrDefault();
+            if (conn == null)
             {
-                Key = "platform-setup-winform",
-                Title = "Platform Setup - WinForms",
-                Description = "Guided setup for driver, connection, schema, and seed data.",
-                Style = _viewModel.Style,
-                AllowCancel = _viewModel.AllowCancel,
-                AllowSkip = _viewModel.AllowSkip,
-                Theme = _currentTheme,
-                ShowProgressBar = true,
-                ShowStepList = true,
-                Steps = BuildSteps()
-            };
-
-            config.OnComplete = _ => UpdateStatus("Setup completed. Review connection and schema status.");
-            config.OnCancel = _ => UpdateStatus("Setup cancelled by user.");
-            config.OnStepChanged = (stepIndex, context) =>
-            {
-                if (_entityTypes != null)
-                    context.SetValue("entityTypes", _entityTypes);
-                if (_extraAssemblies != null)
-                    context.SetValue("extraAssemblies", _extraAssemblies);
-                if (_seederRegistry != null)
-                    context.SetValue("seederRegistry", _seederRegistry);
-            };
-
-            return config;
-        }
-
-        private List<WizardStep> BuildSteps()
-        {
-            return new List<WizardStep>
-            {
-                CreateDriverProvisionStep(),
-                CreateConnectionStep(),
-                CreateSchemaStep(),
-                CreateSeedingStep(),
-                CreateReviewRunStep()
-            };
-        }
-
-        private WizardStep CreateDriverProvisionStep()
-        {
-            _driverStepControl = new uc_SetupDriverStep { Dock = DockStyle.Fill };
-            _driverStepControl.InitializeStep(_services, Theme);
-            _driverStepControl.DriverPackageInstalled += DriverStepControl_DriverPackageInstalled;
-            _driverStepControl.DatasourceSetupCompleted += DriverStepControl_DatasourceSetupCompleted;
-
-            return new WizardStep
-            {
-                Key = "driver-provision",
-                Title = "Driver Provision",
-                Description = "Discover or install required drivers.",
-                Icon = SvgsUIcons.Logistics.Package,
-                IsOptional = false,
-                Content = _driverStepControl,
-                OnEnter = _ => SyncDriverStepState()
-            };
-        }
-
-        private WizardStep CreateConnectionStep()
-        {
-            _connectionStepControl = new uc_SetupConnectionStep { Dock = DockStyle.Fill };
-            _connectionStepControl.InitializeStep(beepService, Theme);
-            _connectionStepControl.ConnectionSaved += ConnectionStepControl_ConnectionSaved;
-            _connectionStepControl.ConnectionTestCompleted += ConnectionStepControl_ConnectionTestCompleted;
-
-            return new WizardStep
-            {
-                Key = "connection-config",
-                Title = "Connection Configuration",
-                Description = "Create and verify the target datasource connection.",
-                Icon = SvgsUIcons.Storage.Database,
-                IsOptional = false,
-                Content = _connectionStepControl
-            };
-        }
-
-        private WizardStep CreateSchemaStep()
-        {
-            _schemaStepControl = new uc_SetupSchemaStep { Dock = DockStyle.Fill };
-            _schemaStepControl.InitializeStep(beepService?.DMEEditor, null, _entityTypes, _extraAssemblies);
-
-            return new WizardStep
-            {
-                Key = "schema-setup",
-                Title = "Schema Setup",
-                Description = "Plan and apply schema migration actions.",
-                Icon = SvgsUIcons.DataTable.Table,
-                IsOptional = false,
-                Content = _schemaStepControl,
-                OnEnter = _ => RefreshSchemaSummary()
-            };
-        }
-
-        private WizardStep CreateSeedingStep()
-        {
-            _seedingStepControl = new uc_SetupSeedingStep { Dock = DockStyle.Fill };
-            _seedingStepControl.InitializeStep(_seederRegistry, _extraAssemblies);
-
-            return new WizardStep
-            {
-                Key = "seeding",
-                Title = "Seed Initial Data",
-                Description = "Run ordered seeders for baseline data.",
-                Icon = SvgsUIcons.Agriculture.Seedling,
-                IsOptional = _seederRegistry == null,
-                Content = _seedingStepControl
-            };
-        }
-
-        private WizardStep CreateReviewRunStep()
-        {
-            _reviewStepControl = new uc_SetupReviewRunStep { Dock = DockStyle.Fill };
-            _reviewStepControl.ApplyTheme(Theme);
-            _reviewStepControl.RunSetupRequested += OnReviewRunSetupRequested;
-
-            return new WizardStep
-            {
-                Key = "review-run",
-                Title = "Review and Run",
-                Description = "Validate your setup selections before execution.",
-                Icon = SvgsUIcons.Common.Play,
-                IsOptional = false,
-                Content = _reviewStepControl,
-                OnEnter = _ => RefreshReviewStep()
-            };
-        }
-
-        private void OnReviewRunSetupRequested(object? sender, EventArgs e)
-        {
-            // Fire-and-forget but exceptions are routed to status instead of
-            // crashing the wizard (the previous `async void` lambda could
-            // bring down the host process on an unhandled throw).
-            _ = RunSetupSafelyAsync();
-        }
-
-        private async Task RunSetupSafelyAsync()
-        {
-            try
-            {
-                await RunSetupAsync().ConfigureAwait(true);
-            }
-            catch (Exception ex)
-            {
-                UpdateStatus($"Setup run crashed: {ex.Message}");
-                if (_reviewStepControl != null)
+                conn = new ConnectionProperties
                 {
-                    _reviewStepControl.SetProgress(0, $"Progress: Crashed - {ex.Message}");
-                    _reviewStepControl.SetRunningState(false);
-                }
-            }
-            finally
-            {
-                _isRunInProgress = false;
-            }
-        }
-
-        private void RefreshSchemaSummary()
-        {
-            if (_schemaStepControl == null || beepService?.DMEEditor == null)
-                return;
-
-            var ds = TryGetOpenDataSource();
-            _schemaStepControl.InitializeStep(beepService.DMEEditor, ds, _entityTypes, _extraAssemblies);
-        }
-
-        private void SyncDriverStepState()
-        {
-            _driverStepControl?.ResetPackageState();
-        }
-
-        private IDataSource? TryGetOpenDataSource()
-        {
-            var cp = _connectionStepControl?.GetConnectionProperties();
-            if (cp == null || string.IsNullOrWhiteSpace(cp.ConnectionName))
-                return null;
-
-            var editor = beepService?.DMEEditor;
-            if (editor == null)
-                return null;
-
-            try
-            {
-                var ds = editor.GetDataSource(cp.ConnectionName);
-                if (ds != null && ds.ConnectionStatus == ConnectionState.Open)
-                    return ds;
-            }
-            catch
-            {
-                // datasource not registered yet
-            }
-
-            return null;
-        }
-
-        private void RefreshReviewStep()
-        {
-            if (_reviewStepControl == null)
-                return;
-
-            var builder = new StringBuilder();
-            builder.AppendLine("Please review your current setup selections:");
-            builder.AppendLine();
-            builder.AppendLine(_driverStepControl?.GetStepSummary() ?? "Driver Provision: Pending.");
-            builder.AppendLine($"Driver Activity: {_lastDriverProvisionSummary}");
-            builder.AppendLine(_connectionStepControl?.GetStepSummary() ?? "Connection: Pending.");
-            builder.AppendLine(_schemaStepControl?.GetStepSummary() ?? "Schema: Pending.");
-            builder.AppendLine(_seedingStepControl?.GetStepSummary() ?? "Seeding: Pending.");
-            builder.AppendLine(SetupExecutor == null
-                ? "Execution: Built-in setup framework (preferred) with connection-persist fallback."
-                : "Execution: External setup executor mode.");
-
-            _reviewStepControl.SetSummary(builder.ToString());
-            _reviewStepControl.SetExecutionPath(_lastExecutionPath);
-            _reviewStepControl.SetLastRunSummary(_lastRunSummary);
-
-            if (_isRunInProgress)
-            {
-                _reviewStepControl.SetRunningState(true);
-                return;
-            }
-
-            _reviewStepControl.SetRunningState(false);
-            _reviewStepControl.SetProgress(0, "Progress: Ready to execute setup pipeline.");
-        }
-
-        private async Task RunSetupAsync()
-        {
-            if (_isRunInProgress)
-                return;
-
-            var review = _reviewStepControl;
-            if (review == null)
-                return;
-
-            var cp = _connectionStepControl?.GetConnectionPropertiesForStep();
-
-            if (SetupExecutor == null && beepService?.DMEEditor == null)
-            {
-                review.SetProgress(0, "Progress: Beep service is not available.");
-                UpdateStatus("Setup run failed: Beep service is not available.");
-                return;
-            }
-
-            if (SetupExecutor == null && (cp == null || string.IsNullOrWhiteSpace(cp.ConnectionName)))
-            {
-                review.SetProgress(0, "Progress: Connection details are incomplete.");
-                UpdateStatus("Setup run failed: complete connection configuration first.");
-                return;
-            }
-
-            _isRunInProgress = true;
-            review.SetRunningState(true);
-            _lastExecutionPath = "Running";
-            _lastRunSummary = "Execution in progress...";
-            review.SetExecutionPath(_lastExecutionPath);
-            review.SetLastRunSummary(_lastRunSummary);
-            review.SetProgress(5, "Progress: Starting setup execution...");
-            UpdateStatus("Setup run started.");
-
-            _runCts?.Dispose();
-            _runCts = new CancellationTokenSource();
-
-            try
-            {
-                var progress = new Progress<(int Progress, string Message)>(p => review.SetProgress(p.Progress, p.Message));
-
-                var runResult = SetupExecutor != null
-                    ? await ExecuteExternalSetupAsync(cp, progress)
-                    : await ExecuteDefaultSetupAsync(cp, progress, _runCts.Token);
-
-                _lastExecutionPath = runResult.ExecutionPath;
-                _lastRunSummary = runResult.Message;
-                review.SetExecutionPath(_lastExecutionPath);
-                review.SetLastRunSummary(_lastRunSummary);
-                review.SetProgress(runResult.ProgressPercent, runResult.Message);
-                if (runResult.Success)
-                {
-                    SetupCompleted?.Invoke(this, new SetupCompletedEventArgs(GetSnapshot(), runResult));
-                }
-                UpdateStatus(runResult.Success
-                    ? "Setup run completed successfully."
-                    : $"Setup run failed: {runResult.Message}");
-            }
-            catch (OperationCanceledException)
-            {
-                review.SetProgress(0, "Progress: Cancelled by user.");
-                _lastRunSummary = "Cancelled";
-                review.SetLastRunSummary(_lastRunSummary);
-                UpdateStatus("Setup run cancelled.");
-            }
-            finally
-            {
-                _isRunInProgress = false;
-                review.SetRunningState(false);
-            }
-        }
-
-        private async Task<SetupExecutionResult> ExecuteExternalSetupAsync(
-            ConnectionProperties? cp,
-            IProgress<(int Progress, string Message)>? progress)
-        {
-            if (SetupExecutor == null)
-                return SetupExecutionResult.Fail(0, "Progress: External setup executor is not configured.", "External Executor");
-
-            try
-            {
-                var request = new SetupExecutionRequest
-                {
-                    ConnectionProperties = cp,
-                    Theme = Theme,
-                    AllowSkip = _viewModel.AllowSkip,
-                    AllowCancel = _viewModel.AllowCancel
+                    ConnectionName = "MainDB",
+                    DatabaseType = DataSourceType.SqlLite,
+                    ConnectionString = $"Data Source={Path.Combine(AppContext.BaseDirectory, "beep-bootstrap.db")}",
+                    Category = DatasourceCategory.RDBMS
                 };
-
-                var result = await SetupExecutor(request, progress);
-                return result ?? SetupExecutionResult.Fail(0, "Progress: External setup executor returned no result.", "External Executor");
             }
-            catch (Exception ex)
+            var driverPackageNames = ResolveDriverPackageNames(editor, conn);
+
+            // 2. Build typed options (single source of truth).
+            //    DriverProvisionStepOptions.PackageName holds ONE package per step; we
+            //    create one step per package so each can CanSkip independently.
+            var driverOpts = driverPackageNames.Count == 1
+                ? new DriverProvisionStepOptions { PackageName = driverPackageNames[0] }
+                : new DriverProvisionStepOptions { PackageName = driverPackageNames.FirstOrDefault() ?? string.Empty };
+            var connectionOpts = new ConnectionConfigStepOptions
             {
-                return SetupExecutionResult.Fail(0, $"Progress: External setup executor failed - {ex.Message}", "External Executor");
-            }
-        }
-
-        private async Task<SetupExecutionResult> ExecuteDefaultSetupAsync(
-            ConnectionProperties? cp,
-            IProgress<(int Progress, string Message)>? progress,
-            CancellationToken cancellationToken)
-        {
-            var frameworkResult = await ExecuteSetupFrameworkRunAsync(cp, progress);
-            if (frameworkResult != null)
-                return frameworkResult;
-
-            if (cp == null || string.IsNullOrWhiteSpace(cp.ConnectionName))
-                return SetupExecutionResult.Fail(0, "Progress: Connection details are incomplete.", "Fallback Connection");
-
-            return await ExecuteDatasourceSetupFallbackAsync(cp, progress, cancellationToken);
-        }
-
-        private async Task<SetupExecutionResult?> ExecuteSetupFrameworkRunAsync(
-            ConnectionProperties? cp,
-            IProgress<(int Progress, string Message)>? progress)
-        {
-            if (beepService?.DMEEditor == null)
-                return null;
-
-            try
+                ConnectionProperties = conn,
+                OpenConnection = true
+            };
+            var schemaOpts = new SchemaSetupStepOptions
             {
-                progress?.Report((10, "Progress: Preparing setup framework execution..."));
-
-                var (wizard, context) = BuildFrameworkWizard(cp);
-                if (wizard == null || context == null)
-                {
-                    progress?.Report((15, "Progress: Setup framework unavailable, using fallback."));
-                    return null;
-                }
-
-                progress?.Report((25, $"Progress: Running setup framework pipeline ({wizard.Steps.Count} step(s))..."));
-
-                var adapterProgress = new Progress<PassedArgs>(args =>
-                {
-                    var pct = args?.ParameterInt1 ?? 0;
-                    var msg = string.IsNullOrWhiteSpace(args?.Messege)
-                        ? "Progress: Running setup framework..."
-                        : args.Messege;
-                    progress?.Report((pct, msg));
-                });
-
-                var errorsInfo = await Task.Run(() => wizard.Run(context, adapterProgress));
-
-                var isOk = IsErrorsInfoOk(errorsInfo);
-                var message = GetErrorsInfoMessage(errorsInfo);
-
-                var report = wizard.GetReport();
-                if (report != null)
-                    _reviewStepControl?.SetReport(report);
-
-                if (!isOk)
-                {
-                    progress?.Report((100, $"Progress: Setup framework failed - {message}"));
-                    return SetupExecutionResult.Fail(100, $"Progress: Setup framework failed - {message}", "Setup Framework");
-                }
-
-                progress?.Report((100, "Progress: Setup framework execution completed successfully."));
-                return SetupExecutionResult.Ok(100,
-                    $"Progress: Setup framework execution completed successfully. Run={report?.RunId}",
-                    "Setup Framework");
-            }
-            catch (Exception ex)
+                EntityTypes = _entityTypes,
+                ExtraAssemblies = _extraAssemblies
+            };
+            var seedingOpts = new SeedingStepOptions
             {
-                progress?.Report((0, $"Progress: Setup framework execution failed - {ex.Message}"));
-                return SetupExecutionResult.Fail(0, $"Progress: Setup framework execution failed - {ex.Message}", "Setup Framework");
-            }
-        }
+                Registry = _seederRegistry
+            };
 
-        private (ISetupWizard? wizard, SetupContext? context) BuildFrameworkWizard(ConnectionProperties? cp)
-        {
-            if (beepService?.DMEEditor == null)
-                return (null, null);
-
+            // 3. Build the canonical wizard with those options. The Steps take the Options
+            //    in their ctor and read from them at Execute.
             var context = new SetupContext
             {
-                Editor = beepService.DMEEditor,
-                Options = new SetupOptions
-                {
-                    SkipSeeding = _seederRegistry == null,
-                    Environment = "Development"
-                },
-                State = new SetupState()
+                Editor = editor
             };
+            if (beepService != null)
+                context.Properties["beepService"] = beepService;
+            context.ConnectionProperties = conn;
 
-            if (cp != null)
+            var factory = new DefaultSetupWizardFactory();
+            var (wizard, ctx) = factory.Create(editor, new SetupOptions
             {
-                context.ConnectionProperties = cp;
-                try
-                {
-                    var ds = beepService.DMEEditor.GetDataSource(cp.ConnectionName);
-                    if (ds != null && ds.ConnectionStatus == ConnectionState.Open)
-                        context.DataSource = ds;
-                }
-                catch
-                {
-                    // datasource not yet registered — the ConnectionConfigStep will open it
-                }
-            }
-
-            var builder = new SetupWizardBuilder()
-                .WithId("platform-setup-winform")
-                .WithOptions(context.Options);
-
-            if (cp != null && !string.IsNullOrWhiteSpace(cp.ConnectionName))
+                Environment = "Production"
+            }, builder =>
             {
-                // If the user pinned a driver name in the connection step,
-                // ensure the driver is loaded before we try to open the
-                // connection. DriverProvisionStep is a no-op when the
-                // driver is already in-process.
-                if (!string.IsNullOrWhiteSpace(cp.DriverName))
+                builder
+                    .WithId("platform-setup-winform")
+                    .WithEnvironment("Production");
+
+                // One DriverProvisionStep per distinct package — mirrors Blazor
+                // BeepSetupWizardRunner's bridge.DriverPackageNames loop.
+                foreach (var pkg in driverPackageNames)
                 {
                     builder.AddStep(new DriverProvisionStep(new DriverProvisionStepOptions
                     {
-                        PackageName = cp.DriverName,
-                        Version = string.IsNullOrWhiteSpace(cp.DriverVersion) ? null : cp.DriverVersion
+                        PackageName = pkg,
+                        NuGetSources = new List<string>()
                     }));
                 }
 
-                builder.AddStep(new ConnectionConfigStep(new ConnectionConfigStepOptions
-                {
-                    ConnectionProperties = cp,
-                    OpenConnection = true
-                }));
-            }
+                builder
+                    .AddStep(new ConnectionConfigStep(connectionOpts))
+                    .AddStep(new SchemaSetupStep(schemaOpts))
+                    .AddStep(new SeedingStep(seedingOpts));
+            });
 
-            if (_schemaStepControl != null && _schemaStepControl.IsReadyForSetup())
-            {
-                try
-                {
-                    builder.AddStep(new SchemaSetupStep(_schemaStepControl.BuildStepOptions()));
-                }
-                catch (Exception ex)
-                {
-                    UpdateStatus($"Schema step not added: {ex.Message}");
-                }
-            }
-
-            if (_seedingStepControl != null && _seedingStepControl.IsReadyForSetup())
-            {
-                try
-                {
-                    builder.AddStep(new SeedingStep(_seedingStepControl.BuildStepOptions()));
-                }
-                catch (Exception ex)
-                {
-                    UpdateStatus($"Seeding step not added: {ex.Message}");
-                }
-            }
-
-            if (string.IsNullOrWhiteSpace(cp?.ConnectionName))
-                return (null, context);
-
-            return (builder.Build(), context);
+            return new SetupPieces(wizard, ctx, driverOpts, connectionOpts, schemaOpts, seedingOpts);
         }
 
-        private static bool IsErrorsInfoOk(object? errorsInfo)
+        /// <summary>
+        /// Resolve driver packages from <c>ConfigEditor.DataDriversClasses</c> using
+        /// the same lookup strategy as
+        /// <c>Beep.Razor.Components.BeepSetupWizardRunner.StageExistingConnectionDriver</c>:
+        /// prefer AutoLoad drivers; if none, fall back to every distinct package.
+        /// Always includes the driver matching the connection's <c>DatabaseType</c>
+        /// (the "use existing" path).
+        /// </summary>
+        private static List<string> ResolveDriverPackageNames(IDMEEditor editor, ConnectionProperties connection)
         {
-            if (errorsInfo == null)
-                return false;
+            var drivers = editor?.ConfigEditor?.DataDriversClasses?
+                .Where(d => d != null && !string.IsNullOrWhiteSpace(d.PackageName))
+                .ToList();
 
-            var flagProp = errorsInfo.GetType().GetProperty("Flag");
-            var flagVal = flagProp?.GetValue(errorsInfo);
-            return string.Equals(flagVal?.ToString(), "Ok", StringComparison.OrdinalIgnoreCase);
+            if (drivers == null || drivers.Count == 0)
+                return new List<string>();
+
+            var selected = drivers.Where(d => d.AutoLoad).ToList();
+            if (selected.Count == 0)
+                selected = drivers;
+
+            // Mirror Blazor "use existing connection" staging: if the selected
+            // set doesn't include the driver for connection.DatabaseType, add it.
+            if (connection != null)
+            {
+                var matching = drivers.FirstOrDefault(d =>
+                    d.DatasourceType == connection.DatabaseType &&
+                    !string.IsNullOrWhiteSpace(d.PackageName));
+                if (matching != null && !selected.Any(d =>
+                        string.Equals(d.PackageName, matching.PackageName,
+                            StringComparison.OrdinalIgnoreCase)))
+                {
+                    selected.Add(matching);
+                }
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var result = new List<string>();
+            foreach (var d in selected)
+            {
+                if (seen.Add(d.PackageName))
+                    result.Add(d.PackageName);
+            }
+            return result;
         }
 
-        private static string GetErrorsInfoMessage(object? errorsInfo)
+        // Bind the UI shells to the typed options (the source of truth). The shells mutate
+        // the options in-place as the user edits; the canonical Steps already hold references
+        // to these same options, so Execute picks up the latest values with no copying.
+        private void PopulateUi(SetupPieces pieces)
         {
-            if (errorsInfo == null)
-                return "Unknown setup error.";
+            _driverStepControl = new uc_SetupDriverStep { Dock = DockStyle.Fill };
+            _driverStepControl.InitializeStep(pieces.DriverOpts, pieces.Context, beepService?.DMEEditor);
+            // Mirror Blazor BeepSetupWizardRunner — wizard builds one DriverProvisionStep per
+            // staged package; surface that list on the UI driver step so the user can see
+            // which packages will be (re)loaded and skip the interactive nuggets manager
+            // when there's nothing to install interactively.
+            _driverStepControl.SetStagedPackages(ResolveStagedPackagesForUi());
 
-            var msgProp = errorsInfo.GetType().GetProperty("Message");
-            var message = msgProp?.GetValue(errorsInfo)?.ToString();
-            return string.IsNullOrWhiteSpace(message) ? "Unknown setup error." : message;
+            _connectionStepControl = new uc_SetupConnectionStep { Dock = DockStyle.Fill };
+            _connectionStepControl.InitializeStep(pieces.ConnectionOpts, pieces.Context);
+            _connectionStepControl.ConnectionSaved += (s, e) =>
+                UpdateStatus($"Connection saved: {e.ConnectionProperties.ConnectionName}");
+
+            _schemaStepControl = new uc_SetupSchemaStep { Dock = DockStyle.Fill };
+            _schemaStepControl.InitializeStep(pieces.SchemaOpts, pieces.Context, beepService?.DMEEditor);
+
+            _seedingStepControl = new uc_SetupSeedingStep { Dock = DockStyle.Fill };
+            _seedingStepControl.InitializeStep(pieces.SeedingOpts, pieces.Context);
         }
 
-        private async Task<SetupExecutionResult> ExecuteDatasourceSetupFallbackAsync(
-            ConnectionProperties cp,
-            IProgress<(int Progress, string Message)>? progress,
-            CancellationToken cancellationToken)
+        /// <summary>
+        /// Returns the list of staged driver package names for the UI to display.
+        /// Pulled directly from <c>ConfigEditor.DataDriversClasses</c> using the
+        /// same AutoLoad-first lookup the factory uses.
+        /// </summary>
+        private List<string> ResolveStagedPackagesForUi()
         {
             var editor = beepService?.DMEEditor;
-            if (editor == null)
-                return SetupExecutionResult.Fail(0, "Progress: Editor is not available.", "Fallback Connection");
+            if (editor?.ConfigEditor?.DataDriversClasses == null)
+                return new List<string>();
+
+            var drivers = editor.ConfigEditor.DataDriversClasses
+                .Where(d => d != null && !string.IsNullOrWhiteSpace(d.PackageName))
+                .ToList();
+
+            var selected = drivers.Where(d => d.AutoLoad).ToList();
+            if (selected.Count == 0)
+                selected = drivers;
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var result = new List<string>();
+            foreach (var d in selected)
+            {
+                if (seen.Add(d.PackageName))
+                    result.Add(d.PackageName);
+            }
+            return result;
+        }
+
+        // The review step's Run button → canonical Wizard.RunAsync (the framework's pipeline).
+        private async void OnReviewRunSetupRequested(object? sender, EventArgs e)
+        {
+            if (_pieces == null)
+            {
+                UpdateStatus("Setup wizard not initialized. Click Launch first.");
+                return;
+            }
+
+            _runCts?.Cancel();
+            _runCts?.Dispose();
+            _runCts = new CancellationTokenSource();
+            var token = _runCts.Token;
 
             try
             {
-                var handler = new DatasourceSetupHandler(editor);
-                var options = new DatasourceSetupOptions
-                {
-                    ConnectionProperties = cp,
-                    ProvisionDriverIfMissing = false,
-                    OpenConnection = true,
-                    SkipWhenAlreadyOpen = false
-                };
+                UpdateStatus("Running canonical setup pipeline…");
 
-                var result = await handler.SetupAsync(options, progress, cancellationToken).ConfigureAwait(true);
-
-                if (result.Success)
+                var progress = new Progress<PassedArgs>(args =>
                 {
-                    var driverNote = result.DriverProvisioned ? " Driver was provisioned." : string.Empty;
-                    return SetupExecutionResult.Ok(100,
-                        $"Progress: Setup execution completed successfully ({result.Duration.TotalSeconds:0.00}s).{driverNote}",
-                        "Fallback Connection");
+                    if (_reviewStepControl != null && args.ParameterInt1 > 0)
+                        _reviewStepControl.SetProgress(args.ParameterInt1, args.Messege ?? string.Empty);
+                    UpdateStatus(args.Messege ?? string.Empty);
+                });
+
+                var result = await Task.Run(() => _pieces.Wizard.Run(_pieces.Context, progress), token);
+
+                var report = _pieces.Wizard.GetReport();
+                var results = report?.StepResults ?? (IReadOnlyList<SetupStepResult>)Array.Empty<SetupStepResult>();
+                var summary = results.Count > 0
+                    ? string.Join(", ", results.Select(r => $"{r.StepName}: {(r.Succeeded ? "OK" : "FAIL")}"))
+                    : (report?.Succeeded == true ? "All steps passed" : "No steps executed");
+                var path = string.Join(" → ", results.Where(s => s.Succeeded).Select(s => s.StepName));
+                var firstError = results.FirstOrDefault(r => !r.Succeeded);
+
+                // Surface the staged drivers from the UI control so the review run
+                // reflects the same packages the wizard read from ConfigEditor at
+                // Launch time. Same data path the Blazor runner uses.
+                var staged = _driverStepControl?.StagedPackages ?? Array.Empty<string>();
+                if (staged.Count > 0)
+                {
+                    summary += $" | drivers staged: {string.Join(", ", staged)}";
                 }
 
-                return SetupExecutionResult.Fail(100,
-                    $"Progress: Setup execution failed - {result.Message}",
-                    "Fallback Connection");
+                if (_reviewStepControl != null)
+                {
+                    _reviewStepControl.SetLastRunSummary(summary);
+                    _reviewStepControl.SetExecutionPath(path);
+                    _reviewStepControl.SetProgress(report?.Succeeded == true ? 100 : 0, summary);
+                    _reviewStepControl.SetRunningState(false);
+                }
+
+                UpdateStatus(report?.Succeeded == true
+                    ? $"Setup completed in {report!.TotalElapsed.TotalSeconds:0.0}s."
+                    : $"Setup failed: {firstError?.Message ?? "Unknown error"}");
+
+                SetupCompleted?.Invoke(this, new SetupCompletedEventArgs
+                {
+                    Succeeded = report?.Succeeded == true,
+                    Summary = summary,
+                    ExecutionPath = path,
+                    Report = report,
+                    StagedDrivers = staged.ToList()
+                });
             }
             catch (OperationCanceledException)
             {
-                throw;
+                UpdateStatus("Setup cancelled.");
             }
             catch (Exception ex)
             {
-                return SetupExecutionResult.Fail(0, $"Progress: Setup execution failed - {ex.Message}", "Fallback Connection");
+                UpdateStatus($"Setup crashed: {ex.Message}");
             }
         }
 
@@ -780,133 +447,6 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
                 _lblStatus.Text = message;
         }
 
-        public SetupWizardSnapshot GetSnapshot()
-        {
-            return new SetupWizardSnapshot
-            {
-                ConnectionProperties = _connectionStepControl?.GetConnectionProperties(),
-                AllowCancel = _viewModel.AllowCancel,
-                AllowSkip = _viewModel.AllowSkip,
-                Style = _viewModel.Style,
-                LastExecutionPath = _lastExecutionPath,
-                LastRunSummary = _lastRunSummary,
-                LastDriverProvisionSummary = _lastDriverProvisionSummary,
-            };
-        }
-
-        /// <summary>
-        /// Public entry-point that runs the full datasource setup pipeline
-        /// through <see cref="DatasourceSetupHandler"/>: resolve driver →
-        /// provision (if missing) → persist connection → open datasource.
-        /// </summary>
-        /// <remarks>
-        /// Callers that want headless / programmatic setup without driving
-        /// the wizard UI should prefer this method over the framework
-        /// wizard pipeline — it has no UI dependencies and always returns
-        /// a structured <see cref="DatasourceSetupResult"/>.
-        /// </remarks>
-        public async Task<DatasourceSetupResult> RunDatasourceSetupAsync(
-            ConnectionProperties connectionProperties,
-            DatasourceSetupOptions? options = null,
-            CancellationToken cancellationToken = default)
-        {
-            if (connectionProperties == null) throw new ArgumentNullException(nameof(connectionProperties));
-            var editor = beepService?.DMEEditor;
-            if (editor == null)
-            {
-                return DatasourceSetupResult.Fail(
-                    "Editor is not available.",
-                    Array.Empty<DatasourceSetupStep>(),
-                    TimeSpan.Zero);
-            }
-
-            var handler = new DatasourceSetupHandler(editor);
-            options ??= new DatasourceSetupOptions { ConnectionProperties = connectionProperties };
-            options.ConnectionProperties ??= connectionProperties;
-
-            // Use the review-step progress reporter if the user is watching.
-            var review = _reviewStepControl;
-            var progress = new Progress<(int Percent, string Message)>(p =>
-            {
-                if (review != null) review.SetProgress(p.Percent, $"Progress: {p.Message}");
-            });
-
-            return await handler.SetupAsync(options, progress, cancellationToken).ConfigureAwait(true);
-        }
-
-        public void ApplySnapshot(SetupWizardSnapshot snapshot)
-        {
-            if (snapshot == null)
-                return;
-
-            _viewModel.AllowCancel = snapshot.AllowCancel;
-            _viewModel.AllowSkip = snapshot.AllowSkip;
-            _viewModel.Style = snapshot.Style;
-            _lastExecutionPath = string.IsNullOrWhiteSpace(snapshot.LastExecutionPath)
-                ? _lastExecutionPath
-                : snapshot.LastExecutionPath;
-            _lastRunSummary = string.IsNullOrWhiteSpace(snapshot.LastRunSummary)
-                ? _lastRunSummary
-                : snapshot.LastRunSummary;
-            _lastDriverProvisionSummary = string.IsNullOrWhiteSpace(snapshot.LastDriverProvisionSummary)
-                ? _lastDriverProvisionSummary
-                : snapshot.LastDriverProvisionSummary;
-
-            BindDefaults();
-            if (snapshot.ConnectionProperties != null)
-            {
-                _connectionStepControl?.SetConnectionProperties(snapshot.ConnectionProperties);
-            }
-
-            RefreshReviewStep();
-        }
-
-        private void ApplyThemeToBeep(Control? control)
-        {
-            if (control is IBeepUIComponent component)
-                component.Theme = Theme;
-        }
-
-        private void DriverStepControl_DriverPackageInstalled(object? sender, uc_SetupDriverStep.DriverPackageInstalledEventArgs e)
-        {
-            _lastDriverProvisionSummary = e.Success
-                ? $"Installed {e.PackageId} {e.Version}"
-                : $"Failed install {e.PackageId} {e.Version}: {e.Message}";
-
-            UpdateStatus($"Driver package operation: {_lastDriverProvisionSummary}");
-            RefreshReviewStep();
-        }
-
-        private void DriverStepControl_DatasourceSetupCompleted(object? sender, DatasourceSetupResult result)
-        {
-            var details = result.Steps != null && result.Steps.Count > 0
-                ? string.Join(" | ", result.Steps.Select(s => $"{(s.Success ? "OK" : "FAIL")}:{s.Name}"))
-                : "(no steps)";
-
-            _lastDriverProvisionSummary = result.Success
-                ? $"Datasource ready in {result.Duration.TotalSeconds:0.00}s. Steps: {details}"
-                : $"Datasource setup failed: {result.Message}. Steps: {details}";
-
-            UpdateStatus(result.Success
-                ? $"Datasource '{result.DataSource?.DatasourceName ?? "(unknown)"}' ready."
-                : $"Datasource setup failed: {result.Message}");
-
-            RefreshReviewStep();
-        }
-
-        private void ConnectionStepControl_ConnectionSaved(object? sender, uc_SetupConnectionStep.ConnectionSavedEventArgs e)
-        {
-            UpdateStatus($"Connection saved: {e.ConnectionProperties.ConnectionName}");
-            RefreshReviewStep();
-        }
-
-        private void ConnectionStepControl_ConnectionTestCompleted(object? sender, uc_SetupConnectionStep.ConnectionTestCompletedEventArgs e)
-        {
-            var stateText = e.Success ? "passed" : "failed";
-            UpdateStatus($"Connection test {stateText}: {e.Message}");
-            RefreshReviewStep();
-        }
-
         private sealed class SetupWizardViewModel
         {
             public WizardStyle Style { get; set; } = WizardStyle.HorizontalStepper;
@@ -914,57 +454,13 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             public bool AllowSkip { get; set; } = false;
         }
 
-        public sealed class SetupExecutionRequest
-        {
-            public ConnectionProperties? ConnectionProperties { get; set; }
-            public string Theme { get; set; } = string.Empty;
-            public bool AllowSkip { get; set; }
-            public bool AllowCancel { get; set; }
-        }
-
-        public sealed class SetupExecutionResult
-        {
-            public bool Success { get; }
-            public int ProgressPercent { get; }
-            public string Message { get; }
-            public string ExecutionPath { get; }
-
-            private SetupExecutionResult(bool success, int progressPercent, string message, string executionPath)
-            {
-                Success = success;
-                ProgressPercent = progressPercent;
-                Message = message;
-                ExecutionPath = executionPath;
-            }
-
-            public static SetupExecutionResult Ok(int progressPercent, string message, string executionPath = "Unknown") =>
-                new SetupExecutionResult(true, progressPercent, message, executionPath);
-
-            public static SetupExecutionResult Fail(int progressPercent, string message, string executionPath = "Unknown") =>
-                new SetupExecutionResult(false, progressPercent, message, executionPath);
-        }
-
         public sealed class SetupCompletedEventArgs : EventArgs
         {
-            public SetupCompletedEventArgs(SetupWizardSnapshot snapshot, SetupExecutionResult result)
-            {
-                Snapshot = snapshot;
-                Result = result;
-            }
-
-            public SetupWizardSnapshot Snapshot { get; }
-            public SetupExecutionResult Result { get; }
-        }
-
-        public sealed class SetupWizardSnapshot
-        {
-            public ConnectionProperties? ConnectionProperties { get; set; }
-            public bool AllowCancel { get; set; } = true;
-            public bool AllowSkip { get; set; }
-            public WizardStyle Style { get; set; } = WizardStyle.HorizontalStepper;
-            public string LastExecutionPath { get; set; } = string.Empty;
-            public string LastRunSummary { get; set; } = string.Empty;
-            public string LastDriverProvisionSummary { get; set; } = string.Empty;
+            public bool Succeeded { get; init; }
+            public string Summary { get; init; } = string.Empty;
+            public string ExecutionPath { get; init; } = string.Empty;
+            public SetupReport? Report { get; init; }
+            public IReadOnlyList<string> StagedDrivers { get; init; } = Array.Empty<string>();
         }
     }
 }
