@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Data;
+using System.Linq;
 
 using TheTechIdea.Beep.Addin;
 using TheTechIdea.Beep.Utilities;
 using TheTechIdea.Beep.Vis;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Controls.Models;
 using TheTechIdea.Beep.Winform.Default.Views.Template;
 using TheTechIdea.Beep.MVVM.ViewModels.BeepConfig;
@@ -23,6 +24,18 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             InitializeComponent();
 
             Details.AddinName = "Data Connections";
+            ApplyDpiScaledLayout();
+        }
+
+        /// <summary>
+        /// Skill § "Sizing tokens": apply DPI-scaled <see cref="BeepLayoutMetrics"/> values to
+        /// chrome that the Designer serialized as static pixels. The Designer is the source
+        /// of truth for layout; this method overlays DPI-scaled dimensions on top.
+        /// </summary>
+        private void ApplyDpiScaledLayout()
+        {
+            // Usercontrol chrome: design-time size lives in Designer; overlay DPI-scaled dialog.
+            Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this);
         }
 
         #region "IAddinVisSchema"
@@ -62,8 +75,8 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         {
             base.Configure(settings);
             viewModel = new DataConnectionViewModel(beepService.DMEEditor, appManager);
-            //viewModel.DBWork.Units.Filter = "Category = " + DatasourceCategory.RDBMS;
             BeepColumnConfig drivername = beepSimpleGrid1.GetColumnByName("DriverName");
+            beepSimpleGrid1.CellValueChanged -= BeepGridPro1_CellValueChanged;
             beepSimpleGrid1.CellValueChanged += BeepGridPro1_CellValueChanged;
             List<SimpleItem> versions = new List<SimpleItem>();
             foreach (var item in viewModel.PackageNames)
@@ -90,18 +103,9 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             BeepColumnConfig driverversion = beepSimpleGrid1.GetColumnByName("DriverVersion");
             driverversion.ParentColumnName = "DriverName";
             driverversion.Items = versions;
+            beepSimpleGrid1.SaveCalled -= BeepGridPro1_SaveCalled;
             beepSimpleGrid1.SaveCalled += BeepGridPro1_SaveCalled;
             beepSimpleGrid1.ShowCheckBox = true;
-            // idx = 0;
-            //foreach (var item in viewModel.PackageVersions)
-            //{
-            //    SimpleItem driveritem = new SimpleItem();
-            //    driveritem.IsDisplayField = item;
-            //    driveritem.Value = idx++;
-            //    driveritem.Text = item;
-            //    driveritem.Name = item;
-            //    driverversion.Items.Add(driveritem);
-            //}
         }
 
         private void BeepGridPro1_SaveCalled(object? sender, EventArgs e)
@@ -111,39 +115,12 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
         private void BeepGridPro1_CellValueChanged(object? sender, BeepCellEventArgs e)
         {
-            //BeepColumnConfig beepColumnConfig = beepGridPro1.GetColumnByName("DriverName");
-            //BeepColumnConfig currentcolumn = beepGridPro1.GetColumnByIndex(e.Cell.ColumnIndex);
-            //if (currentcolumn.ColumnName == "DriverName")
-            //{
-            //    BeepColumnConfig driverversion = beepGridPro1.GetColumnByName("DriverVersion");
-            //    driverversion.Items.Clear();
-            //    e.Cell.FilterdList = new List<SimpleItem>();
-            //    foreach (var DriversClasse in beepservice.Config_editor.DataDriversClasses.Where(x => x.PackageName == e.Cell.CellValue.ToString()))
-            //    {
-            //        SimpleItem itemversion = new SimpleItem();
-            //        itemversion.IsDisplayField = DriversClasse.version;
-            //        itemversion.Value = DriversClasse.version;
-            //        itemversion.Text = DriversClasse.version;
-            //        itemversion.Name = DriversClasse.version;
-
-            //        driverversion.FilterdList.Add(itemversion);
-
-
-            //    }
-            //}
         }
 
         public override void OnNavigatedTo(Dictionary<string, object> parameters)
         {
             base.OnNavigatedTo(parameters);
             beepSimpleGrid1.DataSource = viewModel.DBWork.Units;
-
-
-        }
-
-        private void uc_DataConnections_Load(object sender, EventArgs e)
-        {
-
         }
     }
 }

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.Extensions.DependencyInjection;
 using TheTechIdea.Beep.Editor;
+using TheTechIdea.Beep.SetUp;
 using TheTechIdea.Beep.Utilities;
 using TheTechIdea.Beep.Vis;
 using TheTechIdea.Beep.Vis.Modules;
@@ -21,7 +22,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views
         private uc_SetupWizard? _setupWizard;
         private uc_ImportExportLauncher? _importExportWizard;
         private uc_AppBootstrap? _appBootstrap;
-        private BootstrapState? _bootstrapState;
+        private IFirstRunDetector? _firstRunDetector;
         private System.Threading.CancellationTokenSource? _bootstrapCts;
 
 
@@ -74,14 +75,18 @@ namespace TheTechIdea.Beep.Winform.Default.Views
             if (IsDisposed || Disposing) return;
 
             _bootstrapCts ??= new System.Threading.CancellationTokenSource();
-            _bootstrapState ??= BootstrapState.Resolve(_serviceprovider, beepService.DMEEditor);
+            _firstRunDetector ??= _serviceprovider != null
+                ? Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                    .GetService<IFirstRunDetector>(_serviceprovider)
+                ?? new FileBasedFirstRunDetector(beepService.DMEEditor)
+                : new FileBasedFirstRunDetector(beepService.DMEEditor);
 
             try
             {
-                await _bootstrapState.InitializeAsync();
+                bool isFirstRun = await _firstRunDetector.IsFirstRunAsync();
                 if (IsDisposed || Disposing) return;
 
-                if (!_bootstrapState.IsFirstRun)
+                if (!isFirstRun)
                 {
                     return;
                 }

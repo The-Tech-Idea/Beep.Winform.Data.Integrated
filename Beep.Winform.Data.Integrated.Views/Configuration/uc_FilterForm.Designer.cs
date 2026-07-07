@@ -120,7 +120,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             beepLabel1.IconSize = 20;
             beepLabel1.Id = -1;
             beepLabel1.ImageAlign = ContentAlignment.MiddleLeft;
-            beepLabel1.ImagePath = "C:\\Users\\f_ald\\OneDrive\\docs_pic\\IMG_1074.jpg";
+            beepLabel1.ImagePath = "";
             beepLabel1.InactiveBorderColor = Color.Gray;
             beepLabel1.InnerShape = null;
             beepLabel1.IsAcceptButton = false;
@@ -198,11 +198,11 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             beepLabel1.StaticNotMoving = false;
             beepLabel1.SubHeaderFont = new Font("Arial", 10F);
             beepLabel1.SubHeaderForeColor = Color.FromArgb(83, 83, 83);
-            beepLabel1.SubHeaderText = "I.T. Info. Specilaist";
+            beepLabel1.SubHeaderText = "";
             beepLabel1.TabIndex = 12;
            
             beepLabel1.TempBackColor = Color.Empty;
-            beepLabel1.Text = "Fahad Aldhubaib";
+            beepLabel1.Text = "Filter";
             beepLabel1.TextAlign = ContentAlignment.MiddleLeft;
             beepLabel1.TextFont = new Font("Arial", 10F);
             beepLabel1.TextImageRelation = TextImageRelation.ImageBeforeText;

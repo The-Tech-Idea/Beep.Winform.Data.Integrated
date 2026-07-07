@@ -51,10 +51,52 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         {
             InitializeComponent();
             Details.AddinName = "Data Edit";
+            ApplyDpiScaledLayout();
             WireEvents();
             ConfigureGridDefaults();
             UpdateStatus("Ready");
             RefreshCommandStates();
+        }
+
+        /// <summary>
+        /// Skill § "Sizing tokens": every <c>new Size(...)</c> for chrome (button heights,
+        /// toolbar panel height) is serialized in the Designer file. At runtime we re-apply
+        /// DPI-scaled values from <see cref="BeepLayoutMetrics"/> so the layout tracks the
+        /// host's display scale, without mutating the design-time surface.
+        /// </summary>
+        private void ApplyDpiScaledLayout()
+        {
+            int buttonHeight = BeepLayoutMetrics.ButtonLarge.Height.ScaleValue(this);
+            int buttonWidth  = BeepLayoutMetrics.ButtonLarge.Width.ScaleValue(this);
+            int rowHeight    = BeepLayoutMetrics.TextRowHeight.ScaleValue(this);
+            int interRow     = BeepLayoutMetrics.InterRowSpacing.ScaleValue(this);
+
+            // Buttons share a single height token so the toolbar is visually aligned.
+            btnNew.Height    = buttonHeight;
+            btnEdit.Height   = buttonHeight;
+            btnDelete.Height = buttonHeight;
+            btnSave.Height   = buttonHeight;
+            btnCancel.Height = buttonHeight;
+            btnRefresh.Height = buttonHeight;
+            btnUndo.Height   = buttonHeight;
+            btnRedo.Height   = buttonHeight;
+            btnMap.Height    = buttonHeight;
+            btnImport.Height = buttonHeight;
+
+            // Wider verbs get more room — keep the design-time widths as the floor.
+            btnNew.Width    = Math.Max(btnNew.Width,    buttonWidth);
+            btnEdit.Width   = Math.Max(btnEdit.Width,   buttonWidth);
+            btnDelete.Width = Math.Max(btnDelete.Width, buttonWidth);
+            btnSave.Width   = Math.Max(btnSave.Width,   buttonWidth);
+            btnCancel.Width = Math.Max(btnCancel.Width, buttonWidth);
+            btnRefresh.Width = Math.Max(btnRefresh.Width, buttonWidth);
+            btnUndo.Width   = Math.Max(btnUndo.Width,   buttonWidth);
+            btnRedo.Width   = Math.Max(btnRedo.Width,   buttonWidth);
+            btnMap.Width    = Math.Max(btnMap.Width,    buttonWidth);
+            btnImport.Width = Math.Max(btnImport.Width, buttonWidth);
+
+            // statusPanel row height + the inter-row gap between toolbar and grid.
+            statusPanel.Height = rowHeight;
         }
 
         public override void Configure(Dictionary<string, object> settings)

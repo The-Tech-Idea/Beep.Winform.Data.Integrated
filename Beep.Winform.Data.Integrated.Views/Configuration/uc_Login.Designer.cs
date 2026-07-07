@@ -308,7 +308,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             beepLogin1.Padding = new Padding(2);
             beepLogin1.ParentBackColor = Color.Empty;
             beepLogin1.ParentControl = null;
-            beepLogin1.Password = "password123";
+            beepLogin1.Password = "";
             beepLogin1.PressedBackColor = Color.White;
             beepLogin1.PressedBorderColor = Color.Gray;
             beepLogin1.PressedForeColor = Color.Gray;
@@ -344,7 +344,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             beepLogin1.UseExternalBufferedGraphics = false;
             beepLogin1.UseGlassmorphism = false;
             beepLogin1.UseGradientBackground = true;
-            beepLogin1.Username = "user@example.com";
+            beepLogin1.Username = "";
             beepLogin1.UseThemeFont = true;
             beepLogin1.ViewType = Winform.Controls.LoginViewType.Simple;
             // 

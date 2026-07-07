@@ -6553,7 +6553,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             beepSimpleGrid1.DisabledBackColor = Color.FromArgb(200, 200, 200);
             beepSimpleGrid1.DisabledBorderColor = Color.LightGray;
             beepSimpleGrid1.DisabledForeColor = Color.Gray;
-            beepSimpleGrid1.Dock = DockStyle.Bottom;
+            beepSimpleGrid1.Dock = DockStyle.Fill;
            // beepSimpleGrid1.DrawingRect = new Rectangle(1, 1, 951, 457);
             beepSimpleGrid1.Easing = EasingType.Linear;
             beepSimpleGrid1.EnableHighQualityRendering = true;            beepSimpleGrid1.EnableRippleEffect = false;
@@ -7378,7 +7378,6 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             Controls.Add(beepSimpleGrid1);
             Name = "uc_DataConnections";
             Size = new Size(953, 737);
-            Load += uc_DataConnections_Load;
             ((System.ComponentModel.ISupportInitialize)dataConnectionViewModelBindingSource).EndInit();
             ResumeLayout(false);
         }

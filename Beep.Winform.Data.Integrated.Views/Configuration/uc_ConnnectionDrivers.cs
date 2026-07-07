@@ -9,6 +9,7 @@ using TheTechIdea.Beep.Utilities;
 using TheTechIdea.Beep.Vis;
 using TheTechIdea.Beep.Vis.Modules;
 using TheTechIdea.Beep.Winform.Controls.GridX;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Controls.Models;
 using TheTechIdea.Beep.Winform.Default.Views.Template;
 using System.ComponentModel;
@@ -25,8 +26,21 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         public uc_ConnnectionDrivers(IServiceProvider services): base(services)
         {
             InitializeComponent();
-  
+
             Details.AddinName = "Connection Drivers";
+            ApplyDpiScaledLayout();
+        }
+
+        /// <summary>
+        /// Skill § "Sizing tokens": apply DPI-scaled <see cref="BeepLayoutMetrics"/> values to
+        /// chrome that the Designer serialized as static pixels. The Designer is the source of
+        /// truth for layout; this method overlays DPI-scaled dimensions on top so the surface
+        /// tracks the host display scale.
+        /// </summary>
+        private void ApplyDpiScaledLayout()
+        {
+            // Usercontrol chrome: design-time size is in Designer; overlay DPI-scaled dialog size.
+            Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this);
         }
         #region "IAddinVisSchema"
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]

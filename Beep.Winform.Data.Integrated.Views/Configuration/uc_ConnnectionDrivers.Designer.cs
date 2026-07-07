@@ -1736,7 +1736,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             beepGridPro1.ShowRightBorder = false;
             beepGridPro1.ShowShadow = false;
             beepGridPro1.ShowTopBorder = false;
-            beepGridPro1.Size = new Size(2143, 1545);
+            beepGridPro1.Size = new Size(840, 560);
             beepGridPro1.SlideFrom = SlideDirection.Left;
             beepGridPro1.StaticNotMoving = false;
             beepGridPro1.TabIndex = 0;
@@ -1761,12 +1761,12 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             // 
             // uc_ConnnectionDrivers
             // 
-            AutoScaleDimensions = new SizeF(13F, 32F);
+            AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             Controls.Add(beepGridPro1);
             Margin = new Padding(11, 13, 11, 13);
             Name = "uc_ConnnectionDrivers";
-            Size = new Size(2143, 1545);
+            Size = new Size(840, 560);
             ((System.ComponentModel.ISupportInitialize)driversConfigViewModelBindingSource).EndInit();
             ResumeLayout(false);
         }

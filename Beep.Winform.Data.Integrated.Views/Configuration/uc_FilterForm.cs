@@ -1,10 +1,10 @@
 ﻿
+using System.ComponentModel;
 using TheTechIdea.Beep.Addin;
-using TheTechIdea.Beep.Utilities;
 using TheTechIdea.Beep.Vis;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Default.Views.Template;
 using TheTechIdea.Beep.Container.Services;
-using TheTechIdea.Beep.Winform.Controls;
 
 
 namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
@@ -17,47 +17,56 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         public uc_FilterForm(IServiceProvider services): base(services)
         {
             InitializeComponent();
-         
-          
-
             Details.AddinName = "Filter";
+            ApplyDpiScaledLayout();
         }
+
+        /// <summary>
+        /// Skill § "Sizing tokens": apply DPI-scaled <see cref="BeepLayoutMetrics"/> values to
+        /// chrome that the Designer serialized as static pixels. The Designer is the source
+        /// of truth for layout; this method overlays DPI-scaled dimensions on top.
+        /// </summary>
+        private void ApplyDpiScaledLayout()
+        {
+            Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this);
+        }
+
         #region "IAddinVisSchema"
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string RootNodeName { get; set; } = "Configuration";
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string CatgoryName { get; set; }
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int Order { get; set; } = 2;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int ID { get; set; } = 2;
-        public string BranchText { get; set; } = "Filter ";
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public string BranchText { get; set; } = "Filter";
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int Level { get; set; }
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public EnumPointType BranchType { get; set; } = EnumPointType.Entity;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int BranchID { get; set; } = 3;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string IconImageName { get; set; } = "connectiondrivers.ico";
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string BranchStatus { get; set; }
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public int ParentBranchID { get; set; }
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string BranchDescription { get; set; } = "Data Sources Connection Drivers Setup Screen";
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string BranchClass { get; set; } = "ADDIN";
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string AddinName { get; set; }
         #endregion "IAddinVisSchema"
 
-       
-        
-        public override void Configure(Dictionary<string, object> settings)
-        {
-            base.Configure(settings);
-      
-        }
         public override void OnNavigatedTo(Dictionary<string, object> parameters)
         {
-           
             base.OnNavigatedTo(parameters);
-            beepSimpleGrid1.DataSource =  beepService.Config_editor.DataSourcesClasses;
-            //beepFilter1.DataSource = beepservice.Editor.ConfigEditor.DataSourcesClasses;
-
-        }
-        protected override void OnResize(EventArgs e)
-        {
-            base.OnResize(e);
-            
+            if (beepService?.Config_editor?.DataSourcesClasses != null)
+                beepSimpleGrid1.DataSource = beepService.Config_editor.DataSourcesClasses;
         }
     }
 }

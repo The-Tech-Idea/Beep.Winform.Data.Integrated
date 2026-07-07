@@ -283,6 +283,41 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
 
             Controls.Add(_rootLayout);
             ResumeLayout(true);
+
+            // Skill § "Sizing tokens": after the chrome is built, apply DPI-scaled overrides
+            // from BeepLayoutMetrics. The usercontrol's own Size stays in sync with the
+            // dialog size token; the inner label heights and row gaps follow the design-skill
+            // row-height token so they scale with the host's display DPI.
+            ApplyDpiScaledLayout();
+        }
+
+        /// <summary>
+        /// Skill § "Sizing tokens": apply DPI-scaled <see cref="BeepLayoutMetrics"/> values to
+        /// chrome created by <see cref="BuildUi"/>. The design-time chrome is built in code;
+        /// this overlay keeps heights and padding tracking the host display scale.
+        /// </summary>
+        private void ApplyDpiScaledLayout()
+        {
+            int titleHeight   = (int)BeepLayoutMetrics.TitleFontSize + 8;
+            int statusHeight  = (int)BeepLayoutMetrics.SubtitleFontSize + 6;
+            int buttonHeight  = BeepLayoutMetrics.ButtonLarge.Height.ScaleValue(this);
+            int rowHeight     = BeepLayoutMetrics.TextRowHeight.ScaleValue(this);
+            int spacerHeight  = BeepLayoutMetrics.InterRowSpacing.ScaleValue(this);
+
+            if (_titleLabel != null)    _titleLabel.Height   = titleHeight;
+            if (_subtitleLabel != null) _subtitleLabel.Height = statusHeight;
+            if (_statusLabel != null)   _statusLabel.Height  = statusHeight;
+            if (_quickSetupButton != null) _quickSetupButton.Height = Math.Max(_quickSetupButton.Height, buttonHeight);
+            if (_skipButton != null)       _skipButton.Height       = Math.Max(_skipButton.Height, buttonHeight);
+            if (_enterAppButton != null)   _enterAppButton.Height   = Math.Max(_enterAppButton.Height, buttonHeight);
+            if (_resetButton != null)      _resetButton.Height      = Math.Max(_resetButton.Height, buttonHeight);
+
+            // Apply consistent row heights to the TableLayoutPanel so the layout scales.
+            for (int i = 0; i < _rootLayout.RowStyles.Count; i++)
+            {
+                if (i < 3) _rootLayout.RowStyles[i].Height = rowHeight;
+                else if (i < 5) _rootLayout.RowStyles[i].Height = (float)spacerHeight;
+            }
         }
 
         private void ShowWelcome()
