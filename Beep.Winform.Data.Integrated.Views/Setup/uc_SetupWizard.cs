@@ -14,6 +14,7 @@ using TheTechIdea.Beep.SetUp;
 using TheTechIdea.Beep.SetUp.Seeding;
 using TheTechIdea.Beep.SetUp.Steps;
 using TheTechIdea.Beep.Vis.Modules;
+using TheTechIdea.Beep.Winform.Controls.Wizards;
 using TheTechIdea.Beep.Winform.Default.Views.Template;
 
 namespace TheTechIdea.Beep.Winform.Default.Views.Setup
@@ -446,6 +447,89 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
         {
             if (_lblStatus != null)
                 _lblStatus.Text = message;
+        }
+
+        /// <summary>
+        /// Builds a WizardConfig suitable for WizardManager.ShowWizard().
+        /// Maps the Beep.SetUp framework wizard steps to WinForms UserControl content.
+        /// </summary>
+        public WizardConfig BuildWizardConfig()
+        {
+            if (beepService?.DMEEditor == null)
+                return new WizardConfig { Title = "Setup Wizard" };
+
+            var pieces = BuildSetupPieces();
+            _pieces = pieces;
+            PopulateUi(pieces);
+
+            var config = new WizardConfig
+            {
+                Key = "platform-setup-winform",
+                Title = "Platform Setup",
+                Style = WizardStyle.HorizontalStepper,
+                TransitionType = TransitionType.Fade,
+                TransitionDurationMs = 200,
+                ShowProgressBar = true,
+                AllowCancel = true,
+                ShowStepList = true,
+                NextButtonText = "Next",
+                BackButtonText = "Back",
+                FinishButtonText = "Run Setup",
+            };
+
+            // Map framework steps to WizardSteps with WinForms controls as content
+            foreach (var step in pieces.Wizard.Steps)
+            {
+                Control? content = step switch
+                {
+                    DriverProvisionStep => _driverStepControl,
+                    ConnectionConfigStep => _connectionStepControl,
+                    SchemaSetupStep => _schemaStepControl,
+                    SeedingStep => _seedingStepControl,
+                    _ => null
+                };
+
+                config.Steps.Add(new WizardStep
+                {
+                    Key = step.GetType().Name,
+                    Title = step.GetType().Name.Replace("Step", ""),
+                    Description = "",
+                    Content = content
+                });
+            }
+
+            // Add review step as the final step
+            if (_reviewStepControl != null)
+            {
+                var lastStep = pieces.Wizard.Steps.LastOrDefault();
+                if (lastStep != null)
+                    _reviewStepControl.BindToCanonicalStep(lastStep, pieces.Context);
+
+                config.Steps.Add(new WizardStep
+                {
+                    Key = "ReviewAndRun",
+                    Title = "Review & Run",
+                    Description = "Review your configuration and run the setup",
+                    Content = _reviewStepControl
+                });
+            }
+
+            // Wire completion to run the setup pipeline
+            config.OnComplete = ctx =>
+            {
+                if (_pieces != null)
+                {
+                    var result = _pieces.Wizard.Run(_pieces.Context, new Progress<PassedArgs>());
+                    bool ok = result?.Flag == ConfigUtil.Errors.Ok;
+                    SetupCompleted?.Invoke(this, new SetupCompletedEventArgs
+                    {
+                        Succeeded = ok,
+                        Summary = ok ? "Setup completed successfully" : "Setup failed",
+                    });
+                }
+            };
+
+            return config;
         }
 
         private sealed class SetupWizardViewModel
