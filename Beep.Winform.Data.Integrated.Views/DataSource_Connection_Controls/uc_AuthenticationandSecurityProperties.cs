@@ -77,6 +77,25 @@ namespace TheTechIdea.Beep.Winform.Default.Views.DataSource_Connection_Controls
 
             // Set password mode
             Auth_PasswordbeepTextBox.UseSystemPasswordChar = true;
+
+            // Wire auth mode changes to notify credential enable state (matches WPF)
+            Auth_UseWindowsAuthbeepCheckBox.CheckedChanged -= OnAuthModeChanged;
+            Auth_UseWindowsAuthbeepCheckBox.CheckedChanged += OnAuthModeChanged;
+            Auth_IntegratedSecuritybeepCheckBox.CheckedChanged -= OnAuthModeChanged;
+            Auth_IntegratedSecuritybeepCheckBox.CheckedChanged += OnAuthModeChanged;
+            Auth_UseUserAndPasswordbeepCheckBox.CheckedChanged -= OnAuthModeChanged;
+            Auth_UseUserAndPasswordbeepCheckBox.CheckedChanged += OnAuthModeChanged;
+        }
+
+        /// <summary>Update credential field enable state when auth mode changes (matches WPF).</summary>
+        private void OnAuthModeChanged(object? sender, EventArgs e)
+        {
+            if (ConnectionProperties == null) return;
+            bool requiresCredentials = !ConnectionProperties.UseWindowsAuthentication
+                                    && !ConnectionProperties.IntegratedSecurity;
+            Auth_UserIDbeepTextBox.Enabled = requiresCredentials;
+            Auth_PasswordbeepTextBox.Enabled = requiresCredentials;
+            Auth_SavePasswordbeepCheckBox.Enabled = requiresCredentials;
         }
     }
 }

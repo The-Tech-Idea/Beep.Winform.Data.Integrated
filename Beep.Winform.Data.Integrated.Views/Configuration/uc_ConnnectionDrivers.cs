@@ -92,21 +92,37 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         public override void OnNavigatedTo(Dictionary<string, object> parameters)
         {
             base.OnNavigatedTo(parameters);
+
+            // Ensure driver catalog is loaded (matches WPF LoadDrivers pattern)
+            beepService.Config_editor.LoadConnectionDriversConfigValues();
+            if (beepService.Config_editor.DataDriversClasses == null
+                || !beepService.Config_editor.DataDriversClasses.Any())
+            {
+                beepService.Config_editor.DataDriversClasses =
+                    Beep.Helpers.ConnectionHelper.GetAllConnectionConfigs();
+            }
+
+            // Populate ClassHandler column with drivers filtered by DataSourceType (matches WPF)
             BeepColumnConfig classhandlers = beepGridPro1.GetColumnByName("ClassHandler");
             classhandlers.CellEditor = BeepColumnType.ListOfValue;
             int idx = 0;
-            foreach (var item in viewModel.DBAssemblyClasses)
+            var driverCatalog = beepService.Config_editor.DataDriversClasses
+                ?.Where(d => !string.IsNullOrWhiteSpace(d.classHandler))
+                .GroupBy(d => d.classHandler ?? "", StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .OrderBy(d => d.classHandler, StringComparer.OrdinalIgnoreCase)
+                ?? Enumerable.Empty<TheTechIdea.Beep.DriversConfigurations.ConnectionDriversConfig>();
+
+            foreach (var item in driverCatalog)
             {
                 SimpleItem item1 = new SimpleItem();
-                item1.DisplayField = item.className;
+                item1.DisplayField = $"{item.classHandler} ({item.PackageName})";
                 item1.Value = idx++;
-                item1.Text = item.className;
-                item1.Name = item.className;
+                item1.Text = item.classHandler;
+                item1.Name = item.classHandler;
                 classhandlers.Items.Add(item1);
             }
             beepGridPro1.DataSource = viewModel.DBWork.Units;
-
-
         }
        
     }

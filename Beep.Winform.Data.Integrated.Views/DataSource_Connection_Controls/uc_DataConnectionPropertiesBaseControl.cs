@@ -1,30 +1,28 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using TheTechIdea.Beep.ConfigUtil;
+using TheTechIdea.Beep.DriversConfigurations;
+using TheTechIdea.Beep.Editor;
 
 namespace TheTechIdea.Beep.Winform.Default.Views.DataSource_Connection_Controls
 {
     /// <summary>
     /// Base class for connection property tab controls.
     /// Each child control represents one tab/region of IConnectionProperties.
+    /// Provides shared IDMEEditor access for driver catalog lookups (matches WPF pattern).
     /// </summary>
     public partial class uc_DataConnectionPropertiesBaseControl : UserControl
     {
-        // Main data object - ConnectionProperties that will be passed in and returned
         protected ConnectionProperties _connectionProperties;
-        
-        /// <summary>
-        /// Extra parameters for specific connection types
-        /// </summary>
+        protected IDMEEditor? Editor { get; private set; }
+        protected List<ConnectionDriversConfig> DriverCatalog { get; private set; } = new();
+
         public Dictionary<string, string> DefaultParameterList { get; set; } = new Dictionary<string, string>();
-        
+
         public ConnectionProperties ConnectionProperties
         {
             get => _connectionProperties;
@@ -37,6 +35,18 @@ namespace TheTechIdea.Beep.Winform.Default.Views.DataSource_Connection_Controls
                 }
             }
         }
+
+        /// <summary>Set the editor and refresh the driver catalog (matches WPF InitializeTemplate pattern).</summary>
+        public virtual void SetEditor(IDMEEditor editor)
+        {
+            Editor = editor;
+            DriverCatalog = editor?.ConfigEditor?.DataDriversClasses
+                ?? new List<ConnectionDriversConfig>();
+            OnEditorSet();
+        }
+
+        /// <summary>Called after the editor is set — override to load catalog-dependent data.</summary>
+        protected virtual void OnEditorSet() { }
 
         public virtual void SetupBindings(ConnectionProperties conn)
         {

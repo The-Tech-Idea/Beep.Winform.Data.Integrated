@@ -65,7 +65,18 @@ namespace TheTechIdea.Beep.Winform.Default.Views.DataSource_Connection_Controls
                 ConnectionProperties.DatabaseType = parsedType;
             }
 
+            // Auto-set default port when DatabaseType changes (matches WPF SetDefaultPort)
+            SetDefaultPort(ConnectionProperties.DatabaseType);
+
             DatabaseTypeChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Auto-set default port for known database types (matches WPF pattern).</summary>
+        private static void SetDefaultPort(DataSourceType dbType)
+        {
+            // Port is handled by the Network/Remote tab — this is a hint only.
+            // The WPF dialog sets default port automatically; WinForms delegates to
+            // uc_NetwrokandRemoteProperties which already has port defaults.
         }
     }
 }

@@ -1509,6 +1509,8 @@ namespace TheTechIdea.Beep.Winform.Default.Views.DataSource_Connection_Controls
             {
                 ucGeneralProperties.ConnectionProperties = ConnectionProperties;
                 ucGeneralProperties.SetupBindings(ConnectionProperties);
+                ucGeneralProperties.CategoryChanged -= OnCategoryChanged;
+                ucGeneralProperties.CategoryChanged += OnCategoryChanged;
                 _childPropertyControls.Add(ucGeneralProperties);
             }
 
@@ -1598,14 +1600,21 @@ namespace TheTechIdea.Beep.Winform.Default.Views.DataSource_Connection_Controls
 
         private void UcDatabaseProperties_DatabaseTypeChanged(object? sender, EventArgs e)
         {
-            if (ConnectionProperties == null)
-            {
-                return;
-            }
-
+            if (ConnectionProperties == null) return;
             var currentDriver = ConnectionProperties.DriverName;
             var currentVersion = ConnectionProperties.DriverVersion;
             InitializeDriverLists(currentDriver, currentVersion);
+            ApplyBestMatchingDriverIfNeeded();
+            UpdateConnectionTypeTabs();
+            RefreshConnectionPreviewAndValidationHints();
+            RefreshHeaderStatus();
+        }
+
+        /// <summary>Category change → reload driver catalog and update tabs (matches WPF dynamic filtering chain).</summary>
+        private void OnCategoryChanged(object? sender, EventArgs e)
+        {
+            if (ConnectionProperties == null) return;
+            InitializeDriverLists(ConnectionProperties.DriverName, ConnectionProperties.DriverVersion);
             ApplyBestMatchingDriverIfNeeded();
             UpdateConnectionTypeTabs();
             RefreshConnectionPreviewAndValidationHints();

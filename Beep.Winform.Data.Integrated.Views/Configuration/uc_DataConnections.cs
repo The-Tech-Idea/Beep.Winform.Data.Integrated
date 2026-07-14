@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 
 using TheTechIdea.Beep.Addin;
+using TheTechIdea.Beep.ConfigUtil;
 using TheTechIdea.Beep.Utilities;
 using TheTechIdea.Beep.Vis;
 using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
@@ -22,19 +23,12 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         public uc_DataConnections(IServiceProvider services) : base(services)
         {
             InitializeComponent();
-
             Details.AddinName = "Data Connections";
             ApplyDpiScaledLayout();
         }
 
-        /// <summary>
-        /// Skill § "Sizing tokens": apply DPI-scaled <see cref="BeepLayoutMetrics"/> values to
-        /// chrome that the Designer serialized as static pixels. The Designer is the source
-        /// of truth for layout; this method overlays DPI-scaled dimensions on top.
-        /// </summary>
         private void ApplyDpiScaledLayout()
         {
-            // Usercontrol chrome: design-time size lives in Designer; overlay DPI-scaled dialog.
             Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this);
         }
 
@@ -68,16 +62,24 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public string AddinName { get; set; }
         #endregion "IAddinVisSchema"
-        DataConnectionViewModel viewModel;
 
+        DataConnectionViewModel viewModel;
 
         public override void Configure(Dictionary<string, object> settings)
         {
             base.Configure(settings);
             viewModel = new DataConnectionViewModel(beepService.DMEEditor, appManager);
+
+            // Load driver catalog for ClassHandler column (matches WPF LoadClassHandlers pattern)
+            beepService.Config_editor.LoadConnectionDriversConfigValues();
+            if (beepService.Config_editor.DataDriversClasses == null || !beepService.Config_editor.DataDriversClasses.Any())
+                beepService.Config_editor.DataDriversClasses = Beep.Helpers.ConnectionHelper.GetAllConnectionConfigs();
+
             BeepColumnConfig drivername = beepSimpleGrid1.GetColumnByName("DriverName");
             beepSimpleGrid1.CellValueChanged -= BeepGridPro1_CellValueChanged;
             beepSimpleGrid1.CellValueChanged += BeepGridPro1_CellValueChanged;
+
+            // Populate driver packages with versions (cascading: Package → Version)
             List<SimpleItem> versions = new List<SimpleItem>();
             foreach (var item in viewModel.PackageNames)
             {
@@ -110,6 +112,13 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
         private void BeepGridPro1_SaveCalled(object? sender, EventArgs e)
         {
+            // Ensure GuidID for new connections (matches WPF SaveToResult pattern)
+            foreach (var unit in viewModel.DBWork.Units)
+            {
+                var conn = unit as ConnectionProperties;
+                if (conn != null && string.IsNullOrEmpty(conn.GuidID))
+                    conn.GuidID = Guid.NewGuid().ToString();
+            }
             viewModel.Save();
         }
 
