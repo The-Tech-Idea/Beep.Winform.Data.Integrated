@@ -496,6 +496,11 @@ public class WinFormFormHostLifecycleTests
             Thread.Sleep(1);
         }
 
-        task;
+        Assert.True(task.IsCompleted, "Task did not complete within the pump timeout.");
+
+        // GetResult rethrows the original exception unwrapped, which is what the
+        // Assert.Throws<ObjectDisposedException> caller expects; Wait() would wrap
+        // it in an AggregateException.
+        task.GetAwaiter().GetResult();
     }
 }

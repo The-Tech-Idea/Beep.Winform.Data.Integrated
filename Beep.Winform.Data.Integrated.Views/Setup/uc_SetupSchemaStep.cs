@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TheTechIdea.Beep.Addin;
@@ -13,6 +14,11 @@ using TheTechIdea.Beep.SetUp;
 using TheTechIdea.Beep.SetUp.Steps;
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Default.Views.Template;
+
+// TheTechIdea.Beep.SetUp also publishes a MigrationSummary — a 4-property DTO for setup
+// events. This step reports real database state, so it binds to the migration engine's
+// summary (the type IMigrationManager.GetMigrationSummaryForTypes actually returns).
+using MigrationSummary = TheTechIdea.Beep.Editor.Migration.MigrationSummary;
 
 namespace TheTechIdea.Beep.Winform.Default.Views.Setup
 {
@@ -28,6 +34,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
         private MigrationSummary? _lastSummary;
         private SchemaSetupStepOptions? _options;
         private SetupContext? _context;
+        private CancellationTokenSource? _refreshCts;
 
         public event EventHandler<SchemaSummaryEventArgs>? SummaryChanged;
 
@@ -48,6 +55,11 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             set { _extraAssemblies = value; if (_options != null) _options.ExtraAssemblies = value; _ = TryRefreshSummaryAsync(); }
         }
 
+        /// <summary>
+        /// The last summary returned by <see cref="IMigrationManager.GetMigrationSummaryForTypes"/>,
+        /// or null when no summary has been produced yet (no open datasource, no entity types,
+        /// or the survey failed).
+        /// </summary>
         public MigrationSummary? LastSummary => _lastSummary;
 
         public bool IsReadyForSetup()
@@ -63,9 +75,16 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
         public string GetStepSummary()
         {
             if (_lastSummary == null) return "Schema: not summarized yet.";
-            return $"Schema: {_lastSummary.TotalPendingMigrations} pending migration(s); " +
-                   $"plan valid: {_lastSummary.IsValid}; " +
-                   $"policy: {_lastSummary.PolicyResult ?? "(unchecked)"}.";
+
+            var summary = $"Schema: {_lastSummary.TotalPendingMigrations} pending migration(s) — " +
+                          $"{_lastSummary.EntitiesToCreate.Count} to create, " +
+                          $"{_lastSummary.EntitiesToUpdate.Count} to update, " +
+                          $"{_lastSummary.EntitiesUpToDate.Count} up to date.";
+
+            if (_lastSummary.Errors.Count > 0)
+                summary += $" {_lastSummary.Errors.Count} error(s): {_lastSummary.Errors[0]}";
+
+            return summary;
         }
 
         /// <summary>
@@ -98,64 +117,119 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             }
             else
             {
-                _lblTask1.Text = "- Build migration plan from entities (no open datasource).";
-                _lblTask2.Text = "- Run policy and preflight checks (requires open datasource).";
-                _lblTask3.Text = "- Execute migration and save checkpoint token.";
+                ShowTasks(
+                    "- Build migration plan from entities (no open datasource).",
+                    "- Run policy and preflight checks (requires open datasource).",
+                    "- Execute migration and save checkpoint token.");
                 SummaryChanged?.Invoke(this, new SchemaSummaryEventArgs(0, 0, "Schema step is not connected to an open datasource yet."));
             }
         }
 
+        /// <summary>
+        /// Surveys the migration datasource through the canonical
+        /// <see cref="MigrationManager"/> and reports what the schema step will actually do.
+        /// The survey compares the entity types against live database state, so it runs off
+        /// the UI thread.
+        /// </summary>
         private async Task TryRefreshSummaryAsync()
         {
+            if (_editor == null || _dataSource == null || _entityTypes == null || _entityTypes.Count == 0)
+                return;
+
+            // Property setters fire this without awaiting, so a newer survey must win.
+            _refreshCts?.Cancel();
+            var cts = new CancellationTokenSource();
+            _refreshCts = cts;
+            var token = cts.Token;
+
+            var editor = _editor;
+            var dataSource = _dataSource;
+            var entityTypes = _entityTypes.ToList();
+
             try
             {
-                if (_editor == null || _dataSource == null || _entityTypes == null || _entityTypes.Count == 0)
-                    return;
+                ShowTasks(
+                    $"- Surveying {entityTypes.Count} entit{(entityTypes.Count == 1 ? "y" : "ies")} against {dataSource.DatasourceName}…",
+                    "- Run policy and preflight checks.",
+                    "- Execute migration and save checkpoint token.");
 
-                // The canonical SchemaSetupStep owns the actual migration logic; the UI shell
-                // just provides a static summary so the user has visible feedback while filling
-                // out the step. We surface a count-based summary derived from the typed options.
-                int entityTypeCount = _entityTypes.Count;
-                bool datasourceOpen = _dataSource.ConnectionStatus == ConnectionState.Open;
-
-                _lastSummary = new MigrationSummary
+                var summary = await Task.Run(() =>
                 {
-                    TotalPendingMigrations = entityTypeCount,
-                    HasPendingMigrations = entityTypeCount > 0,
-                    IsValid = datasourceOpen,
-                    PolicyResult = datasourceOpen ? "OK" : "NotReady: datasource not open"
-                };
+                    var migration = new MigrationManager(editor, dataSource);
+                    return migration.GetMigrationSummaryForTypes(entityTypes, detectRelationships: true);
+                }, token).ConfigureAwait(true);
 
-                if (IsHandleCreated)
-                {
-                    BeginInvoke(new Action(() =>
-                    {
-                        _lblTask1.Text = $"- Build migration plan from {entityTypeCount} entit{(entityTypeCount == 1 ? "y" : "ies")}.";
-                        _lblTask2.Text = datasourceOpen
-                            ? "- Run policy and preflight checks (passed)."
-                            : "- Run policy and preflight checks (waiting for datasource to open).";
-                        _lblTask3.Text = "- Execute migration and save checkpoint token.";
+                if (token.IsCancellationRequested) return;
 
-                        SummaryChanged?.Invoke(this,
-                            new SchemaSummaryEventArgs(_lastSummary.TotalPendingMigrations,
-                                entityTypeCount, _lastSummary.PolicyResult));
-                    }));
-                }
+                _lastSummary = summary;
+
+                var create = summary.EntitiesToCreate.Count;
+                var update = summary.EntitiesToUpdate.Count;
+                var upToDate = summary.EntitiesUpToDate.Count;
+
+                var task2 = summary.Errors.Count > 0
+                    ? $"- Policy and preflight blocked: {summary.Errors[0]}"
+                    : summary.HasPendingMigrations
+                        ? "- Run policy and preflight checks before applying."
+                        : "- Nothing to apply; schema already matches the entity model.";
+
+                ShowTasks(
+                    $"- Build migration plan: {create} to create, {update} to update, {upToDate} up to date.",
+                    task2,
+                    "- Execute migration and save checkpoint token.");
+
+                SummaryChanged?.Invoke(this,
+                    new SchemaSummaryEventArgs(summary.TotalPendingMigrations, entityTypes.Count, GetStepSummary()));
+            }
+            catch (OperationCanceledException)
+            {
+                // Superseded by a newer survey — leave the newer one's output in place.
             }
             catch (Exception ex)
             {
-                if (IsHandleCreated)
-                {
-                    BeginInvoke(new Action(() =>
-                    {
-                        _lblTask1.Text = "- Build migration plan: " + ex.Message;
-                        _lblTask2.Text = "- Policy checks unavailable.";
-                        _lblTask3.Text = "- Execution blocked until errors are fixed.";
-                    }));
-                }
+                if (token.IsCancellationRequested) return;
+
+                _lastSummary = null;
+                ShowTasks(
+                    "- Build migration plan: " + ex.Message,
+                    "- Policy checks unavailable.",
+                    "- Execution blocked until errors are fixed.");
+                SummaryChanged?.Invoke(this, new SchemaSummaryEventArgs(0, entityTypes.Count, $"Schema survey failed: {ex.Message}"));
+            }
+            finally
+            {
+                if (ReferenceEquals(_refreshCts, cts)) _refreshCts = null;
+                cts.Dispose();
             }
         }
 
+        /// <summary>
+        /// Applies the three task lines. InitializeStep runs before the control is parented,
+        /// so the handle usually does not exist yet — assigning directly is correct on the UI
+        /// thread and only a created handle needs marshalling.
+        /// </summary>
+        private void ShowTasks(string task1, string task2, string task3)
+        {
+            if (IsDisposed || Disposing) return;
+
+            if (IsHandleCreated && InvokeRequired)
+            {
+                BeginInvoke(new Action(() => ShowTasks(task1, task2, task3)));
+                return;
+            }
+
+            _lblTask1.Text = task1;
+            _lblTask2.Text = task2;
+            _lblTask3.Text = task3;
+        }
+
+        // Dispose(bool) belongs to the designer file; cancel an in-flight survey here so a
+        // late continuation cannot touch a torn-down control.
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            _refreshCts?.Cancel();
+            base.OnHandleDestroyed(e);
+        }
     }
 
     public sealed class SchemaSummaryEventArgs : EventArgs
@@ -170,13 +244,5 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
         public int PendingMigrations { get; }
         public int EntityTypeCount { get; }
         public string Message { get; }
-    }
-
-    public sealed class MigrationSummary
-    {
-        public int TotalPendingMigrations { get; set; }
-        public bool HasPendingMigrations { get; set; }
-        public bool IsValid { get; set; }
-        public string? PolicyResult { get; set; }
     }
 }

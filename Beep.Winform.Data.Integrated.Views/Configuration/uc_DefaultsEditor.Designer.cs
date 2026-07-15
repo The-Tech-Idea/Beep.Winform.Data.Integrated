@@ -1,3 +1,6 @@
+using TheTechIdea.Beep.Winform.Controls;
+using TheTechIdea.Beep.Winform.Controls.GridX;
+
 namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 {
     partial class uc_DefaultsEditor
@@ -12,100 +15,210 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
         private void InitializeComponent()
         {
-            _rootPanel = new TheTechIdea.Beep.Winform.Controls.BeepPanel();
-            _headerPanel = new TheTechIdea.Beep.Winform.Controls.BeepPanel();
-            _lblTitle = new TheTechIdea.Beep.Winform.Controls.BeepLabel();
-            _lblSubtitle = new TheTechIdea.Beep.Winform.Controls.BeepLabel();
-            _contentHost = new TheTechIdea.Beep.Winform.Controls.BeepPanel();
-            _actionsPanel = new TheTechIdea.Beep.Winform.Controls.BeepPanel();
-            _btnCancel = new TheTechIdea.Beep.Winform.Controls.BeepButton();
-            _btnBack = new TheTechIdea.Beep.Winform.Controls.BeepButton();
-            _btnNext = new TheTechIdea.Beep.Winform.Controls.BeepButton();
+            _rootPanel = new BeepPanel();
+            _headerPanel = new BeepPanel();
+            _lblTitle = new BeepLabel();
+            _lblSubtitle = new BeepLabel();
+
+            _toolbarPanel = new BeepPanel();
+            _toolbarFlow = new System.Windows.Forms.FlowLayoutPanel();
+            _lblConnection = new BeepLabel();
+            _cboConnection = new BeepComboBox();
+            _btnReload = new BeepButton();
+            _btnAdd = new BeepButton();
+            _btnRemove = new BeepButton();
+
+            _contentHost = new BeepPanel();
+            _gridDefaults = new BeepGridPro();
+
+            _actionsPanel = new BeepPanel();
+            _actionsFlow = new System.Windows.Forms.FlowLayoutPanel();
+            _btnSave = new BeepButton();
+            _btnTest = new BeepButton();
+            _btnValidate = new BeepButton();
+            _lblStatus = new BeepLabel();
+
             _rootPanel.SuspendLayout();
             _headerPanel.SuspendLayout();
+            _toolbarPanel.SuspendLayout();
+            _toolbarFlow.SuspendLayout();
+            _contentHost.SuspendLayout();
             _actionsPanel.SuspendLayout();
+            _actionsFlow.SuspendLayout();
             SuspendLayout();
 
-            // _rootPanel
+            // ── root ──
             _rootPanel.ControlStyle = TheTechIdea.Beep.Winform.Controls.Common.BeepControlStyle.Material3;
+            _rootPanel.IsFrameless = true;
+            _rootPanel.ShowTitle = false;
+            _rootPanel.ShowTitleLine = false;
+            _rootPanel.UseThemeColors = true;
             _rootPanel.Dock = System.Windows.Forms.DockStyle.Fill;
             _rootPanel.Padding = new System.Windows.Forms.Padding(12);
-            _rootPanel.Controls.Add(_headerPanel);
-            _rootPanel.Controls.Add(_contentHost);
-            _rootPanel.Controls.Add(_actionsPanel);
 
-            // _headerPanel
-            _headerPanel.BackColor = System.Drawing.SystemColors.Control;
+            // ── header ──
+            _headerPanel.IsFrameless = true;
+            _headerPanel.ShowTitle = false;
+            _headerPanel.ShowTitleLine = false;
+            _headerPanel.UseThemeColors = true;
             _headerPanel.Dock = System.Windows.Forms.DockStyle.Top;
-            _headerPanel.Size = new System.Drawing.Size(840, 76);
-            _headerPanel.Controls.Add(_lblTitle);
-            _headerPanel.Controls.Add(_lblSubtitle);
+            _headerPanel.Height = 76;
 
-            // _lblTitle
-            _lblTitle.Dock = System.Windows.Forms.DockStyle.Top;
-            _lblTitle.Font = new System.Drawing.Font("Segoe UI", 16F, System.Drawing.FontStyle.Bold);
-            _lblTitle.Padding = new System.Windows.Forms.Padding(16, 12, 16, 0);
-            _lblTitle.Size = new System.Drawing.Size(840, 40);
-            _lblTitle.Text = "uc_DefaultsEditor";
-
-            // _lblSubtitle
+            _lblSubtitle.UseThemeColors = true;
+            _lblSubtitle.IsFrameless = true;
+            _lblSubtitle.AutoEllipsis = true;
             _lblSubtitle.Dock = System.Windows.Forms.DockStyle.Top;
-            _lblSubtitle.Font = new System.Drawing.Font("Segoe UI", 10F);
-            _lblSubtitle.ForeColor = System.Drawing.Color.DimGray;
+            _lblSubtitle.Height = 24;
             _lblSubtitle.Padding = new System.Windows.Forms.Padding(16, 2, 16, 4);
-            _lblSubtitle.Size = new System.Drawing.Size(840, 24);
-            _lblSubtitle.Text = "uc_DefaultsEditor placeholder.";
+            _lblSubtitle.Text = "Edit field-level default-value rules for a connection.";
 
-            // _contentHost
+            _lblTitle.UseThemeColors = true;
+            _lblTitle.IsFrameless = true;
+            _lblTitle.AutoEllipsis = true;
+            _lblTitle.Dock = System.Windows.Forms.DockStyle.Top;
+            _lblTitle.Height = 40;
+            _lblTitle.Padding = new System.Windows.Forms.Padding(16, 12, 16, 0);
+            _lblTitle.Text = "Defaults Editor";
+
+            _headerPanel.Controls.Add(_lblSubtitle);
+            _headerPanel.Controls.Add(_lblTitle);
+
+            // ── toolbar ──
+            _toolbarPanel.IsFrameless = true;
+            _toolbarPanel.ShowTitle = false;
+            _toolbarPanel.ShowTitleLine = false;
+            _toolbarPanel.UseThemeColors = true;
+            _toolbarPanel.Dock = System.Windows.Forms.DockStyle.Top;
+            _toolbarPanel.Height = 48;
+            _toolbarPanel.Padding = new System.Windows.Forms.Padding(10);
+
+            _toolbarFlow.Dock = System.Windows.Forms.DockStyle.Fill;
+            _toolbarFlow.FlowDirection = System.Windows.Forms.FlowDirection.LeftToRight;
+            _toolbarFlow.WrapContents = false;
+
+            _lblConnection.UseThemeColors = true;
+            _lblConnection.IsFrameless = true;
+            _lblConnection.Text = "Connection";
+            _lblConnection.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            _lblConnection.Size = new System.Drawing.Size(80, 28);
+
+            _cboConnection.UseThemeColors = true;
+            _cboConnection.Size = new System.Drawing.Size(260, 28);
+
+            _btnReload.UseThemeColors = true;
+            _btnReload.Text = "Reload";
+            _btnReload.MinimumSize = new System.Drawing.Size(100, 32);
+
+            _btnAdd.UseThemeColors = true;
+            _btnAdd.Text = "Add";
+            _btnAdd.MinimumSize = new System.Drawing.Size(80, 28);
+
+            _btnRemove.UseThemeColors = true;
+            _btnRemove.Text = "Remove";
+            _btnRemove.MinimumSize = new System.Drawing.Size(80, 28);
+
+            _toolbarFlow.Controls.Add(_lblConnection);
+            _toolbarFlow.Controls.Add(_cboConnection);
+            _toolbarFlow.Controls.Add(_btnReload);
+            _toolbarFlow.Controls.Add(_btnAdd);
+            _toolbarFlow.Controls.Add(_btnRemove);
+            _toolbarPanel.Controls.Add(_toolbarFlow);
+
+            // ── content ──
+            _contentHost.IsFrameless = true;
+            _contentHost.ShowTitle = false;
+            _contentHost.ShowTitleLine = false;
+            _contentHost.UseThemeColors = true;
             _contentHost.Dock = System.Windows.Forms.DockStyle.Fill;
             _contentHost.Padding = new System.Windows.Forms.Padding(8);
 
-            // _actionsPanel
+            _gridDefaults.Dock = System.Windows.Forms.DockStyle.Fill;
+            _contentHost.Controls.Add(_gridDefaults);
+
+            // ── actions ──
+            _actionsPanel.IsFrameless = true;
+            _actionsPanel.ShowTitle = false;
+            _actionsPanel.ShowTitleLine = false;
+            _actionsPanel.UseThemeColors = true;
             _actionsPanel.Dock = System.Windows.Forms.DockStyle.Bottom;
+            _actionsPanel.Height = 52;
             _actionsPanel.Padding = new System.Windows.Forms.Padding(10);
-            _actionsPanel.Size = new System.Drawing.Size(840, 52);
-            _actionsPanel.Controls.Add(_btnCancel);
-            _actionsPanel.Controls.Add(_btnBack);
-            _actionsPanel.Controls.Add(_btnNext);
 
-            // _btnCancel – secondary (leftmost via RightToLeft=Yes)
-            _btnCancel.Text = "Cancel";
-            _btnCancel.Size = new System.Drawing.Size(100, 32);
-            _btnCancel.Dock = System.Windows.Forms.DockStyle.Right;
-            _btnCancel.Dock = System.Windows.Forms.DockStyle.None;
-            _btnCancel.Location = new System.Drawing.Point(12, 10);
+            _actionsFlow.Dock = System.Windows.Forms.DockStyle.Fill;
+            _actionsFlow.FlowDirection = System.Windows.Forms.FlowDirection.RightToLeft;
+            _actionsFlow.WrapContents = false;
 
-            // _btnBack – secondary
-            _btnBack.Text = "Back";
-            _btnBack.Size = new System.Drawing.Size(100, 32);
-            _btnBack.Location = new System.Drawing.Point(120, 10);
-            _btnBack.Enabled = false;
+            // Flow is RightToLeft: the first child is rightmost.
+            _btnSave.UseThemeColors = true;
+            _btnSave.Text = "Save";
+            _btnSave.MinimumSize = new System.Drawing.Size(130, 36);
 
-            // _btnNext – primary
-            _btnNext.Text = "Next";
-            _btnNext.Size = new System.Drawing.Size(130, 36);
-            _btnNext.Location = new System.Drawing.Point(228, 8);
+            _btnTest.UseThemeColors = true;
+            _btnTest.Text = "Test Rule";
+            _btnTest.MinimumSize = new System.Drawing.Size(100, 32);
 
-            // uc_DefaultsEditor
+            _btnValidate.UseThemeColors = true;
+            _btnValidate.Text = "Validate All";
+            _btnValidate.MinimumSize = new System.Drawing.Size(100, 32);
+
+            _lblStatus.UseThemeColors = true;
+            _lblStatus.IsFrameless = true;
+            _lblStatus.AutoEllipsis = true;
+            _lblStatus.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            _lblStatus.Dock = System.Windows.Forms.DockStyle.Left;
+            _lblStatus.Width = 340;
+            _lblStatus.Text = string.Empty;
+
+            _actionsFlow.Controls.Add(_btnSave);
+            _actionsFlow.Controls.Add(_btnTest);
+            _actionsFlow.Controls.Add(_btnValidate);
+            _actionsPanel.Controls.Add(_actionsFlow);
+            _actionsPanel.Controls.Add(_lblStatus);
+
+            // Docked children resolve in reverse z-order: Fill first, edges last.
+            _rootPanel.Controls.Add(_contentHost);
+            _rootPanel.Controls.Add(_toolbarPanel);
+            _rootPanel.Controls.Add(_headerPanel);
+            _rootPanel.Controls.Add(_actionsPanel);
+
+            // ── uc_DefaultsEditor ──
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             Controls.Add(_rootPanel);
             Name = "uc_DefaultsEditor";
             Size = new System.Drawing.Size(840, 560);
-            _rootPanel.ResumeLayout(false);
-            _headerPanel.ResumeLayout(false);
+
+            _actionsFlow.ResumeLayout(false);
             _actionsPanel.ResumeLayout(false);
+            _contentHost.ResumeLayout(false);
+            _toolbarFlow.ResumeLayout(false);
+            _toolbarPanel.ResumeLayout(false);
+            _headerPanel.ResumeLayout(false);
+            _rootPanel.ResumeLayout(false);
             ResumeLayout(false);
         }
 
-        private TheTechIdea.Beep.Winform.Controls.BeepPanel _rootPanel;
-        private TheTechIdea.Beep.Winform.Controls.BeepPanel _headerPanel;
-        private TheTechIdea.Beep.Winform.Controls.BeepLabel _lblTitle;
-        private TheTechIdea.Beep.Winform.Controls.BeepLabel _lblSubtitle;
-        private TheTechIdea.Beep.Winform.Controls.BeepPanel _contentHost;
-        private TheTechIdea.Beep.Winform.Controls.BeepPanel _actionsPanel;
-        private TheTechIdea.Beep.Winform.Controls.BeepButton _btnCancel;
-        private TheTechIdea.Beep.Winform.Controls.BeepButton _btnBack;
-        private TheTechIdea.Beep.Winform.Controls.BeepButton _btnNext;
+        private BeepPanel _rootPanel;
+        private BeepPanel _headerPanel;
+        private BeepLabel _lblTitle;
+        private BeepLabel _lblSubtitle;
+
+        private BeepPanel _toolbarPanel;
+        private System.Windows.Forms.FlowLayoutPanel _toolbarFlow;
+        private BeepLabel _lblConnection;
+        private BeepComboBox _cboConnection;
+        private BeepButton _btnReload;
+        private BeepButton _btnAdd;
+        private BeepButton _btnRemove;
+
+        private BeepPanel _contentHost;
+        private BeepGridPro _gridDefaults;
+
+        private BeepPanel _actionsPanel;
+        private System.Windows.Forms.FlowLayoutPanel _actionsFlow;
+        private BeepButton _btnSave;
+        private BeepButton _btnTest;
+        private BeepButton _btnValidate;
+        private BeepLabel _lblStatus;
     }
 }
