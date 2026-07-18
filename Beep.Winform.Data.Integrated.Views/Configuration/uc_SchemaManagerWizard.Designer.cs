@@ -1,5 +1,6 @@
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.CheckBoxes;
+using TheTechIdea.Beep.Winform.Controls.VerticalTables;
 
 namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 {
@@ -36,6 +37,8 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
             _stepResults = new BeepPanel();
             _lblResultsSummary = new BeepLabel();
+            _lblFingerprint = new BeepLabel();
+            _tblCompare = new BeepVerticalTable();
             _lstResults = new BeepListBox();
 
             _actionsPanel = new BeepPanel();
@@ -86,7 +89,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _lblTitle.Dock = System.Windows.Forms.DockStyle.Top;
             _lblTitle.Height = 40;
             _lblTitle.Padding = new System.Windows.Forms.Padding(16, 12, 16, 0);
-            _lblTitle.Text = "Schema Manager";
+            _lblTitle.Text = "Schema Compare & Sync Preflight";
 
             _headerPanel.Controls.Add(_lblSubtitle);
             _headerPanel.Controls.Add(_lblTitle);
@@ -177,9 +180,27 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _stepResults.Dock = System.Windows.Forms.DockStyle.Fill;
             _stepResults.Visible = false;
 
+            // Field-level comparison table (source vs destination, via SchemaComparator).
+            // A vertical comparison table reads far better than a flat grid for schema diffs:
+            // one row per field, one column per side plus a verdict column.
+            _tblCompare.Dock = System.Windows.Forms.DockStyle.Fill;
+            _tblCompare.RowGroupingEnabled = true;
+            _tblCompare.SelectionMode = TheTechIdea.Beep.Winform.Controls.VerticalTables.VerticalTableSelectionMode.Single;
+
+            // Preflight/draft log — the flat status/log lines live at the bottom so the
+            // structured field comparison gets the main real estate.
             _lstResults.UseThemeColors = true;
             _lstResults.ShowSearch = false;
-            _lstResults.Dock = System.Windows.Forms.DockStyle.Fill;
+            _lstResults.Dock = System.Windows.Forms.DockStyle.Bottom;
+            _lstResults.Height = 150;
+
+            _lblFingerprint.UseThemeColors = true;
+            _lblFingerprint.IsFrameless = true;
+            _lblFingerprint.AutoEllipsis = true;
+            _lblFingerprint.Dock = System.Windows.Forms.DockStyle.Top;
+            _lblFingerprint.Height = 24;
+            _lblFingerprint.Padding = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            _lblFingerprint.Text = string.Empty;
 
             _lblResultsSummary.UseThemeColors = true;
             _lblResultsSummary.IsFrameless = true;
@@ -188,7 +209,11 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _lblResultsSummary.Height = 44;
             _lblResultsSummary.Text = "Preflight has not run yet.";
 
+            // Fill added first so the docked edges (summary/fingerprint on top, log on
+            // bottom) claim their bands and the table takes the remainder.
+            _stepResults.Controls.Add(_tblCompare);
             _stepResults.Controls.Add(_lstResults);
+            _stepResults.Controls.Add(_lblFingerprint);
             _stepResults.Controls.Add(_lblResultsSummary);
 
             _contentHost.Controls.Add(_stepResults);
@@ -278,6 +303,8 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
         private BeepPanel _stepResults;
         private BeepLabel _lblResultsSummary;
+        private BeepLabel _lblFingerprint;
+        private BeepVerticalTable _tblCompare;
         private BeepListBox _lstResults;
 
         private BeepPanel _actionsPanel;
