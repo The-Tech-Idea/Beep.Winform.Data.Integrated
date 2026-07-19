@@ -9,7 +9,18 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Export
         private ExportConfiguration? _config;
         private bool _isComplete;
 
-        public uc_ExportStep1_Select(IServiceProvider services) : base(services)
+        /// <summary>Guards the entity load against stale responses when the connection changes.</summary>
+        private int _loadGeneration;
+
+        /// <summary>
+        /// Designer/parameterless ctor. Must not chain to the IServiceProvider overload with null —
+        /// that resolves services off a null provider and throws.
+        /// </summary>
+        public uc_ExportStep1_Select() => InitializeControl();
+
+        public uc_ExportStep1_Select(IServiceProvider services) : base(services) => InitializeControl();
+
+        private void InitializeControl()
         {
             InitializeComponent();
             cmbSourceDS.SelectedItemChanged += (_, _) => OnSourceDSChanged();
@@ -86,14 +97,43 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Export
             });
         }
 
-        private void OnSourceDSChanged()
+        // Fire-and-forget: LoadEntitiesAsync catches its own failures, and the handler returns void.
+        private void OnSourceDSChanged() => _ = LoadEntitiesAsync();
+
+        /// <summary>
+        /// Fills the entity picker. GetDataSource resolves a driver and GetEntitesList is a metadata
+        /// round-trip, so both run off the UI thread; a stale response is dropped rather than
+        /// repopulating the combo for a connection the user has already moved off.
+        /// </summary>
+        /// <param name="selectValue">
+        /// Selection to apply once the items exist — see RestoreSelections for why the caller cannot
+        /// apply it itself.
+        /// </param>
+        private async Task LoadEntitiesAsync(string? selectValue = null)
         {
+            var editor = Editor;
             var dsName = cmbSourceDS.SelectedItem?.Value?.ToString();
-            if (string.IsNullOrEmpty(dsName)) return;
-            var entities = Editor?.GetDataSource(dsName)?.GetEntitesList();
-            if (entities == null) return;
-            cmbSourceEntity.ListItems = new BindingList<SimpleItem>(
-                entities.Select(e => new SimpleItem { Text = e, Value = e }).ToList());
+            if (editor == null || string.IsNullOrEmpty(dsName)) return;
+
+            int generation = ++_loadGeneration;
+            try
+            {
+                var entities = await Task.Run(() => editor.GetDataSource(dsName)?.GetEntitesList())
+                    .ConfigureAwait(true);
+
+                if (generation != _loadGeneration || IsDisposed || entities == null) return;
+
+                cmbSourceEntity.ListItems = new BindingList<SimpleItem>(
+                    entities.Select(e => new SimpleItem { Text = e, Value = e }).ToList());
+                SelectCombo(cmbSourceEntity, selectValue);
+            }
+            catch (Exception ex)
+            {
+                if (generation != _loadGeneration || IsDisposed) return;
+                editor.AddLogMessage("ExportStep1",
+                    $"Could not list entities for '{dsName}': {ex.Message}",
+                    DateTime.Now, 0, null, Errors.Warning);
+            }
         }
 
         private void OnSourceEntityChanged()
@@ -170,14 +210,23 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Export
                 ValidationStateChanged?.Invoke(this, new StepValidationEventArgs(_isComplete));
         }
 
+        /// <summary>
+        /// Reapplies the saved selections when the step is re-entered.
+        /// </summary>
+        /// <remarks>
+        /// The entity selection is handed to LoadEntitiesAsync rather than applied here. The load
+        /// now returns at its first await, so selecting immediately afterwards iterated an empty
+        /// combo and quietly selected nothing — and because OnStepLeave writes SourceEntityName back
+        /// from that combo, navigating Back then Next would blank a valid selection and make
+        /// Validate reject a config that had been complete a moment earlier.
+        /// </remarks>
         private void RestoreSelections()
         {
             if (_config == null) return;
             if (!string.IsNullOrEmpty(_config.SourceDataSourceName))
             {
                 SelectCombo(cmbSourceDS, _config.SourceDataSourceName);
-                OnSourceDSChanged();
-                SelectCombo(cmbSourceEntity, _config.SourceEntityName);
+                _ = LoadEntitiesAsync(_config.SourceEntityName);
             }
             txtFilePath.Text = _config.FilePath;
             if (!string.IsNullOrEmpty(_config.DestDataSourceName))

@@ -39,7 +39,22 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
 
         public event EventHandler<NuggetInstallCompletedEventArgs>? PackageInstallCompleted;
 
-        public uc_NuggetsManage(IServiceProvider services) : base(services)
+        /// <summary>
+        /// Designer/parameterless ctor.
+        /// </summary>
+        /// <remarks>
+        /// Chains the base parameterless ctor rather than routing through the IServiceProvider
+        /// overload. It used to pass a hand-written no-op IServiceProvider whose only purpose was to
+        /// survive <c>GetService&lt;IBeepService&gt;()</c> — that call throws on a literal null but
+        /// returns null for a provider that resolves nothing, so the stub was standing in for
+        /// TemplateUserControl's own parameterless ctor. That ctor already exists and does exactly
+        /// this, so the stub is gone and this now matches every other view in the folder.
+        /// </remarks>
+        public uc_NuggetsManage() => InitializeControl();
+
+        public uc_NuggetsManage(IServiceProvider services) : base(services) => InitializeControl();
+
+        private void InitializeControl()
         {
             InitializeComponent();
             Details.AddinName = "Nugget Manager";
@@ -51,9 +66,23 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
             HandleCreated += OnHandleCreatedFallback;
         }
 
-        public uc_NuggetsManage() : this(new SimpleServiceProvider())
-        {
-        }
+        /// <summary>
+        /// Reports a fault raised by a cleanup step, without masking the failure being unwound.
+        /// </summary>
+        /// <remarks>
+        /// These call sites used to be bare <c>catch { }</c>, which the repo's own convention
+        /// forbids: a cleanup that fails silently turns "the wizard would not build" into "the
+        /// wizard would not build, and something else broke too, and you will never know". The
+        /// caller still rethrows the original exception — this only records the secondary one.
+        /// <para>
+        /// Goes through <see cref="LogToEditor"/> rather than calling the editor directly. That
+        /// wrapper is the one guarded log path in this class, and these callers run mid-unwind with
+        /// state still to null out and a <c>throw;</c> pending — so a logger that threw here would
+        /// replace the original exception and abandon the cleanup it was reporting on.
+        /// </para>
+        /// </remarks>
+        private void ReportCleanupFault(string what, Exception ex) =>
+            LogToEditor($"{what} failed while unwinding: {ex.Message}", Errors.Warning);
 
         private void OnHandleCreatedFallback(object? sender, EventArgs e)
         {
@@ -75,9 +104,12 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
                     HandleCreated -= OnHandleCreatedFallback;
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Defensive: never let the handle-created callback crash the host.
+                // Never let the handle-created callback crash the host — but say what happened.
+                // Swallowing this silently meant a wizard that failed to build left no trace at all:
+                // the control just came up empty.
+                LogToEditor($"Building the nugget wizard on handle-created failed: {ex.Message}", Errors.Failed);
             }
         }
 
@@ -301,7 +333,8 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
                     // Form constructor failed (bad instance, theme crash, etc.) —
                     // unwind the partial state so a retry has a clean slate.
                     _wizardForm = null;
-                    try { _wizardInstance.Completed -= OnWizardInstanceCompleted; } catch { }
+                    try { _wizardInstance.Completed -= OnWizardInstanceCompleted; }
+                    catch (Exception unsubEx) { ReportCleanupFault("Unsubscribing the wizard Completed handler", unsubEx); }
                     _wizardInstance = null;
                     _wizardContext = null;
                     _log = null;
@@ -311,9 +344,11 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
                 // Guard against the form throwing during construction.
                 if (IsDisposed || Disposing)
                 {
-                    try { _wizardForm.Dispose(); } catch { }
+                    try { _wizardForm.Dispose(); }
+                    catch (Exception disposeEx) { ReportCleanupFault("Disposing the partially-built wizard form", disposeEx); }
                     _wizardForm = null;
-                    try { _wizardInstance.Completed -= OnWizardInstanceCompleted; } catch { }
+                    try { _wizardInstance.Completed -= OnWizardInstanceCompleted; }
+                    catch (Exception unsubEx) { ReportCleanupFault("Unsubscribing the wizard Completed handler", unsubEx); }
                     _wizardInstance = null;
                     _wizardContext = null;
                     _log = null;
@@ -330,9 +365,11 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
                     // Controls.Add or Show() failed (parent disposed between
                     // the IsDisposed check and here, theme crash, etc.) — clean
                     // up so a retry doesn't see a half-attached form.
-                    try { _wizardForm.Dispose(); } catch { }
+                    try { _wizardForm.Dispose(); }
+                    catch (Exception disposeEx) { ReportCleanupFault("Disposing the partially-built wizard form", disposeEx); }
                     _wizardForm = null;
-                    try { _wizardInstance.Completed -= OnWizardInstanceCompleted; } catch { }
+                    try { _wizardInstance.Completed -= OnWizardInstanceCompleted; }
+                    catch (Exception unsubEx) { ReportCleanupFault("Unsubscribing the wizard Completed handler", unsubEx); }
                     _wizardInstance = null;
                     _wizardContext = null;
                     _log = null;
@@ -494,10 +531,14 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
                         ui.ApplyThemeToChilds = true;
                         ui.ApplyTheme();
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // Some controls throw on theme change before they are realized;
-                        // ignore and let the next ApplyTheme pass handle them.
+                        // Some controls throw on theme change before they are realized; the next
+                        // ApplyTheme pass picks them up, so continuing is correct — but the fault is
+                        // recorded rather than dropped. Debug.WriteLine rather than the editor log:
+                        // this runs per-control while walking the tree and would flood it.
+                        System.Diagnostics.Debug.WriteLine(
+                            $"uc_NuggetsManage: theming '{child.Name}' failed ({ex.Message}); a later ApplyTheme pass will retry.");
                     }
                 }
                 if (child.HasChildren) PropagateThemeToStepControls(child);
@@ -517,15 +558,15 @@ namespace TheTechIdea.Beep.Winform.Default.Views.NuggetsManage
             {
                 Editor?.AddLogMessage("Nugget Manager", message, DateTime.Now, -1, null, severity);
             }
-            catch
+            catch (Exception ex)
             {
-                // Fall back silently if the editor is in an unusable state.
+                // The editor IS the log channel here, so there is nowhere else to report to —
+                // Debug is the documented last resort. The message that could not be logged goes out
+                // with it, so it is not lost entirely.
+                System.Diagnostics.Debug.WriteLine(
+                    $"uc_NuggetsManage: could not log via the editor ({ex.Message}). Original message: {message}");
             }
         }
     }
 
-    internal sealed class SimpleServiceProvider : IServiceProvider
-    {
-        public object? GetService(Type serviceType) => null;
-    }
 }

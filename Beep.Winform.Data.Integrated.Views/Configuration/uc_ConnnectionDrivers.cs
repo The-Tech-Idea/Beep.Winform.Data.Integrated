@@ -23,12 +23,19 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
     public partial class uc_ConnnectionDrivers : TemplateUserControl, IAddinVisSchema
     {
-        public uc_ConnnectionDrivers(IServiceProvider services): base(services)
+        /// <summary>
+        /// Designer/parameterless ctor. Must not chain to the IServiceProvider overload with null —
+        /// that resolves services off a null provider and throws.
+        /// </summary>
+        public uc_ConnnectionDrivers() => InitializeControl();
+
+        public uc_ConnnectionDrivers(IServiceProvider services) : base(services) => InitializeControl();
+
+        private void InitializeControl()
         {
             InitializeComponent();
 
             Details.AddinName = "Connection Drivers";
-            ApplyDpiScaledLayout();
         }
 
         /// <summary>
@@ -37,7 +44,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         /// truth for layout; this method overlays DPI-scaled dimensions on top so the surface
         /// tracks the host display scale.
         /// </summary>
-        private void ApplyDpiScaledLayout()
+        protected override void ApplyDpiScaledLayout()
         {
             // Usercontrol chrome: design-time size is in Designer; overlay DPI-scaled dialog size.
             Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this);

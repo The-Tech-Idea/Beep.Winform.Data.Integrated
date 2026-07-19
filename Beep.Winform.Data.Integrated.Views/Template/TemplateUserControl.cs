@@ -63,6 +63,43 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Template
             Theme = BeepThemesManager.CurrentThemeName;
         }
 
+        /// <summary>
+        /// Applies DPI-scaled layout values on top of the Designer's design-time pixels. Override in
+        /// a derived view; the base calls it once the handle exists and again whenever the host's
+        /// DPI changes.
+        /// </summary>
+        /// <remarks>
+        /// Do not call this from a constructor — that is exactly the bug this hook exists to fix.
+        /// <see cref="DpiScalingHelper.GetDpiScaleFactor(Control)"/> returns <c>1.0</c> while
+        /// <c>IsHandleCreated</c> is false, so every view that scaled from its ctor (all of them)
+        /// computed design-time pixels and scaled nothing, on any machine, at any DPI. OnHandleCreated
+        /// is the first moment DeviceDpi is authoritative.
+        /// <para>
+        /// Implementations must be idempotent and must not assume a monotonic scale: this runs again
+        /// on every handle recreation (theme change) and on every DPI change, including a move to a
+        /// LOWER-DPI monitor.
+        /// </para>
+        /// </remarks>
+        protected virtual void ApplyDpiScaledLayout()
+        {
+        }
+
+        /// <inheritdoc />
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            // First point at which DeviceDpi is real; see ApplyDpiScaledLayout.
+            ApplyDpiScaledLayout();
+        }
+
+        /// <inheritdoc />
+        protected override void OnDpiChangedAfterParent(EventArgs e)
+        {
+            base.OnDpiChangedAfterParent(e);
+            // Dragged to a monitor with a different scale — re-apply against the new DeviceDpi.
+            ApplyDpiScaledLayout();
+        }
+
         private void BeepThemesManager_FormStyleChanged(object? sender, StyleChangeEventArgs e)
         {
             ControlFormStyle = e.NewStyle;

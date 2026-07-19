@@ -47,11 +47,20 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         private CancellationTokenSource? _activeImportCancellation;
         private bool _isImportCancelRequested;
 
-        public uc_DataEdit(IServiceProvider services) : base(services)
+        /// <summary>
+        /// Designer/parameterless ctor. Must not chain to the IServiceProvider overload with null —
+        /// that resolves services off a null provider and throws. For the designer only: an instance
+        /// built this way has no beepService, so the runtime must construct through the
+        /// IServiceProvider overload.
+        /// </summary>
+        public uc_DataEdit() => InitializeControl();
+
+        public uc_DataEdit(IServiceProvider services) : base(services) => InitializeControl();
+
+        private void InitializeControl()
         {
             InitializeComponent();
             Details.AddinName = "Data Edit";
-            ApplyDpiScaledLayout();
             WireEvents();
             ConfigureGridDefaults();
             UpdateStatus("Ready");
@@ -64,38 +73,25 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         /// DPI-scaled values from <see cref="BeepLayoutMetrics"/> so the layout tracks the
         /// host's display scale, without mutating the design-time surface.
         /// </summary>
-        private void ApplyDpiScaledLayout()
+        protected override void ApplyDpiScaledLayout()
         {
+            // Scaled from the tokens directly and ASSIGNED, not Math.Max'd against the control's
+            // current size. The old code took Math.Max(btn.Width, scaledToken), which read the
+            // already-scaled width on re-entry and so ratcheted up at high DPI and never shrank when
+            // moved to a lower-DPI monitor — the exact non-monotonic behaviour the base contract
+            // forbids. A straight assignment tracks the DPI in both directions.
             int buttonHeight = BeepLayoutMetrics.ButtonLarge.Height.ScaleValue(this);
             int buttonWidth  = BeepLayoutMetrics.ButtonLarge.Width.ScaleValue(this);
             int rowHeight    = BeepLayoutMetrics.TextRowHeight.ScaleValue(this);
-            int interRow     = BeepLayoutMetrics.InterRowSpacing.ScaleValue(this);
 
-            // Buttons share a single height token so the toolbar is visually aligned.
-            btnNew.Height    = buttonHeight;
-            btnEdit.Height   = buttonHeight;
-            btnDelete.Height = buttonHeight;
-            btnSave.Height   = buttonHeight;
-            btnCancel.Height = buttonHeight;
-            btnRefresh.Height = buttonHeight;
-            btnUndo.Height   = buttonHeight;
-            btnRedo.Height   = buttonHeight;
-            btnMap.Height    = buttonHeight;
-            btnImport.Height = buttonHeight;
+            var buttons = new[] { btnNew, btnEdit, btnDelete, btnSave, btnCancel, btnRefresh, btnUndo, btnRedo, btnMap, btnImport };
+            foreach (var b in buttons)
+            {
+                // Buttons share single height/width tokens so the toolbar stays aligned.
+                b.Height = buttonHeight;
+                b.Width = buttonWidth;
+            }
 
-            // Wider verbs get more room — keep the design-time widths as the floor.
-            btnNew.Width    = Math.Max(btnNew.Width,    buttonWidth);
-            btnEdit.Width   = Math.Max(btnEdit.Width,   buttonWidth);
-            btnDelete.Width = Math.Max(btnDelete.Width, buttonWidth);
-            btnSave.Width   = Math.Max(btnSave.Width,   buttonWidth);
-            btnCancel.Width = Math.Max(btnCancel.Width, buttonWidth);
-            btnRefresh.Width = Math.Max(btnRefresh.Width, buttonWidth);
-            btnUndo.Width   = Math.Max(btnUndo.Width,   buttonWidth);
-            btnRedo.Width   = Math.Max(btnRedo.Width,   buttonWidth);
-            btnMap.Width    = Math.Max(btnMap.Width,    buttonWidth);
-            btnImport.Width = Math.Max(btnImport.Width, buttonWidth);
-
-            // statusPanel row height + the inter-row gap between toolbar and grid.
             statusPanel.Height = rowHeight;
         }
 
@@ -845,7 +841,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                     dataSource.Openconnection();
                 }
 
-                if (!EnsureEntityContextAvailable(dataSource, "Mapping"))
+                if (!await EnsureEntityContextAvailableAsync(dataSource, "Mapping").ConfigureAwait(true))
                 {
                     return;
                 }
@@ -910,7 +906,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                     dataSource.Openconnection();
                 }
 
-                if (!EnsureEntityContextAvailable(dataSource, "Import"))
+                if (!await EnsureEntityContextAvailableAsync(dataSource, "Import").ConfigureAwait(true))
                 {
                     return;
                 }
@@ -1033,6 +1029,18 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             RefreshCommandStates();
         }
 
+        /// <summary>
+        /// Ensures the UnitOfWork's datasource is open.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately synchronous. Openconnection blocks on a network round-trip, but it is NOT
+        /// safe to offload: it writes back through <c>Dataconnection.ConnectionProp</c> — assigning
+        /// the ADO-normalised ConnectionString and the resolved FilePath — and that object is the
+        /// very <c>ConnectionProperties</c> instance held in <c>ConfigEditor.DataConnections</c>,
+        /// an ObservableBindingList bound to the grid in uc_DataConnections. Running it on a
+        /// thread-pool thread raises PropertyChanged → ListChanged into a bound WinForms control
+        /// off the UI thread. Only read-only engine calls can be moved off this thread.
+        /// </remarks>
         private bool EnsureDataSourceReady()
         {
             if (uow?.DataSource == null)
@@ -1064,14 +1072,23 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             }
         }
 
-        private bool EnsureEntityContextAvailable(IDataSource dataSource, string operationName)
+        /// <summary>
+        /// Confirms the current entity resolves against <paramref name="dataSource"/>.
+        /// </summary>
+        /// <remarks>
+        /// Async because GetEntityStructure with refresh: true forces a live metadata round-trip —
+        /// no cache — and both callers are already async.
+        /// </remarks>
+        private async Task<bool> EnsureEntityContextAvailableAsync(IDataSource dataSource, string operationName)
         {
             try
             {
-                var entityStructure = dataSource.GetEntityStructure(_currentEntityName, true);
+                string entityName = _currentEntityName;
+                var entityStructure = await Task.Run(() => dataSource.GetEntityStructure(entityName, true))
+                    .ConfigureAwait(true);
                 if (entityStructure == null)
                 {
-                    SetLastError($"{operationName} preflight failed: entity '{_currentEntityName}' not found in datasource '{_currentDataSourceName}'.");
+                    SetLastError($"{operationName} preflight failed: entity '{entityName}' not found in datasource '{_currentDataSourceName}'.");
                     Log(_lastError, Errors.Failed);
                     return false;
                 }

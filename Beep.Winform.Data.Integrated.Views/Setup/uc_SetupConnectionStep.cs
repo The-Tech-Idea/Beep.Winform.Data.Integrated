@@ -1,6 +1,7 @@
 using System;
 using System.Windows.Forms;
 using TheTechIdea.Beep.ConfigUtil;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Helpers;
 using TheTechIdea.Beep.Services;
 using TheTechIdea.Beep.SetUp;
@@ -21,31 +22,13 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
         private ConnectionConfigStepOptions? _options;
         private SetupContext? _context;
 
-        public event EventHandler<ConnectionSavedEventArgs>? ConnectionSaved;
+        // These reuse uc_DataConnectionBase's event args rather than re-declaring identical nested
+        // clones. This step only embeds that editor and forwards its events, so a second set of
+        // types was pure duplication — and the clone of ConnectionTestCompletedEventArgs silently
+        // dropped ConnectionProperties, giving subscribers less than the source event carried.
+        public event EventHandler<uc_DataConnectionBase.ConnectionSavedEventArgs>? ConnectionSaved;
         public event EventHandler? ConnectionCancelled;
-        public event EventHandler<ConnectionTestCompletedEventArgs>? ConnectionTestCompleted;
-
-        public sealed class ConnectionSavedEventArgs : EventArgs
-        {
-            public ConnectionSavedEventArgs(ConnectionProperties connectionProperties)
-            {
-                ConnectionProperties = connectionProperties;
-            }
-
-            public ConnectionProperties ConnectionProperties { get; }
-        }
-
-        public sealed class ConnectionTestCompletedEventArgs : EventArgs
-        {
-            public ConnectionTestCompletedEventArgs(bool success, string message)
-            {
-                Success = success;
-                Message = message;
-            }
-
-            public bool Success { get; }
-            public string Message { get; }
-        }
+        public event EventHandler<uc_DataConnectionBase.ConnectionTestCompletedEventArgs>? ConnectionTestCompleted;
 
         public uc_SetupConnectionStep()
         {
@@ -122,7 +105,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             if (_options != null)
                 _options.ConnectionProperties = e.ConnectionProperties;
 
-            ConnectionSaved?.Invoke(this, new ConnectionSavedEventArgs(e.ConnectionProperties));
+            ConnectionSaved?.Invoke(this, e);
         }
 
         private void ConnectionEditor_ConnectionCancelled(object? sender, EventArgs e)
@@ -132,7 +115,29 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
 
         private void ConnectionEditor_ConnectionTestCompleted(object? sender, uc_DataConnectionBase.ConnectionTestCompletedEventArgs e)
         {
-            ConnectionTestCompleted?.Invoke(this, new ConnectionTestCompletedEventArgs(e.Success, e.Message));
+            // Forwarded as-is: the base's args also carry ConnectionProperties, which the old
+            // re-wrap discarded.
+            ConnectionTestCompleted?.Invoke(this, e);
         }
+
+        /// <summary>
+        /// Overlays DPI-scaled padding on the Designer's design-time pixels.
+        /// </summary>
+        /// <remarks>
+        /// Invoked by TemplateUserControl from OnHandleCreated and OnDpiChangedAfterParent — never
+        /// from the ctor, where DpiScalingHelper reports a scale of 1.0 because the handle does not
+        /// exist yet and nothing would actually scale.
+        /// <para>
+        /// Only the docked panels' padding is scaled. Their children are all Dock=Top/Fill, so the
+        /// layout reflows from the padding alone; pushing size tokens onto individual controls is
+        /// what broke uc_ImportStep5_Run, whose Designer positions its row absolutely.
+        /// </para>
+        /// </remarks>
+        protected override void ApplyDpiScaledLayout()
+        {
+            _rootPanel.Padding = BeepLayoutMetrics.DialogPadding.ScalePadding(this);
+            _contentHost.Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this);
+        }
+
     }
 }

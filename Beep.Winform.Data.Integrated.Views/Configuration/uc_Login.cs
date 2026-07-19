@@ -12,7 +12,16 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         public event EventHandler? LoginRequested;
         public event EventHandler? CancelRequested;
 
-        public uc_Login(IServiceProvider services):base(services)
+        /// <summary>
+        /// Designer/parameterless ctor. Must not chain to the IServiceProvider overload with null —
+        /// that resolves services off a null provider and throws. For the designer only; the runtime
+        /// must construct through the IServiceProvider overload.
+        /// </summary>
+        public uc_Login() => InitializeControl();
+
+        public uc_Login(IServiceProvider services) : base(services) => InitializeControl();
+
+        private void InitializeControl()
         {
             InitializeComponent();
             // Skill § "Configure" handler accumulation: -= before += so multiple
@@ -21,7 +30,6 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             beepLogin1.LoginClick += OnLoginClick;
             CancelbeepButton.Click -= OnCancelClick;
             CancelbeepButton.Click += OnCancelClick;
-            ApplyDpiScaledLayout();
         }
 
         /// <summary>
@@ -29,14 +37,14 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         /// chrome that the Designer serialized as static pixels. The Designer is the source
         /// of truth for layout; this method overlays DPI-scaled dimensions on top.
         /// </summary>
-        private void ApplyDpiScaledLayout()
+        protected override void ApplyDpiScaledLayout()
         {
             // Usercontrol chrome: design-time size lives in Designer; overlay DPI-scaled dialog.
             Size = BeepLayoutMetrics.DialogSmall.ScaleSize(this);
-            // Login card + cancel button keep the designer's pixel bounds as a floor,
-            // but height tracks the design-skill button height so it stays accessible.
-            int buttonHeight = BeepLayoutMetrics.ButtonStandard.Height.ScaleValue(this);
-            CancelbeepButton.Height = Math.Max(CancelbeepButton.Height, buttonHeight);
+            // Assigned from the token, not Math.Max'd against the current height — the latter
+            // ratcheted up at high DPI and never came back down (see the base's non-monotonic
+            // contract). A straight assignment tracks the DPI both ways.
+            CancelbeepButton.Height = BeepLayoutMetrics.ButtonStandard.Height.ScaleValue(this);
         }
 
         public override void Configure(Dictionary<string, object> settings)

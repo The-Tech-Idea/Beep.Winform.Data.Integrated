@@ -11,7 +11,15 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
         private List<EntityField>? _sourceFields;
         private List<EntityField>? _destFields;
 
-        public uc_ImportStep3_Mapping(IServiceProvider services) : base(services)
+        /// <summary>
+        /// Designer/parameterless ctor. Must not chain to the IServiceProvider overload with null —
+        /// that resolves services off a null provider and throws.
+        /// </summary>
+        public uc_ImportStep3_Mapping() => InitializeControl();
+
+        public uc_ImportStep3_Mapping(IServiceProvider services) : base(services) => InitializeControl();
+
+        private void InitializeControl()
         {
             InitializeComponent();
             btnTemplateSave.Click += (_, _) => SaveTemplate();

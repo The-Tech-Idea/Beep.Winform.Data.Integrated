@@ -14,14 +14,38 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
         private Timer? _statusTimer;
         private bool _disposed;
 
-        public uc_ImportStep5_Run(IServiceProvider services) : base(services)
+        /// <summary>
+        /// Last state and pause flag the poll actually reported, so the 500ms tick logs a
+        /// TRANSITION rather than the current condition. Logging the condition would append
+        /// "Paused." twice a second for as long as the run stays paused.
+        /// </summary>
+        private ImportState _lastPolledState = ImportState.Idle;
+        private bool _lastPolledPaused;
+
+        /// <summary>
+        /// Designer/parameterless ctor. Must not chain to the IServiceProvider overload with null —
+        /// that resolves services off a null provider and throws.
+        /// </summary>
+        public uc_ImportStep5_Run() => InitializeControl();
+
+        public uc_ImportStep5_Run(IServiceProvider services) : base(services) => InitializeControl();
+
+        // No ApplyDpiScaledLayout here, deliberately. The sibling views apply BeepLayoutMetrics
+        // tokens because their Designers dock their buttons; this one positions the button row
+        // absolutely (x=130/210/300, widths 70/80/80), so pushing a MinimumSize token onto each
+        // button GROWS it into its neighbour — btnPause would overlap btnResume, and a click near
+        // btnPause's right edge would land on Resume. The token pass would also be a no-op even
+        // where it fit: DpiScalingHelper returns a factor of 1.0 until the handle exists, and this
+        // runs from the constructor. Making this view DPI-aware means converting the Designer's
+        // absolute layout to a FlowLayoutPanel first, which is a separate change.
+        private void InitializeControl()
         {
             InitializeComponent();
             btnStart.Click += (_, _) => _ = StartImportAsync();
             btnPause.Click += (_, _) => _importManager?.PauseImport();
             btnResume.Click += (_, _) => _importManager?.ResumeImport();
             btnCancel.Click += (_, _) => CancelImport();
-            btnExportErrors.Click += (_, _) => ExportErrorsToCsv();
+            btnExportErrors.Click += (_, _) => _ = ExportErrorsToCsvAsync();
         }
 
         public bool IsComplete => _lastSummary != null;
@@ -85,10 +109,21 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
             progressBar.Value = 0;
             rtbLog.Clear();
 
+            // Each run gets a fresh CTS, manager and timer, so the previous ones must go first —
+            // they were simply overwritten. The manager is the one that actually leaked: it owns a
+            // ManualResetEventSlim and was never disposed per run. (A stopped WinForms Timer holds
+            // no native handle and would have been collected; disposing it is correctness, not a
+            // leak fix.)
+            _cts?.Dispose();
             _cts = new CancellationTokenSource();
+            _importManager?.Dispose();
             _importManager = new DataImportManager(Editor);
 
+            _lastPolledState = ImportState.Idle;
+            _lastPolledPaused = false;
+
             var progress = new Progress<IPassedArgs>(OnProgress);
+            _statusTimer?.Dispose();
             _statusTimer = new Timer { Interval = 500 };
             _statusTimer.Tick += (_, _) => OnStatusTick();
             _statusTimer.Start();
@@ -97,7 +132,8 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
             AppendLog("Starting import...");
             try
             {
-                var result = await _importManager.RunImportAsync(_config, progress, _cts.Token);
+                var result = await _importManager.RunImportAsync(_config, progress, _cts.Token)
+                    .ConfigureAwait(true);
                 sw.Stop();
 
                 _lastSummary = new ImportRunSummary
@@ -126,11 +162,18 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
             }
             finally
             {
+                // One last poll before the timer dies, so the terminal state and final counts land
+                // even if the run finished between ticks.
                 _statusTimer?.Stop();
+                OnStatusTick();
+
                 _isRunning = false;
-                btnStart.Enabled = true;
-                btnPause.Enabled = false;
-                btnCancel.Enabled = false;
+                if (!IsDisposed)
+                {
+                    btnStart.Enabled = true;
+                    btnPause.Enabled = false;
+                    btnCancel.Enabled = false;
+                }
                 ValidationStateChanged?.Invoke(this, new StepValidationEventArgs(_lastSummary != null));
             }
         }
@@ -171,37 +214,59 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
             }
         }
 
+        /// <summary>
+        /// Polls the manager's live status for the counts IProgress does not carry.
+        /// </summary>
+        /// <remarks>
+        /// Logs transitions only. The status flags used to be permanently false — GetImportStatus
+        /// built a throwaway object from two never-assigned fields — so logging the raw condition
+        /// was silently harmless. It reports the real state now, and "if (status.IsPaused) log"
+        /// would append a line twice a second for as long as the run stayed paused.
+        /// </remarks>
         private void OnStatusTick()
         {
             if (_importManager == null) return;
             try
             {
                 var status = _importManager.GetImportStatus();
-                if (status.IsPaused) AppendLog("Paused.");
-                if (status.IsCancelled) AppendLog("Cancelled.");
-                if (status.IsCompleted && _isRunning)
+                bool terminal = status.State is ImportState.Completed or ImportState.Cancelled or ImportState.Faulted;
+
+                // Pause is reported only while the run is live. PauseImport resets the pause event
+                // and nothing sets it back on cancellation, so a run cancelled while paused still
+                // reads IsPaused=true afterwards — announcing "Paused" for a run that has already
+                // stopped. The state transition below is the honest report at that point.
+                if (!terminal && status.IsPaused != _lastPolledPaused)
                 {
-                    AppendLog("Completed.");
-                    progressBar.Value = 100;
+                    _lastPolledPaused = status.IsPaused;
+                    AppendLog(status.IsPaused
+                        ? "Paused — the run stops at the next batch boundary."
+                        : "Resumed.");
                 }
 
-                var logData = _importManager.ImportLogData;
-                if (logData != null && logData.Count > 0)
+                if (status.State != _lastPolledState)
                 {
-                    var last = logData.Last();
-                    if (last != null && last.RecordNumber > 0)
+                    _lastPolledState = status.State;
+                    switch (status.State)
                     {
-                        var pct = status.TotalRecords > 0
-                            ? Math.Min(100, (last.RecordNumber * 100) / status.TotalRecords)
-                            : 0;
-                        if (InvokeRequired)
-                            Invoke(() => progressBar.Value = pct);
-                        else
-                            progressBar.Value = pct;
+                        case ImportState.Cancelled: AppendLog("Cancelled."); break;
+                        case ImportState.Completed: AppendLog("Completed."); progressBar.Value = 100; break;
+                        case ImportState.Faulted: AppendLog($"Faulted: {status.LastMessage}"); break;
                     }
                 }
+
+                // Progress straight from the tracked counts. Reading the last log entry's
+                // RecordNumber was a workaround for a status object that reported nothing.
+                if (status.TotalRecords > 0)
+                    progressBar.Value = Math.Clamp((int)status.PercentComplete, 0, 100);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // Polling the status must never take down a running import, but a swallowed fault
+                // here shows up as a progress bar that silently stops moving.
+                Editor?.AddLogMessage("ImportStep5",
+                    $"Reading import status failed: {ex.Message}",
+                    DateTime.Now, 0, null, Errors.Warning);
+            }
         }
 
         private void ExtractSummaryFromStatus()
@@ -221,7 +286,14 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
                     _lastSummary.FailedRows = Math.Max(_lastSummary.FailedRows, logData.Count(l => l.Level == ImportLogLevel.Error));
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // The summary feeds the run-history record. Failing quietly here would persist a
+                // wrong row count as if it were real, so report rather than swallow.
+                Editor?.AddLogMessage("ImportStep5",
+                    $"Extracting import summary failed; counts may be incomplete: {ex.Message}",
+                    DateTime.Now, 0, null, Errors.Warning);
+            }
         }
 
         private void RenderRunSummary()
@@ -235,11 +307,17 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
             btnExportErrors.Enabled = _errorRows.Count > 0;
         }
 
-        private void CancelImport()
-        {
-            _cts?.Cancel();
-            _importManager?.CancelImport();
-        }
+        /// <summary>
+        /// Cancels the run through the token passed to RunImportAsync.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately does NOT call <c>DataImportManager.CancelImport()</c>, which it used to.
+        /// That method cancels an <c>_internalCancellationTokenSource</c> that the engine never
+        /// assigns (the compiler flags it CS0649), so it is a no-op — calling it implied a second
+        /// cancellation path that does not exist. The token below is the only one the batch loop
+        /// observes.
+        /// </remarks>
+        private void CancelImport() => _cts?.Cancel();
 
         private void AppendLog(string message)
         {
@@ -254,19 +332,67 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
             rtbLog.ScrollToCaret();
         }
 
-        private void ExportErrorsToCsv()
+        /// <summary>
+        /// Writes the captured error rows to a CSV the user picks.
+        /// </summary>
+        /// <remarks>
+        /// The whole body is inside the try because this is invoked fire-and-forget: anything that
+        /// escaped — including a shell fault out of ShowDialog — would be captured into a discarded
+        /// Task and observed by nobody, leaving the click looking like it simply did nothing.
+        /// </remarks>
+        private async Task ExportErrorsToCsvAsync()
         {
             if (_errorRows.Count == 0) return;
-            using var dlg = new SaveFileDialog { Filter = "CSV files (*.csv)|*.csv", FileName = $"import_errors_{DateTime.Now:yyyyMMdd_HHmmss}.csv" };
-            if (dlg.ShowDialog() != DialogResult.OK) return;
 
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine("RowIndex,Field,Value,ErrorMessage");
-            foreach (var err in _errorRows)
-                sb.AppendLine($"{err.RowIndex},\"{err.Field}\",\"{err.Value}\",\"{err.ErrorMessage}\"");
-            File.WriteAllText(dlg.FileName, sb.ToString());
-            AppendLog($"Errors exported to {dlg.FileName}");
+            string path = string.Empty;
+            try
+            {
+                using var dlg = new SaveFileDialog
+                {
+                    Filter = "CSV files (*.csv)|*.csv",
+                    FileName = $"import_errors_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+                };
+                if (dlg.ShowDialog() != DialogResult.OK) return;
+                path = dlg.FileName;
+
+                // Snapshotted: a run can still be appending to _errorRows while this writes.
+                var rows = _errorRows.ToList();
+
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("RowIndex,Field,Value,ErrorMessage");
+                foreach (var err in rows)
+                    sb.AppendLine($"{err.RowIndex},{CsvQuote(err.Field)},{CsvQuote(err.Value)},{CsvQuote(err.ErrorMessage)}");
+
+                btnExportErrors.Enabled = false;
+                // Off the UI thread: a large error set is a real disk write, and it ran inline.
+                await File.WriteAllTextAsync(path, sb.ToString()).ConfigureAwait(true);
+                if (IsDisposed) return;
+                AppendLog($"Exported {rows.Count} error row(s) to {path}");
+            }
+            catch (Exception ex)
+            {
+                if (IsDisposed) return;
+                AppendLog($"Could not export errors{(path.Length > 0 ? $" to {path}" : "")}: {ex.Message}");
+                Editor?.AddLogMessage("ImportStep5",
+                    $"Exporting import errors failed: {ex.Message}",
+                    DateTime.Now, 0, null, Errors.Warning);
+            }
+            finally
+            {
+                if (!IsDisposed) btnExportErrors.Enabled = _errorRows.Count > 0;
+            }
         }
+
+        /// <summary>
+        /// Quotes a CSV field per RFC 4180 — doubling any embedded quote.
+        /// </summary>
+        /// <remarks>
+        /// The old writer wrapped values in quotes without escaping the ones inside them, so an
+        /// error message containing a quote (SQL errors quote identifiers routinely — <c>column
+        /// "Id" does not exist</c>) silently produced a broken row that shifted every later column.
+        /// </remarks>
+        private static string CsvQuote(string? value) =>
+            $"\"{(value ?? string.Empty).Replace("\"", "\"\"")}\"";
 
         protected override void Dispose(bool disposing)
         {

@@ -9,7 +9,32 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
         private DataImportConfiguration? _config;
         private bool _isComplete;
 
-        public uc_ImportStep1_Configure(IServiceProvider services) : base(services)
+        /// <summary>
+        /// Per-combo generation counters for the entity loads. One counter per target, not one for
+        /// the view: a single shared counter meant picking a destination datasource cancelled an
+        /// in-flight source-entity load, leaving that combo empty until the user re-picked — and
+        /// re-picking the same value raises no SelectedItemChanged, so it never recovered.
+        /// </summary>
+        private readonly Dictionary<BeepComboBox, int> _entityLoadGeneration = new();
+
+        /// <summary>
+        /// Own counters, so these cancel their own predecessors rather than each other's. Sharing
+        /// the entity counter meant a dest-combo change stranded the row-count label on
+        /// "Counting..." forever, while two rapid entity changes cancelled neither and could paint
+        /// the first entity's count beside the second entity's name.
+        /// </summary>
+        private int _rowCountGeneration;
+        private int _matchByGeneration;
+
+        /// <summary>
+        /// Designer/parameterless ctor. Must not chain to the IServiceProvider overload with null —
+        /// that resolves services off a null provider and throws.
+        /// </summary>
+        public uc_ImportStep1_Configure() => InitializeControl();
+
+        public uc_ImportStep1_Configure(IServiceProvider services) : base(services) => InitializeControl();
+
+        private void InitializeControl()
         {
             InitializeComponent();
             SetupEvents();
@@ -98,30 +123,55 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
             cmbPurpose.SelectedIndex = 0;
         }
 
+        // Fire-and-forget: LoadEntities catches its own failures and the handler signature is void.
         private void OnSourceDSChanged()
         {
             var dsName = cmbSourceDS.SelectedItem?.Value?.ToString();
             if (string.IsNullOrEmpty(dsName)) return;
-            LoadEntities(dsName, cmbSourceEntity);
+            _ = LoadEntities(dsName, cmbSourceEntity);
         }
 
         private void OnDestDSChanged()
         {
             var dsName = cmbDestDS.SelectedItem?.Value?.ToString();
             if (string.IsNullOrEmpty(dsName)) return;
-            LoadEntities(dsName, cmbDestEntity);
+            _ = LoadEntities(dsName, cmbDestEntity);
         }
 
-        private void LoadEntities(string dsName, BeepComboBox combo)
+        /// <summary>
+        /// Fills an entity picker. GetDataSource resolves a driver and GetEntitesList is a metadata
+        /// round-trip, so both run off the UI thread.
+        /// </summary>
+        /// <param name="selectValue">
+        /// Selection to apply once the items exist. It has to be applied here rather than by the
+        /// caller: this method now returns at its first await, so a caller that selected straight
+        /// afterwards was iterating an empty list and silently selecting nothing.
+        /// </param>
+        private async Task LoadEntities(string dsName, BeepComboBox combo, string? selectValue = null)
         {
-            if (Editor == null) return;
-            var ds = Editor.GetDataSource(dsName);
-            if (ds == null) return;
-            var entities = ds.GetEntitesList();
-            if (entities == null) return;
+            var editor = Editor;
+            if (editor == null) return;
 
-            var items = entities.Select(e => new SimpleItem { Text = e, Value = e }).ToList();
-            combo.ListItems = new BindingList<SimpleItem>(items);
+            int generation = _entityLoadGeneration.TryGetValue(combo, out var g) ? g + 1 : 1;
+            _entityLoadGeneration[combo] = generation;
+            try
+            {
+                var entities = await Task.Run(() => editor.GetDataSource(dsName)?.GetEntitesList())
+                    .ConfigureAwait(true);
+
+                if (_entityLoadGeneration[combo] != generation || IsDisposed || entities == null) return;
+
+                var items = entities.Select(e => new SimpleItem { Text = e, Value = e }).ToList();
+                combo.ListItems = new BindingList<SimpleItem>(items);
+                SelectComboItem(combo, selectValue);
+            }
+            catch (Exception ex)
+            {
+                if (_entityLoadGeneration[combo] != generation || IsDisposed) return;
+                editor.AddLogMessage("ImportStep1",
+                    $"Could not list entities for '{dsName}': {ex.Message}",
+                    DateTime.Now, 0, null, Errors.Warning);
+            }
         }
 
         private void OnPurposeChanged()
@@ -149,33 +199,81 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
             UpdateCompleteness();
         }
 
-        private void PopulateMatchByFields()
-        {
-            if (Editor == null || _config == null) return;
-            var ds = Editor.GetDataSource(_config.SourceDataSourceName);
-            if (ds == null) return;
-            var structure = ds.GetEntityStructure(_config.SourceEntityName, false);
-            if (structure?.Fields == null) return;
+        private void PopulateMatchByFields() => _ = PopulateMatchByFieldsAsync();
 
-            cmbMatchBy.ListItems = new BindingList<SimpleItem>(structure.Fields
-                .Select(f => new SimpleItem { Text = f.FieldName, Value = f.FieldName })
-                .ToList());
+        /// <summary>Fills the upsert match-by picker. GetEntityStructure is a blocking round-trip.</summary>
+        private async Task PopulateMatchByFieldsAsync()
+        {
+            var editor = Editor;
+            var config = _config;
+            if (editor == null || config == null || string.IsNullOrWhiteSpace(config.SourceEntityName)) return;
+
+            int generation = ++_matchByGeneration;
+            try
+            {
+                var structure = await Task.Run(() =>
+                    editor.GetDataSource(config.SourceDataSourceName)
+                          ?.GetEntityStructure(config.SourceEntityName, false)).ConfigureAwait(true);
+
+                if (generation != _matchByGeneration || IsDisposed || structure?.Fields == null) return;
+
+                cmbMatchBy.ListItems = new BindingList<SimpleItem>(structure.Fields
+                    .Select(f => new SimpleItem { Text = f.FieldName, Value = f.FieldName })
+                    .ToList());
+            }
+            catch (Exception ex)
+            {
+                if (generation != _matchByGeneration || IsDisposed) return;
+                editor.AddLogMessage("ImportStep1",
+                    $"Could not read fields of '{config.SourceEntityName}': {ex.Message}",
+                    DateTime.Now, 0, null, Errors.Warning);
+            }
         }
 
+        /// <summary>
+        /// Shows roughly how many rows the source holds.
+        /// </summary>
+        /// <remarks>
+        /// Asks for a single-row page and reads <c>PagedResult.TotalRecords</c>, rather than what
+        /// this used to do: <c>GetEntity(entity, null).Count()</c> — which dragged the ENTIRE table
+        /// across the wire and materialised every row, purely to render a count label. On a large
+        /// source that is minutes of transfer and a heap full of rows nobody asked for.
+        /// <para>
+        /// TotalRecords is only reported by providers that compute it — the in-memory/cache sources
+        /// discard it and RDBSource swallows a failing COUNT — so a 0 means "not reported", not
+        /// "empty". It is shown as unavailable rather than as a zero row count, and the full read is
+        /// not attempted as a fallback: the cost is exactly what this exists to avoid.
+        /// </para>
+        /// </remarks>
         private async Task RefreshRowCountAsync()
         {
-            if (Editor == null || _config == null || string.IsNullOrEmpty(_config.SourceEntityName)) return;
+            var editor = Editor;
+            var config = _config;
+            if (editor == null || config == null || string.IsNullOrEmpty(config.SourceEntityName)) return;
+
+            int generation = ++_rowCountGeneration;
             lblRowCount.Text = "Counting...";
             try
             {
-                var ds = Editor.GetDataSource(_config.SourceDataSourceName);
-                if (ds == null) { lblRowCount.Text = "N/A"; return; }
-                var data = await Task.Run(() => ds.GetEntity(_config.SourceEntityName, null));
-                lblRowCount.Text = $"~{data?.Count():N0} rows";
+                var paged = await Task.Run(() =>
+                    editor.GetDataSource(config.SourceDataSourceName)
+                          ?.GetEntity(config.SourceEntityName, null, 1, 1)).ConfigureAwait(true);
+
+                if (generation != _rowCountGeneration || IsDisposed) return;
+
+                lblRowCount.Text = paged == null ? "N/A"
+                    : paged.TotalRecords > 0 ? $"~{paged.TotalRecords:N0} rows"
+                    : "Row count not reported by this source";
             }
-            catch
+            catch (Exception ex)
             {
+                if (generation != _rowCountGeneration || IsDisposed) return;
                 lblRowCount.Text = "N/A";
+                // The bare catch here swallowed the reason entirely, leaving "N/A" to mean both
+                // "not supported" and "the datasource is unreachable".
+                editor.AddLogMessage("ImportStep1",
+                    $"Could not count rows of '{config.SourceEntityName}': {ex.Message}",
+                    DateTime.Now, 0, null, Errors.Warning);
             }
         }
 
@@ -197,21 +295,26 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
                 ValidationStateChanged?.Invoke(this, new StepValidationEventArgs(_isComplete));
         }
 
+        /// <summary>
+        /// Reapplies the saved selections when the step is re-entered.
+        /// </summary>
+        /// <remarks>
+        /// The entity selections are handed to LoadEntities rather than applied here. Selecting
+        /// immediately after kicking off the load raced an empty combo and silently selected
+        /// nothing, so returning to this step showed an empty entity picker.
+        /// </remarks>
         private void RestoreSelections()
         {
             if (_config == null) return;
             SelectComboItem(cmbSourceDS, _config.SourceDataSourceName);
             SelectComboItem(cmbDestDS, _config.DestDataSourceName);
+
             if (!string.IsNullOrEmpty(_config.SourceDataSourceName))
-            {
-                LoadEntities(_config.SourceDataSourceName, cmbSourceEntity);
-                SelectComboItem(cmbSourceEntity, _config.SourceEntityName);
-            }
+                _ = LoadEntities(_config.SourceDataSourceName, cmbSourceEntity, _config.SourceEntityName);
+
             if (!string.IsNullOrEmpty(_config.DestDataSourceName))
-            {
-                LoadEntities(_config.DestDataSourceName, cmbDestEntity);
-                SelectComboItem(cmbDestEntity, _config.DestEntityName);
-            }
+                _ = LoadEntities(_config.DestDataSourceName, cmbDestEntity, _config.DestEntityName);
+
             chkCreateDest.Checked = _config.CreateDestinationIfNotExists;
         }
 

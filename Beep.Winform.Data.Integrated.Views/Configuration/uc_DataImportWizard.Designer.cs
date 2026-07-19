@@ -10,7 +10,22 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null)) { components.Dispose(); }
+            if (disposing)
+            {
+                components?.Dispose();
+
+                // Cancel first, so a run still in flight is asked to stop before its manager is torn
+                // out from under it. Then dispose and null: base.Dispose destroys the handle, which
+                // raises OnHandleDestroyed, which cancels _cts — nulling stops that override from
+                // throwing ObjectDisposedException back out of Dispose.
+                _cts?.Cancel();
+                _cts?.Dispose();
+                _cts = null;
+
+                // DataImportManager is IDisposable and is held across the Preflight and Run stages
+                // rather than per-call, so the control owns its lifetime.
+                _manager?.Dispose();
+            }
             base.Dispose(disposing);
         }
 
@@ -35,9 +50,11 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _lblBatchSize = new BeepLabel();
             _txtBatchSize = new BeepTextBox();
             _chkCreateDestination = new BeepCheckBoxBool();
-            _chkAddMissingColumns = new BeepCheckBoxBool();
             _chkApplyDefaults = new BeepCheckBoxBool();
-            _chkPreflight = new BeepCheckBoxBool();
+
+            _stepPreflight = new BeepPanel();
+            _lblPreflightSummary = new BeepLabel();
+            _lstFindings = new BeepListBox();
 
             _stepRun = new BeepPanel();
             _progress = new BeepProgressBar();
@@ -47,6 +64,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _actionsPanel = new BeepPanel();
             _actionsFlow = new System.Windows.Forms.FlowLayoutPanel();
             _btnNext = new BeepButton();
+            _btnPause = new BeepButton();
             _btnBack = new BeepButton();
             _btnCancel = new BeepButton();
             _lblStatus = new BeepLabel();
@@ -56,6 +74,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _contentHost.SuspendLayout();
             _stepScope.SuspendLayout();
             _scopeTable.SuspendLayout();
+            _stepPreflight.SuspendLayout();
             _stepRun.SuspendLayout();
             _actionsPanel.SuspendLayout();
             _actionsFlow.SuspendLayout();
@@ -114,10 +133,11 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
             _scopeTable.Dock = System.Windows.Forms.DockStyle.Fill;
             _scopeTable.ColumnCount = 2;
-            _scopeTable.RowCount = 10;
+            _scopeTable.RowCount = 8;
             _scopeTable.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 150F));
             _scopeTable.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            for (int i = 0; i < 9; i++)
+            // Seven labelled rows (0-6), then a percent-sized filler row that absorbs the slack.
+            for (int i = 0; i < 7; i++)
                 _scopeTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 35F));
             _scopeTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
 
@@ -167,20 +187,10 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _chkCreateDestination.Checked = true;
             _chkCreateDestination.Dock = System.Windows.Forms.DockStyle.Fill;
 
-            _chkAddMissingColumns.UseThemeColors = true;
-            _chkAddMissingColumns.Text = "Add missing destination columns";
-            _chkAddMissingColumns.Checked = true;
-            _chkAddMissingColumns.Dock = System.Windows.Forms.DockStyle.Fill;
-
             _chkApplyDefaults.UseThemeColors = true;
             _chkApplyDefaults.Text = "Apply defaults before write";
             _chkApplyDefaults.Checked = true;
             _chkApplyDefaults.Dock = System.Windows.Forms.DockStyle.Fill;
-
-            _chkPreflight.UseThemeColors = true;
-            _chkPreflight.Text = "Run migration preflight first";
-            _chkPreflight.Checked = true;
-            _chkPreflight.Dock = System.Windows.Forms.DockStyle.Fill;
 
             _scopeTable.Controls.Add(_lblSourceConn, 0, 0);
             _scopeTable.Controls.Add(_cboSourceConn, 1, 0);
@@ -193,12 +203,32 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _scopeTable.Controls.Add(_lblBatchSize, 0, 4);
             _scopeTable.Controls.Add(_txtBatchSize, 1, 4);
             _scopeTable.Controls.Add(_chkCreateDestination, 1, 5);
-            _scopeTable.Controls.Add(_chkAddMissingColumns, 1, 6);
-            _scopeTable.Controls.Add(_chkApplyDefaults, 1, 7);
-            _scopeTable.Controls.Add(_chkPreflight, 1, 8);
+            _scopeTable.Controls.Add(_chkApplyDefaults, 1, 6);
             _stepScope.Controls.Add(_scopeTable);
 
-            // ── step 2: run ──
+            // ── step 2: preflight ──
+            _stepPreflight.IsFrameless = true;
+            _stepPreflight.ShowTitle = false;
+            _stepPreflight.ShowTitleLine = false;
+            _stepPreflight.UseThemeColors = true;
+            _stepPreflight.Dock = System.Windows.Forms.DockStyle.Fill;
+            _stepPreflight.Visible = false;
+
+            _lstFindings.UseThemeColors = true;
+            _lstFindings.ShowSearch = false;
+            _lstFindings.Dock = System.Windows.Forms.DockStyle.Fill;
+
+            _lblPreflightSummary.UseThemeColors = true;
+            _lblPreflightSummary.IsFrameless = true;
+            _lblPreflightSummary.AutoEllipsis = true;
+            _lblPreflightSummary.Dock = System.Windows.Forms.DockStyle.Top;
+            _lblPreflightSummary.Height = 28;
+            _lblPreflightSummary.Text = "Not evaluated.";
+
+            _stepPreflight.Controls.Add(_lstFindings);
+            _stepPreflight.Controls.Add(_lblPreflightSummary);
+
+            // ── step 3: run ──
             _stepRun.IsFrameless = true;
             _stepRun.ShowTitle = false;
             _stepRun.ShowTitleLine = false;
@@ -228,6 +258,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _stepRun.Controls.Add(_progress);
 
             _contentHost.Controls.Add(_stepRun);
+            _contentHost.Controls.Add(_stepPreflight);
             _contentHost.Controls.Add(_stepScope);
 
             // ── actions ──
@@ -248,6 +279,13 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _btnNext.Text = "Run Import";
             _btnNext.MinimumSize = new System.Drawing.Size(130, 36);
 
+            // Pause/Resume is real: DataImportManager.PauseImport resets the _pauseEvent that
+            // RunImportAsync's batch loop waits on. Hidden until a run is actually in flight.
+            _btnPause.UseThemeColors = true;
+            _btnPause.Text = "Pause";
+            _btnPause.MinimumSize = new System.Drawing.Size(100, 32);
+            _btnPause.Visible = false;
+
             _btnBack.UseThemeColors = true;
             _btnBack.Text = "Back";
             _btnBack.MinimumSize = new System.Drawing.Size(100, 32);
@@ -266,6 +304,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _lblStatus.Text = string.Empty;
 
             _actionsFlow.Controls.Add(_btnNext);
+            _actionsFlow.Controls.Add(_btnPause);
             _actionsFlow.Controls.Add(_btnBack);
             _actionsFlow.Controls.Add(_btnCancel);
             _actionsPanel.Controls.Add(_actionsFlow);
@@ -285,6 +324,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _actionsFlow.ResumeLayout(false);
             _actionsPanel.ResumeLayout(false);
             _stepRun.ResumeLayout(false);
+            _stepPreflight.ResumeLayout(false);
             _scopeTable.ResumeLayout(false);
             _stepScope.ResumeLayout(false);
             _contentHost.ResumeLayout(false);
@@ -312,9 +352,11 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         private BeepLabel _lblBatchSize;
         private BeepTextBox _txtBatchSize;
         private BeepCheckBoxBool _chkCreateDestination;
-        private BeepCheckBoxBool _chkAddMissingColumns;
         private BeepCheckBoxBool _chkApplyDefaults;
-        private BeepCheckBoxBool _chkPreflight;
+
+        private BeepPanel _stepPreflight;
+        private BeepLabel _lblPreflightSummary;
+        private BeepListBox _lstFindings;
 
         private BeepPanel _stepRun;
         private BeepProgressBar _progress;
@@ -324,6 +366,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         private BeepPanel _actionsPanel;
         private System.Windows.Forms.FlowLayoutPanel _actionsFlow;
         private BeepButton _btnNext;
+        private BeepButton _btnPause;
         private BeepButton _btnBack;
         private BeepButton _btnCancel;
         private BeepLabel _lblStatus;

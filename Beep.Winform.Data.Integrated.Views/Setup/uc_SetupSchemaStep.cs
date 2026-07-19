@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using TheTechIdea.Beep.Addin;
+using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.ConfigUtil;
 using TheTechIdea.Beep.Editor;
 using TheTechIdea.Beep.Editor.Migration;
@@ -23,8 +24,9 @@ using MigrationSummary = TheTechIdea.Beep.Editor.Migration.MigrationSummary;
 namespace TheTechIdea.Beep.Winform.Default.Views.Setup
 {
     // Full refactor: UI step wraps a typed SchemaSetupStepOptions directly.
-    // The canonical SchemaSetupStep reads options.EntityTypes / options.ExtraAssemblies
-    // during Execute.
+    // The canonical SchemaSetupStep reads options.EntityTypeNames / options.ExtraAssemblies
+    // during Execute. This shell keeps the CLR Types alongside, because its own survey
+    // (GetMigrationSummaryForTypes) is type-based; the host supplies them.
     public partial class uc_SetupSchemaStep : TemplateUserControl
     {
         private IReadOnlyList<Type>? _entityTypes;
@@ -43,16 +45,31 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             InitializeComponent();
         }
 
+        /// <summary>
+        /// Entity types this step will survey. Writing them also refreshes the options as portable
+        /// <c>EntityTypeNames</c> — <c>SchemaSetupStepOptions.EntityTypes</c> is <c>[Obsolete]</c>
+        /// because CLR Types can't be serialised into a SetupDefinition.
+        /// </summary>
         public IReadOnlyList<Type>? EntityTypes
         {
             get => _entityTypes;
-            set { _entityTypes = value; if (_options != null) _options.EntityTypes = value; _ = TryRefreshSummaryAsync(); }
+            set
+            {
+                _entityTypes = value;
+                if (_options != null) uc_SetupWizard.ApplyEntityTypes(_options, value, _extraAssemblies);
+                _ = TryRefreshSummaryAsync();
+            }
         }
 
         public IReadOnlyList<Assembly>? ExtraAssemblies
         {
             get => _extraAssemblies;
-            set { _extraAssemblies = value; if (_options != null) _options.ExtraAssemblies = value; _ = TryRefreshSummaryAsync(); }
+            set
+            {
+                _extraAssemblies = value;
+                if (_options != null) uc_SetupWizard.ApplyEntityTypes(_options, _entityTypes, value);
+                _ = TryRefreshSummaryAsync();
+            }
         }
 
         /// <summary>
@@ -99,7 +116,10 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             _context = context ?? throw new ArgumentNullException(nameof(context));
             if (editor != null) _editor = editor;
 
-            _entityTypes = options.EntityTypes;
+            // Deliberately not read back from options: the options carry the portable
+            // EntityTypeNames now, and resolving those to Types here would duplicate
+            // SchemaSetupStep's private probe order (assemblyHandler → CLR → ExtraAssemblies scan).
+            // The host sets EntityTypes straight after InitializeStep, since it already holds them.
             _extraAssemblies = options.ExtraAssemblies;
             _lastSummary = null;
 
@@ -230,6 +250,25 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
             _refreshCts?.Cancel();
             base.OnHandleDestroyed(e);
         }
+
+        /// <summary>
+        /// Overlays DPI-scaled padding on the Designer's design-time pixels.
+        /// </summary>
+        /// <remarks>
+        /// Invoked by TemplateUserControl from OnHandleCreated and OnDpiChangedAfterParent — never
+        /// from the ctor, where DpiScalingHelper reports a scale of 1.0 because the handle does not
+        /// exist yet and nothing would actually scale.
+        /// <para>
+        /// Only the docked panels' padding is scaled. Their children are all Dock=Top/Fill, so the
+        /// layout reflows from the padding alone; pushing size tokens onto individual controls is
+        /// what broke uc_ImportStep5_Run, whose Designer positions its row absolutely.
+        /// </para>
+        /// </remarks>
+        protected override void ApplyDpiScaledLayout()
+        {
+            _rootPanel.Padding = BeepLayoutMetrics.DialogPadding.ScalePadding(this);
+        }
+
     }
 
     public sealed class SchemaSummaryEventArgs : EventArgs
@@ -244,5 +283,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Setup
         public int PendingMigrations { get; }
         public int EntityTypeCount { get; }
         public string Message { get; }
+
+
     }
 }

@@ -34,13 +34,31 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         private EntityDataMap? _map;
         private EntityDataMap_DTL? _detail;
 
-        public uc_MappingEditor() : this(null) { }
-        public uc_MappingEditor(IServiceProvider services) : base(services)
+        /// <summary>
+        /// Serialises the engine operations. Validate was an async void handler with no gate, so
+        /// repeated clicks stacked concurrent ValidateMappingWithScore runs over the same map.
+        /// </summary>
+        private bool _busy;
+
+        /// <summary>
+        /// Bumped whenever a connection selection changes, so an entity list that resolves after the
+        /// user has moved on cannot repopulate the combo for the wrong connection.
+        /// </summary>
+        private int _entityLoadGeneration;
+
+        /// <summary>
+        /// Designer/parameterless ctor. Must not chain to the IServiceProvider overload with null —
+        /// that resolves services off a null provider and throws.
+        /// </summary>
+        public uc_MappingEditor() => InitializeControl();
+
+        public uc_MappingEditor(IServiceProvider services) : base(services) => InitializeControl();
+
+        private void InitializeControl()
         {
             InitializeComponent();
             Details.AddinName = "Mapping Editor";
             WireEvents();
-            ApplyDpiScaledLayout();
             PopulateConnections();
             _gridFields.DataSource = _fields;
             UpdateButtons();
@@ -86,13 +104,14 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _btnLoad.Click += BtnLoad_Click;
             _btnValidate.Click += BtnValidate_Click;
             _btnSave.Click += BtnSave_Click;
-            _cboSourceConn.SelectedItemChanged += (_, _) => LoadEntities(_cboSourceConn, _cboSourceEntity);
-            _cboDestConn.SelectedItemChanged += (_, _) => LoadEntities(_cboDestConn, _cboDestEntity);
+            // Fire-and-forget is safe only because LoadEntities catches its own failures.
+            _cboSourceConn.SelectedItemChanged += (_, _) => _ = LoadEntities(_cboSourceConn, _cboSourceEntity);
+            _cboDestConn.SelectedItemChanged += (_, _) => _ = LoadEntities(_cboDestConn, _cboDestEntity);
             _cboSourceEntity.SelectedItemChanged += (_, _) => UpdateButtons();
             _cboDestEntity.SelectedItemChanged += (_, _) => UpdateButtons();
         }
 
-        private void ApplyDpiScaledLayout()
+        protected override void ApplyDpiScaledLayout()
         {
             _rootPanel.Padding = BeepLayoutMetrics.DialogPadding.ScalePadding(this);
             _contentHost.Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this);
@@ -126,8 +145,8 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             }
         }
 
-        /// <summary>Fills an entity picker from the datasource's own entity list.</summary>
-        private void LoadEntities(BeepComboBox connectionCombo, BeepComboBox entityCombo)
+        /// <summary>Fills an entity picker from the datasource's own entity list, off the UI thread.</summary>
+        private async Task LoadEntities(BeepComboBox connectionCombo, BeepComboBox entityCombo)
         {
             entityCombo.ListItems.Clear();
 
@@ -135,9 +154,16 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             var name = connectionCombo.SelectedItem?.Value as string;
             if (editor == null || string.IsNullOrWhiteSpace(name)) { UpdateButtons(); return; }
 
+            int generation = ++_entityLoadGeneration;
             try
             {
-                var entities = editor.GetDataSource(name)?.GetEntitesList();
+                // GetDataSource resolves a driver and GetEntitesList is a metadata round-trip; both
+                // blocked the UI thread here.
+                var entities = await Task.Run(() => editor.GetDataSource(name)?.GetEntitesList())
+                    .ConfigureAwait(true);
+
+                if (generation != _entityLoadGeneration || IsDisposed) return;
+
                 if (entities != null)
                 {
                     foreach (var entity in entities.Where(e => !string.IsNullOrWhiteSpace(e)).OrderBy(e => e))
@@ -146,6 +172,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             }
             catch (Exception ex)
             {
+                if (generation != _entityLoadGeneration || IsDisposed) return;
                 SetStatus($"Could not list entities for '{name}': {ex.Message}");
             }
             UpdateButtons();
@@ -153,11 +180,14 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
         private void UpdateButtons()
         {
+            // Everything is gated on !_busy as well as its own precondition: the engine calls are
+            // now awaited, so without this the buttons stay live across the await and a second click
+            // would only be caught by the _busy check after already looking clickable.
             bool scoped = SourceConn != null && SourceEntity != null && DestConn != null && DestEntity != null;
-            _btnCreate.Enabled = scoped;
-            _btnLoad.Enabled = DestConn != null && DestEntity != null;
-            _btnValidate.Enabled = _map != null;
-            _btnSave.Enabled = _map != null;
+            _btnCreate.Enabled = scoped && !_busy;
+            _btnLoad.Enabled = DestConn != null && DestEntity != null && !_busy;
+            _btnValidate.Enabled = _map != null && !_busy;
+            _btnSave.Enabled = _map != null && !_busy;
         }
 
         private string? SourceConn => _cboSourceConn.SelectedItem?.Value as string;
@@ -169,16 +199,25 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         /// Builds the mapping through the engine, which loads or initializes the destination
         /// map and attaches the source entity as a mapped detail.
         /// </summary>
-        private void BtnCreate_Click(object? sender, EventArgs e)
+        private void BtnCreate_Click(object? sender, EventArgs e) => _ = CreateAsync();
+
+        private async Task CreateAsync()
         {
             var editor = beepService?.DMEEditor;
             if (editor == null || SourceConn == null || SourceEntity == null
                 || DestConn == null || DestEntity == null) return;
+            if (_busy) { SetStatus("An operation is already running."); return; }
 
+            string srcEntity = SourceEntity, srcConn = SourceConn, dstEntity = DestEntity, dstConn = DestConn;
+            _busy = true;
+            UpdateButtons();
             try
             {
-                var (status, map) = MappingManager.CreateEntityMap(
-                    editor, SourceEntity, SourceConn, DestEntity, DestConn);
+                // CreateEntityMap reads both entity structures from their datasources.
+                var (status, map) = await Task.Run(() => MappingManager.CreateEntityMap(
+                    editor, srcEntity, srcConn, dstEntity, dstConn)).ConfigureAwait(true);
+
+                if (IsDisposed) return;
 
                 if (status?.Flag != Errors.Ok || map == null)
                 {
@@ -188,49 +227,71 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                 }
 
                 _map = map;
-                BindDetail(map);
-                SetStatus($"Mapped '{SourceEntity}' → '{DestEntity}': {_fields.Count} field mapping(s).");
+                BindDetail(map, srcEntity);
+                SetStatus($"Mapped '{srcEntity}' → '{dstEntity}': {_fields.Count} field mapping(s).");
             }
             catch (Exception ex)
             {
                 SetStatus($"Create map threw: {ex.Message}");
             }
-            UpdateButtons();
+            finally
+            {
+                _busy = false;
+                UpdateButtons();
+            }
         }
 
-        private void BtnLoad_Click(object? sender, EventArgs e)
+        private void BtnLoad_Click(object? sender, EventArgs e) => _ = LoadAsync();
+
+        private async Task LoadAsync()
         {
             var config = beepService?.DMEEditor?.ConfigEditor;
             if (config == null || DestConn == null || DestEntity == null) return;
+            if (_busy) { SetStatus("An operation is already running."); return; }
 
+            string dstEntity = DestEntity, dstConn = DestConn;
+            _busy = true;
+            UpdateButtons();
             try
             {
-                var map = config.LoadMappingValues(DestEntity, DestConn);
+                var map = await Task.Run(() => config.LoadMappingValues(dstEntity, dstConn)).ConfigureAwait(true);
+                if (IsDisposed) return;
+
                 if (map == null)
                 {
-                    SetStatus($"No saved mapping for '{DestEntity}' on '{DestConn}'.");
+                    SetStatus($"No saved mapping for '{dstEntity}' on '{dstConn}'.");
                     return;
                 }
 
                 _map = map;
-                BindDetail(map);
+                BindDetail(map, SourceEntity);
                 SetStatus($"Loaded mapping '{map.MappingName}' with {_fields.Count} field mapping(s).");
             }
             catch (Exception ex)
             {
                 SetStatus($"Load failed: {ex.Message}");
             }
-            UpdateButtons();
+            finally
+            {
+                _busy = false;
+                UpdateButtons();
+            }
         }
 
         /// <summary>
-        /// Field mappings live on the mapped-entity detail, so pick the detail matching the
-        /// chosen source (falling back to the first) and bind its FieldMapping to the grid.
+        /// Field mappings live on the mapped-entity detail, so pick the detail matching
+        /// <paramref name="sourceEntity"/> (falling back to the first) and bind its FieldMapping.
         /// </summary>
-        private void BindDetail(EntityDataMap map)
+        /// <remarks>
+        /// Takes the entity name rather than reading the SourceEntity combo. The combos stay live
+        /// across the Create/Load awaits, so reading the property here could match the detail
+        /// against a source the user picked *after* the map was built — silently binding, and later
+        /// saving, a different detail's field mappings.
+        /// </remarks>
+        private void BindDetail(EntityDataMap map, string? sourceEntity)
         {
             _detail = map.MappedEntities?.FirstOrDefault(d =>
-                          string.Equals(d.EntityName, SourceEntity, StringComparison.OrdinalIgnoreCase))
+                          string.Equals(d.EntityName, sourceEntity, StringComparison.OrdinalIgnoreCase))
                       ?? map.MappedEntities?.FirstOrDefault();
 
             _fields.Clear();
@@ -239,11 +300,16 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             foreach (var f in _detail.FieldMapping) _fields.Add(f);
         }
 
-        private async void BtnValidate_Click(object? sender, EventArgs e)
+        private void BtnValidate_Click(object? sender, EventArgs e) => _ = ValidateAsync();
+
+        private async Task ValidateAsync()
         {
             var editor = beepService?.DMEEditor;
             if (editor == null || _map == null) return;
+            if (_busy) { SetStatus("An operation is already running."); return; }
 
+            _busy = true;
+            UpdateButtons();
             try
             {
                 SyncFieldsBack();
@@ -251,6 +317,10 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                 var map = _map;
                 var report = await Task.Run(() =>
                     MappingManager.ValidateMappingWithScore(editor, map)).ConfigureAwait(true);
+
+                // ValidateMappingWithScore reads entity structures, so this can outlive the view.
+                // Without the guard a modal quality dialog pops for a control that is already gone.
+                if (IsDisposed) return;
 
                 var summary = $"Score {report.Score}/100 ({report.Band}); " +
                               $"production threshold {report.ProductionThreshold}: " +
@@ -260,7 +330,19 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
                 if (report.Issues.Count > 0)
                 {
-                    var lines = report.Issues.Select(i => i.ToString()).ToList();
+                    // Projected field by field. MappingQualityIssue has no ToString override, so
+                    // i.ToString() printed the type name once per issue — the engine computed a
+                    // Code, Severity, Category, Message, Recommendation and FieldName for each and
+                    // every one of them was discarded.
+                    var lines = report.Issues
+                        .OrderByDescending(i => i.Severity)
+                        .Select(i =>
+                            $"[{i.Severity}] {i.Code}" +
+                            (string.IsNullOrWhiteSpace(i.FieldName) ? "" : $" ({i.FieldName})") +
+                            $" — {i.Message}" +
+                            (string.IsNullOrWhiteSpace(i.Recommendation) ? "" : $" → {i.Recommendation}"))
+                        .ToList();
+
                     BeepDialogManager.Instance.ShowWarning("Mapping Quality",
                         summary + Environment.NewLine + Environment.NewLine +
                         string.Join(Environment.NewLine, lines));
@@ -274,18 +356,45 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             {
                 SetStatus($"Validation failed: {ex.Message}");
             }
+            finally
+            {
+                _busy = false;
+                UpdateButtons();
+            }
         }
 
-        private void BtnSave_Click(object? sender, EventArgs e)
-        {
-            var config = beepService?.DMEEditor?.ConfigEditor;
-            if (config == null || _map == null || DestConn == null || DestEntity == null) return;
+        private void BtnSave_Click(object? sender, EventArgs e) => _ = SaveAsync();
 
+        /// <summary>
+        /// Persists the mapping through <c>MappingManager.SaveEntityMap</c>.
+        /// </summary>
+        /// <remarks>
+        /// Not <c>ConfigEditor.SaveMappingValues</c>, which this used to call directly. That writes
+        /// the JSON and nothing else, so an edited mapping left the compiled-plan and
+        /// destination-setter caches holding the pre-edit plan, and skipped the governance/version
+        /// hooks entirely. SaveEntityMap exists for exactly this — its own summary is "Persists a
+        /// mapping through MappingManager so cache invalidation and governance hooks are applied" —
+        /// and it calls SaveMappingValues internally, so nothing is lost by going through it.
+        /// </remarks>
+        private async Task SaveAsync()
+        {
+            var editor = beepService?.DMEEditor;
+            if (editor == null || _map == null || DestConn == null || DestEntity == null) return;
+            if (_busy) { SetStatus("An operation is already running."); return; }
+
+            _busy = true;
             try
             {
                 SyncFieldsBack();
-                config.SaveMappingValues(DestEntity, DestConn, _map);
-                SetStatus($"Saved mapping for '{DestEntity}' on '{DestConn}'.");
+                var map = _map;
+                string destEntity = DestEntity, destConn = DestConn;
+
+                // Writes DataConnections/mapping JSON and touches the caches — off the UI thread.
+                await Task.Run(() => MappingManager.SaveEntityMap(editor, destEntity, destConn, map))
+                    .ConfigureAwait(true);
+
+                if (IsDisposed) return;
+                SetStatus($"Saved mapping for '{destEntity}' on '{destConn}'.");
                 Completed?.Invoke(this, new WizardCompletedEventArgs
                 {
                     Succeeded = true,
@@ -296,6 +405,11 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             {
                 SetStatus($"Save failed: {ex.Message}");
                 BeepDialogManager.Instance.ShowError("Save Failed", ex.Message);
+            }
+            finally
+            {
+                _busy = false;
+                UpdateButtons();
             }
         }
 
@@ -313,11 +427,5 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
         private void SetStatus(string message) => _lblStatus.Text = message;
 
-        public sealed class WizardCompletedEventArgs : EventArgs
-        {
-            public bool Succeeded { get; init; }
-            public bool Cancelled { get; init; }
-            public string Summary { get; init; } = string.Empty;
-        }
     }
 }

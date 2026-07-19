@@ -8,7 +8,15 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
     {
         private DataImportConfiguration? _config;
 
-        public uc_ImportStep4_Options(IServiceProvider services) : base(services)
+        /// <summary>
+        /// Designer/parameterless ctor. Must not chain to the IServiceProvider overload with null —
+        /// that resolves services off a null provider and throws.
+        /// </summary>
+        public uc_ImportStep4_Options() => InitializeControl();
+
+        public uc_ImportStep4_Options(IServiceProvider services) : base(services) => InitializeControl();
+
+        private void InitializeControl()
         {
             InitializeComponent();
             SetupEvents();

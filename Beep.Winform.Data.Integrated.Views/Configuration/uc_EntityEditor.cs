@@ -5,6 +5,8 @@ using System.Data;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using TheTechIdea.Beep.Addin;
 using TheTechIdea.Beep.Utilities;
@@ -46,12 +48,56 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         private string _lastSummary = "Idle";
         private EntityManagerViewModel? _viewModel;
 
+        /// <summary>
+        /// Cancels the in-flight schema apply. The engine exposes no async DDL — every
+        /// MigrationManager and IDataSource call here is synchronous and uncancellable once it has
+        /// started — so this stops the run <em>between</em> operations rather than interrupting one.
+        /// That still matters: an update is a sequence of add/alter/drop round-trips, and cancelling
+        /// after the adds avoids the destructive tail.
+        /// </summary>
+        private CancellationTokenSource? _applyCts;
+
+        /// <summary>
+        /// Cached CheckEntityExist result and the entity it describes. Create-vs-Update mode is
+        /// re-derived on every SyncBindings, and CheckEntityExist is a blocking round-trip to the
+        /// datasource — probing it on each binding refresh put I/O on the UI thread for what is
+        /// almost always the same answer. Invalidated whenever the datasource or entity changes,
+        /// and after an apply.
+        /// </summary>
+        private string? _probedEntity;
+        private bool _probedExists;
+
+        /// <summary>
+        /// Bumped whenever the datasource or entity selection changes. Every async load captures it
+        /// and abandons its result if superseded. Without this, a slow load for datasource A can
+        /// resume after the user has already switched to B and rebind SourceConnection to A while
+        /// the combo still reads B — which would point the next Apply, including DropColumn, at the
+        /// wrong database.
+        /// </summary>
+        private int _selectionGeneration;
+
+        private int NextSelectionGeneration() => ++_selectionGeneration;
+        private bool IsCurrentSelection(int generation) => generation == _selectionGeneration;
+
+        /// <summary>
+        /// Designer/parameterless ctor. Must not chain to the IServiceProvider overload with null —
+        /// that resolves services off a null provider and throws. Configure() supplies the services
+        /// at runtime, so everything below is null-safe without them.
+        /// </summary>
+        public uc_EntityEditor()
+        {
+            InitializeComponent();
+            Details.AddinName = "Entity Editor";
+            WireButtonEvents();
+        }
+
         public uc_EntityEditor(IServiceProvider services) : base(services)
         {
             InitializeComponent();
             Details.AddinName = "Entity Editor";
             WireButtonEvents();
-            ApplyDpiScaledLayout();
+            // No ApplyDpiScaledLayout() here: the base drives it from OnHandleCreated, where the
+            // scale factor is real. Calling it from the ctor scaled nothing (handle not yet created).
         }
 
         // ── Skill § "Sizing tokens": DPI-scaled overrides applied in
@@ -59,7 +105,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         //    Size / Location / Dock / Padding values; this method overlays
         //    token-based values that scale with the host display DPI.
 
-        private void ApplyDpiScaledLayout()
+        protected override void ApplyDpiScaledLayout()
         {
             Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this);
             _comboRow.Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this);
@@ -156,47 +202,117 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
         // ── Datasource selection ───────────────────────────────────────────
 
-        private void DatasourcebeepComboBox_SelectedItemChanged(object? sender, SelectedItemChangedEventArgs e)
+        // Fire-and-forget: the handler catches its own failures, and awaiting is not an option on a
+        // SelectedItemChanged signature that returns void.
+        private void DatasourcebeepComboBox_SelectedItemChanged(object? sender, SelectedItemChangedEventArgs e) =>
+            _ = DatasourceChangedAsync(e);
+
+        private async Task DatasourceChangedAsync(SelectedItemChangedEventArgs? e)
         {
             if (e?.SelectedItem == null || _viewModel == null || beepService?.DMEEditor == null) return;
+            if (_isApplyingSchema) return;
+
             string dsName = e.SelectedItem.Text ?? string.Empty;
+            int generation = NextSelectionGeneration();
             _viewModel.Datasourcename = dsName;
-            _viewModel.SourceConnection = beepService.DMEEditor.GetDataSource(dsName);
             _viewModel.EntityName = string.Empty;
-            var ds = _viewModel.SourceConnection;
-            if (ds == null) { LogStatus("Datasource not found", Errors.Failed); return; }
-            if (ds.ConnectionStatus != ConnectionState.Open)
+            InvalidateEntityProbe();
+
+            try
             {
-                ds.Openconnection();
+                // GetDataSource resolves a driver and may activate a plugin; Openconnection is a
+                // network round-trip. Both blocked the UI thread here.
+                var ds = await Task.Run(() => beepService.DMEEditor.GetDataSource(dsName)).ConfigureAwait(true);
+                if (!IsCurrentSelection(generation)) return;
+
+                _viewModel.SourceConnection = ds;
+                if (ds == null) { LogStatus("Datasource not found", Errors.Failed); return; }
+
                 if (ds.ConnectionStatus != ConnectionState.Open)
-                { LogStatus("Could not open datasource", Errors.Failed); return; }
+                {
+                    LogStatus($"Opening '{dsName}'…", Errors.Information);
+                    await Task.Run(() => ds.Openconnection()).ConfigureAwait(true);
+                    if (!IsCurrentSelection(generation)) return;
+                    if (ds.ConnectionStatus != ConnectionState.Open)
+                    { LogStatus("Could not open datasource", Errors.Failed); return; }
+                }
+
+                _viewModel.UpdateFieldTypes();
+                ConfigureFieldTypeColumn();
+                _viewModel.Structure = null; _viewModel.DBWork = null;
+                _viewModel.Fields = null; _viewModel.EntityName = null;
+                _lastSummary = $"Datasource: {dsName}";
+                SyncBindings();
+                await LoadEntitiesListAsync(generation).ConfigureAwait(true);
+                if (!IsCurrentSelection(generation)) return;
+                RefreshProgressiveDisclosure(_viewModel.EntityName);
             }
-            _viewModel.UpdateFieldTypes();
-            ConfigureFieldTypeColumn();
-            _viewModel.Structure = null; _viewModel.DBWork = null;
-            _viewModel.Fields = null; _viewModel.EntityName = null;
-            _lastSummary = $"Datasource: {dsName}";
-            SyncBindings(); LoadEntitiesList();
-            RefreshProgressiveDisclosure(_viewModel.EntityName);
+            catch (Exception ex)
+            {
+                if (!IsCurrentSelection(generation)) return;
+                LogStatus($"Datasource '{dsName}' failed: {ex.Message}", Errors.Failed);
+            }
         }
 
         // ── Entity selection ───────────────────────────────────────────────
 
-        private void EntitiesbeepComboBox_SelectedItemChanged(object? sender, SelectedItemChangedEventArgs e)
+        private void EntitiesbeepComboBox_SelectedItemChanged(object? sender, SelectedItemChangedEventArgs e) =>
+            _ = EntityChangedAsync(e);
+
+        private async Task EntityChangedAsync(SelectedItemChangedEventArgs? e)
         {
             if (e?.SelectedItem == null || _viewModel == null) return;
-            LoadOrCreateEntity(e.SelectedItem.Text);
-            RefreshEditorModeState(e.SelectedItem.Text);
-            RefreshProgressiveDisclosure(e.SelectedItem.Text);
+            if (_isApplyingSchema) return;
+
+            var name = e.SelectedItem.Text;
+            int generation = NextSelectionGeneration();
+
+            try
+            {
+                LoadOrCreateEntity(name);
+                // Resolve Create-vs-Update off-thread before deriving the mode, so the button label
+                // and the Apply path agree about whether this entity already exists.
+                if (!string.IsNullOrWhiteSpace(name))
+                    await ProbeEntityExistsAsync(name.Trim(), CancellationToken.None).ConfigureAwait(true);
+                if (!IsCurrentSelection(generation)) return;
+                RefreshEditorModeState(name);
+                RefreshProgressiveDisclosure(name);
+            }
+            catch (Exception ex)
+            {
+                if (!IsCurrentSelection(generation)) return;
+                LogStatus($"Could not load '{name}': {ex.Message}", Errors.Failed);
+            }
         }
 
-        private void LoadEntitiesList()
+        /// <summary>
+        /// Lists entities on the current connection. GetEntitesList is a blocking metadata
+        /// round-trip, so it runs off the UI thread. Results are dropped if the selection moved on.
+        /// </summary>
+        private async Task LoadEntitiesListAsync(int? generation = null)
         {
+            int gen = generation ?? _selectionGeneration;
             EntitiesbeepComboBox.ListItems = new BindingList<SimpleItem>();
-            if (_viewModel?.SourceConnection == null) return;
-            foreach (var n in _viewModel.SourceConnection.GetEntitesList())
+            var ds = _viewModel?.SourceConnection;
+            if (ds == null) return;
+
+            IEnumerable<string>? names = null;
+            try
+            {
+                names = await Task.Run(() => ds.GetEntitesList()).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                if (!IsCurrentSelection(gen)) return;
+                LogStatus($"Could not list entities: {ex.Message}", Errors.Failed);
+                return;
+            }
+
+            if (!IsCurrentSelection(gen)) return;
+
+            foreach (var n in names ?? Enumerable.Empty<string>())
                 EntitiesbeepComboBox.ListItems.Add(new SimpleItem { DisplayField = n, Text = n, Name = n, Value = n });
-            if (!string.IsNullOrWhiteSpace(_viewModel.EntityName)) SelectEntity(_viewModel.EntityName);
+            if (!string.IsNullOrWhiteSpace(_viewModel?.EntityName)) SelectEntity(_viewModel.EntityName);
         }
 
         private bool LoadOrCreateEntity(string? entityName)
@@ -226,44 +342,161 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         public override void OnNavigatedTo(Dictionary<string, object> parameters)
         {
             base.OnNavigatedTo(parameters);
+            _ = NavigatedToAsync(parameters);
+        }
+
+        /// <summary>
+        /// Applies navigation parameters. Async because resolving the datasource, listing entities
+        /// and probing whether the entity exists are all blocking round-trips; the base override
+        /// returns void and carries no completion contract, so the work continues after it returns.
+        /// </summary>
+        private async Task NavigatedToAsync(Dictionary<string, object> parameters)
+        {
             if (_viewModel == null || beepService?.DMEEditor == null) return;
-            if (parameters.TryGetValue("Datasource", out var dsObj)) {
-                _viewModel.Datasourcename = dsObj?.ToString() ?? "";
-                _viewModel.SourceConnection = beepService.DMEEditor.GetDataSource(_viewModel.Datasourcename);
-                _viewModel.EntityName = ""; _viewModel.UpdateFieldTypes(); ConfigureFieldTypeColumn(); LoadEntitiesList();
+
+            // Freezing the combos is not enough: navigation does not go through them. The addin tree
+            // stays live during an apply, and ShowPage("uc_EntityEditor", …) on a cached InControl
+            // instance re-enters here — repointing SourceConnection at a different datasource while
+            // the DDL awaits are still in flight, so the operations would land on the wrong database.
+            if (_isApplyingSchema)
+            {
+                LogStatus("Schema operation in progress — navigation ignored.", Errors.Warning);
+                return;
             }
-            if (parameters.TryGetValue("EntityName", out var entObj)) {
-                _viewModel.EntityName = entObj?.ToString() ?? "";
-                _viewModel.SourceConnection ??= beepService.DMEEditor.GetDataSource(_viewModel.Datasourcename);
-                _viewModel.LoadOrCreateEntityStructure(_viewModel.EntityName);
-                _viewModel.IsNew = false; _viewModel.IsChanged = false;
-                RefreshEditorModeState(_viewModel.EntityName);
-            } else { _viewModel.IsNew = true; _mode = EntityEditorMode.CreateNew; }
-            SyncBindings();
+
+            int generation = NextSelectionGeneration();
+            try
+            {
+                if (parameters.TryGetValue("Datasource", out var dsObj))
+                {
+                    _viewModel.Datasourcename = dsObj?.ToString() ?? "";
+                    var ds = await Task.Run(() =>
+                        beepService.DMEEditor.GetDataSource(_viewModel.Datasourcename)).ConfigureAwait(true);
+                    if (!IsCurrentSelection(generation)) return;
+                    _viewModel.SourceConnection = ds;
+                    _viewModel.EntityName = ""; _viewModel.UpdateFieldTypes(); ConfigureFieldTypeColumn();
+                    InvalidateEntityProbe();
+                    await LoadEntitiesListAsync(generation).ConfigureAwait(true);
+                    if (!IsCurrentSelection(generation)) return;
+                }
+                if (parameters.TryGetValue("EntityName", out var entObj))
+                {
+                    _viewModel.EntityName = entObj?.ToString() ?? "";
+                    if (_viewModel.SourceConnection == null)
+                    {
+                        var ds2 = await Task.Run(() =>
+                            beepService.DMEEditor.GetDataSource(_viewModel.Datasourcename)).ConfigureAwait(true);
+                        if (!IsCurrentSelection(generation)) return;
+                        _viewModel.SourceConnection = ds2;
+                    }
+                    _viewModel.LoadOrCreateEntityStructure(_viewModel.EntityName);
+                    _viewModel.IsNew = false; _viewModel.IsChanged = false;
+
+                    // Must precede RefreshEditorModeState: mode is read from the probe cache, so
+                    // navigating to an existing entity without probing would show "Create Entity".
+                    if (!string.IsNullOrWhiteSpace(_viewModel.EntityName))
+                        await ProbeEntityExistsAsync(_viewModel.EntityName.Trim(), CancellationToken.None).ConfigureAwait(true);
+                    if (!IsCurrentSelection(generation)) return;
+                    RefreshEditorModeState(_viewModel.EntityName);
+                }
+                else { _viewModel.IsNew = true; _mode = EntityEditorMode.CreateNew; }
+                SyncBindings();
+            }
+            catch (Exception ex)
+            {
+                if (!IsCurrentSelection(generation)) return;
+                LogStatus($"Navigation failed: {ex.Message}", Errors.Failed);
+            }
         }
 
         // ── Apply (Create / Update via MigrationManager) ───────────────────
 
-        private void ApplybeepButton_Click(object? sender, EventArgs e)
+        private void ApplybeepButton_Click(object? sender, EventArgs e) => _ = ApplyAsync();
+
+        private async Task ApplyAsync()
         {
             if (_viewModel == null || beepService?.DMEEditor == null) return;
             if (_viewModel.SourceConnection == null) { LogStatus("Select a datasource first", Errors.Failed); return; }
             if (_isApplyingSchema) { LogStatus("Schema operation already running.", Errors.Warning); return; }
-            string entityName = GetEntityNameFromUi() ?? "";
-            if (string.IsNullOrWhiteSpace(entityName)) { LogStatus("Select or type an entity name", Errors.Failed); return; }
-            if (_viewModel.Structure == null || !string.Equals(_viewModel.EntityName, entityName, StringComparison.OrdinalIgnoreCase))
-                if (!LoadOrCreateEntity(entityName)) return;
-            fieldsBindingSource.EndEdit();
-            if (BindingContext?[fieldsBindingSource] is CurrencyManager cm) cm.EndCurrentEdit();
+
+            string entityName = "";
+
+            // Everything from the guard onward is inside the try: this method is fire-and-forget, so
+            // an exception escaping it would be observed by nobody, and one thrown after the guard
+            // went up but before the finally would wedge _isApplyingSchema true for the control's
+            // lifetime — permanently disabling Apply.
             _isApplyingSchema = true;
             try
             {
+                entityName = GetEntityNameFromUi() ?? "";
+                if (string.IsNullOrWhiteSpace(entityName)) { LogStatus("Select or type an entity name", Errors.Failed); return; }
+                if (_viewModel.Structure == null || !string.Equals(_viewModel.EntityName, entityName, StringComparison.OrdinalIgnoreCase))
+                    if (!LoadOrCreateEntity(entityName)) return;
+                fieldsBindingSource.EndEdit();
+                if (BindingContext?[fieldsBindingSource] is CurrencyManager cm) cm.EndCurrentEdit();
+
+                _applyCts?.Cancel();
+                _applyCts?.Dispose();
+                _applyCts = new CancellationTokenSource();
+                var token = _applyCts.Token;
+
+                Cursor = Cursors.WaitCursor;
+                // Locks the selection for the duration: the combos stay live during the awaits
+                // otherwise, and a datasource switch mid-apply would move the target out from under
+                // the DDL.
+                RefreshProgressiveDisclosure(entityName);
+
                 var draft = BuildDraftStructure(entityName);
                 if (!ValidateDraft(draft)) return;
+
+                // Re-probe rather than trusting the cache: this decides create-vs-update, and acting
+                // on a stale answer would either recreate a live entity or try to alter one that is
+                // not there.
+                //
+                // Dispatch on the probe's RETURN value, not on _mode or the _probedExists field.
+                // The cache is a UI convenience that a superseded probe deliberately declines to
+                // publish, so the field can be unset while this answer is good; the return value is
+                // the only authoritative one.
+                InvalidateEntityProbe();
+                bool? entityExists = await ProbeEntityExistsAsync(entityName, token).ConfigureAwait(true);
                 RefreshEditorModeState(entityName);
-                if (_mode == EntityEditorMode.CreateNew) ExecuteCreate(draft); else ExecuteUpdate(draft);
+
+                // Refuse to guess. A null here means CheckEntityExist faulted, and both branches are
+                // unsafe on an unknown: create would mutate a live entity, update would diff against
+                // one that may not be there. The mode label may still read "Create Entity" — that
+                // display default is fine; acting on it is not.
+                if (entityExists == null)
+                {
+                    LogStatus($"Could not determine whether '{entityName}' exists — nothing applied. " +
+                              "Check the datasource and retry.", Errors.Failed);
+                    return;
+                }
+
+                if (!entityExists.Value) await ExecuteCreateAsync(draft, token).ConfigureAwait(true);
+                else await ExecuteUpdateAsync(draft, token).ConfigureAwait(true);
             }
-            finally { _isApplyingSchema = false; SyncBindings(); }
+            catch (OperationCanceledException)
+            {
+                LogStatus("Schema operation cancelled — changes already applied remain in place.", Errors.Warning);
+            }
+            catch (Exception ex)
+            {
+                // ExecuteUpdate had no exception boundary at all: MigrationManager.AlterColumn and
+                // DropColumn do not try/catch, so a provider fault surfaced as an unhandled crash.
+                LogStatus($"Schema operation failed: {ex.Message}", Errors.Failed);
+                beepService?.DMEEditor?.AddLogMessage("EntityEditor",
+                    $"Apply '{entityName}' threw: {ex}", DateTime.Now, 0, entityName, Errors.Failed);
+            }
+            finally
+            {
+                // Deliberately does NOT invalidate the probe. ExecuteCreateAsync/ExecuteUpdateAsync
+                // each end by re-probing the entity they just touched, and dropping that here would
+                // leave RefreshEditorModeState with an empty cache — showing "Create Entity" for the
+                // entity that was just successfully created or updated.
+                _isApplyingSchema = false;
+                Cursor = Cursors.Default;
+                SyncBindings();
+            }
         }
 
         // ── Integration: Edit Data ──────────────────────────────────────────
@@ -315,17 +548,84 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             RefreshEditorModeState(_viewModel.EntityName); RefreshProgressiveDisclosure(_viewModel.EntityName);
         }
 
+        /// <summary>
+        /// Drops the cached CheckEntityExist answer, forcing the next probe to re-ask. Resets the
+        /// flag as well as the key: leaving a stale <c>_probedExists</c> behind an unset
+        /// <c>_probedEntity</c> would let any raw read of the flag see the previous entity's answer.
+        /// </summary>
+        private void InvalidateEntityProbe()
+        {
+            _probedEntity = null;
+            _probedExists = false;
+        }
+
+        /// <summary>
+        /// Resolves whether <paramref name="entityName"/> exists, off the UI thread, and caches it.
+        /// </summary>
+        /// <returns>
+        /// true/false when the datasource answered; <c>null</c> when it could not be determined.
+        /// </returns>
+        /// <remarks>
+        /// The null case is the whole point of the nullable return. A swallowed CheckEntityExist
+        /// fault must never read as "confirmed absent": Apply dispatches create-vs-update on this
+        /// value, and a faulted-false would send a live entity down the create path, where
+        /// EnsureEntity(addMissingColumns: true) would quietly add columns to it and report it as
+        /// created. "Unknown" and "not there" are different answers and only one of them is safe to
+        /// act on.
+        /// </remarks>
+        private async Task<bool?> ProbeEntityExistsAsync(string entityName, CancellationToken token)
+        {
+            if (string.Equals(_probedEntity, entityName, StringComparison.OrdinalIgnoreCase))
+                return _probedExists;
+
+            var ds = _viewModel?.SourceConnection;
+            if (ds == null) return null;
+
+            int generation = _selectionGeneration;
+            bool? exists;
+            try
+            {
+                exists = await Task.Run(() => ds.CheckEntityExist(entityName), token).ConfigureAwait(true);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                // Report the fault rather than hiding it, and return "unknown" — not false.
+                beepService?.DMEEditor?.AddLogMessage("EntityEditor",
+                    $"CheckEntityExist('{entityName}') threw: {ex.Message}",
+                    DateTime.Now, 0, entityName, Errors.Warning);
+                exists = null;
+            }
+
+            // A newer selection landed while this probe was in flight — publishing now would cache
+            // entity A's answer under the belief that it describes B, and the mode is read from it.
+            if (!IsCurrentSelection(generation)) return exists;
+
+            if (exists.HasValue) { _probedEntity = entityName; _probedExists = exists.Value; }
+            else InvalidateEntityProbe();   // never cache an unknown as an answer
+            return exists;
+        }
+
+        /// <summary>
+        /// Derives Create-vs-Update mode from the cached probe. Synchronous by design: it runs on
+        /// every SyncBindings, so it must not do I/O. When the cache does not cover
+        /// <paramref name="entityName"/> the editor stays in Create mode until a probe resolves it —
+        /// the callers that change the entity or datasource kick that probe off.
+        /// </summary>
         private void RefreshEditorModeState(string? entityName)
         {
             if (_viewModel?.SourceConnection == null) { _mode = EntityEditorMode.CreateNew; ApplybeepButton.Text = "Create Entity"; ApplybeepButton.Enabled = false; RefreshApplyButtonIcon(); return; }
             if (string.IsNullOrWhiteSpace(entityName?.Trim())) { _mode = EntityEditorMode.CreateNew; ApplybeepButton.Text = "Create Entity"; ApplybeepButton.Enabled = true; RefreshApplyButtonIcon(); return; }
-            bool exists = false;
-            try { exists = _viewModel.SourceConnection.CheckEntityExist(entityName.Trim()); } catch { }
+
+            bool exists = string.Equals(_probedEntity, entityName.Trim(), StringComparison.OrdinalIgnoreCase) && _probedExists;
             _mode = exists ? EntityEditorMode.UpdateExisting : EntityEditorMode.CreateNew;
-            if (_mode == EntityEditorMode.CreateNew) { ApplybeepButton.Text = "Create Entity"; ApplybeepButton.Enabled = true; RefreshApplyButtonIcon(); return; }
+            // Never re-enable Apply while a schema operation is in flight. This runs mid-apply (the
+            // mode is re-derived after the pre-apply probe), and _isApplyingSchema would otherwise
+            // be the only thing between a second click and a concurrent DDL run.
+            if (_mode == EntityEditorMode.CreateNew) { ApplybeepButton.Text = "Create Entity"; ApplybeepButton.Enabled = !_isApplyingSchema; RefreshApplyButtonIcon(); return; }
             var helper = beepService?.DMEEditor?.GetDataSourceHelper(_viewModel.SourceConnection.DatasourceType);
             bool canEvolve = helper?.Capabilities == null || helper.Capabilities.SupportsSchemaEvolution;
-            ApplybeepButton.Text = canEvolve ? "Update Schema" : "Update Not Supported"; ApplybeepButton.Enabled = canEvolve;
+            ApplybeepButton.Text = canEvolve ? "Update Schema" : "Update Not Supported"; ApplybeepButton.Enabled = canEvolve && !_isApplyingSchema;
             RefreshApplyButtonIcon();
             _stateLabel.Text = canEvolve ? $"Mode: Update existing schema | {_lastSummary}" : $"Mode: Update unavailable for '{_viewModel.SourceConnection.DatasourceType}'";
         }
@@ -366,77 +666,241 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             if (_viewModel?.SourceConnection != null)
             {
                 var h = beepService?.DMEEditor?.GetDataSourceHelper(_viewModel.SourceConnection.DatasourceType);
-                if (h != null) try { var (ok, errs) = h.ValidateEntity(draft); if (!ok) { LogStatus(string.Join("; ", errs ?? new List<string>()), Errors.Failed); return false; } } catch { }
+                if (h != null)
+                {
+                    try { var (ok, errs) = h.ValidateEntity(draft); if (!ok) { LogStatus(string.Join("; ", errs ?? new List<string>()), Errors.Failed); return false; } }
+                    catch (Exception ex)
+                    {
+                        // Helper validation is best-effort — a helper that throws must not block the
+                        // draft — but the fault is reported rather than swallowed.
+                        beepService?.DMEEditor?.AddLogMessage("EntityEditor",
+                            $"Helper validation for '{_viewModel.SourceConnection.DatasourceType}' threw: {ex.Message}",
+                            DateTime.Now, 0, draft?.EntityName, Errors.Warning);
+                    }
+                }
             }
             return true;
         }
 
         // ── Create / Update ────────────────────────────────────────────────
 
-        private void ExecuteCreate(EntityStructure draft)
+        /// <summary>
+        /// Creates the entity through <c>MigrationManager.EnsureEntity</c>, which routes to the
+        /// datasource's <c>ISchemaMigrationProvider</c>. No SQL is built here.
+        /// </summary>
+        private async Task ExecuteCreateAsync(EntityStructure draft, CancellationToken token)
         {
             var ds = _viewModel?.SourceConnection;
             if (ds == null) { LogStatus("Datasource not available.", Errors.Failed); return; }
-            if (ds.CheckEntityExist(draft.EntityName)) { LogStatus($"'{draft.EntityName}' already exists.", Errors.Failed); return; }
+
+            // No existence check here: ApplyAsync probed immediately before dispatching and only
+            // routes here when the entity does not exist. Re-reading the cache would reintroduce the
+            // stale-answer risk this path was restructured to remove.
             var started = DateTime.Now;
+            LogStatus($"Creating '{draft.EntityName}'…", Errors.Information);
+
+            // EnsureEntity is synchronous and does a CheckEntityExist plus a CreateEntityAs
+            // round-trip; the engine exposes no async variant, so the offload happens here.
             var migration = new MigrationManager(beepService!.DMEEditor, ds);
-            var result = migration.EnsureEntity(draft);
-            if (result.Flag != Errors.Ok) { LogStatus($"Create: {result.Message}", Errors.Failed); return; }
+            IErrorsInfo? result;
+            try
+            {
+                result = await Task.Run(() => migration.EnsureEntity(draft), token).ConfigureAwait(true);
+            }
+            finally
+            {
+                // Logged even on failure: EnsureEntity can partially apply (it adds columns one
+                // round-trip at a time), so the evidence is the only record of what landed.
+                LogDdlEvidence(migration, draft.EntityName);
+            }
+
+            if (result == null || result.Flag != Errors.Ok)
+            { LogStatus($"Create: {result?.Message}", Errors.Failed); return; }
+
             _lastSummary = $"Created {draft.EntityName} in {(DateTime.Now - started).TotalMilliseconds:0} ms";
             LogStatus(_lastSummary, Errors.Ok);
-            LoadEntitiesList(); SelectEntity(draft.EntityName); LoadOrCreateEntity(draft.EntityName); RefreshEditorModeState(draft.EntityName);
+
+            InvalidateEntityProbe();
+            await LoadEntitiesListAsync().ConfigureAwait(true);
+            SelectEntity(draft.EntityName); LoadOrCreateEntity(draft.EntityName);
+            await ProbeEntityExistsAsync(draft.EntityName, token).ConfigureAwait(true);
+            RefreshEditorModeState(draft.EntityName);
         }
 
-        private void ExecuteUpdate(EntityStructure desired)
+        /// <summary>
+        /// Applies the field diff through <c>MigrationManager</c>, matching <see cref="ExecuteCreateAsync"/>.
+        /// </summary>
+        /// <remarks>
+        /// This used to generate its own add/alter/drop SQL from <c>IDataSourceHelper</c> and feed it
+        /// straight to <c>ds.ExecuteSql</c>. MigrationManager routes alter/drop through the
+        /// per-datasource <c>ISchemaMigrationProvider</c> rather than raw DDL, and records DDL
+        /// evidence — so going through it keeps this path datasource-agnostic and auditable instead
+        /// of quietly diverging from every other schema-change surface in the app.
+        /// </remarks>
+        private async Task ExecuteUpdateAsync(EntityStructure desired, CancellationToken token)
         {
             var ds = _viewModel?.SourceConnection;
             if (ds == null) { LogStatus("Datasource not available.", Errors.Failed); return; }
-            if (!ds.CheckEntityExist(desired.EntityName)) { LogStatus($"'{desired.EntityName}' does not exist.", Errors.Failed); return; }
+            // Existence was established by ApplyAsync's probe immediately before dispatch; see
+            // ExecuteCreateAsync for why the cache field is not consulted here.
             var helper = beepService?.DMEEditor?.GetDataSourceHelper(ds.DatasourceType);
             if (helper == null) { LogStatus($"No helper for '{ds.DatasourceType}'.", Errors.Failed); return; }
             if (helper.Capabilities is { SupportsSchemaEvolution: false }) { LogStatus($"Schema evolution unsupported.", Errors.Failed); return; }
-            var cur = ds.GetEntityStructure(desired.EntityName, true);
+
+            // refresh: true forces a live metadata round-trip — no cache — so it must not run on the
+            // UI thread.
+            LogStatus($"Reading current structure of '{desired.EntityName}'…", Errors.Information);
+            var cur = await Task.Run(() => ds.GetEntityStructure(desired.EntityName, true), token).ConfigureAwait(true);
             if (cur?.Fields == null) { LogStatus("Cannot resolve current structure.", Errors.Failed); return; }
-            var steps = BuildSchemaSteps(helper, desired.EntityName, cur.Fields, desired.Fields ?? new List<EntityField>());
-            if (steps.Count == 0) { LogStatus("No schema changes.", Errors.Information); return; }
-            if (MessageBox.Show(BuildPreviewMessage(steps), "Apply Schema Update", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+
+            var ops = BuildSchemaOps(cur.Fields, desired.Fields ?? new List<EntityField>());
+            if (ops.Count == 0) { LogStatus("No schema changes.", Errors.Information); return; }
+            if (MessageBox.Show(BuildPreviewMessage(ops), "Apply Schema Update", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
             { LogStatus("Update cancelled.", Errors.Warning); return; }
+
             var started = DateTime.Now;
-            foreach (var step in steps)
+            var migration = new MigrationManager(beepService!.DMEEditor, ds);
+
+            // There is no transaction around these operations, so a failure or cancellation partway
+            // leaves the entity half-migrated. The evidence is therefore logged on EVERY exit path,
+            // not just success — it is the only record of which operations actually ran, and it
+            // matters most precisely when the sequence did not finish.
+            try
             {
-                var migRes = ds.ExecuteSql(step.Sql);
-                if (migRes == null || migRes.Flag == Errors.Failed) { LogStatus($"Update failed at '{step.Description}': {migRes?.Message}", Errors.Failed); return; }
+                // Adds first (one EnsureEntity covers every missing column), then alters, then
+                // drops — destructive last, so a failure earlier leaves the most data intact. The
+                // token is checked between operations: the engine's DDL calls are synchronous and
+                // cannot be interrupted once started, so cancelling stops the sequence at the next
+                // boundary rather than rolling anything back.
+                if (ops.Any(o => o.Kind == SchemaOpKind.Add))
+                {
+                    token.ThrowIfCancellationRequested();
+                    LogStatus("Adding column(s)…", Errors.Information);
+                    var addRes = await Task.Run(() =>
+                        migration.EnsureEntity(desired, createIfMissing: false, addMissingColumns: true), token).ConfigureAwait(true);
+                    if (addRes == null || addRes.Flag != Errors.Ok)
+                    { LogStatus($"Update failed adding column(s): {addRes?.Message}", Errors.Failed); return; }
+                }
+
+                foreach (var op in ops.Where(o => o.Kind == SchemaOpKind.Alter))
+                {
+                    token.ThrowIfCancellationRequested();
+                    LogStatus($"Altering '{op.FieldName}'…", Errors.Information);
+                    var res = await Task.Run(() =>
+                        migration.AlterColumn(desired.EntityName, op.FieldName, op.Field!), token).ConfigureAwait(true);
+                    if (res == null || res.Flag != Errors.Ok)
+                    { LogStatus($"Update stopped at '{op.Description}': {res?.Message}. Earlier changes are already applied.", Errors.Failed); return; }
+                }
+
+                foreach (var op in ops.Where(o => o.Kind == SchemaOpKind.Drop))
+                {
+                    token.ThrowIfCancellationRequested();
+                    LogStatus($"Dropping '{op.FieldName}'…", Errors.Information);
+                    var res = await Task.Run(() =>
+                        migration.DropColumn(desired.EntityName, op.FieldName), token).ConfigureAwait(true);
+                    if (res == null || res.Flag != Errors.Ok)
+                    { LogStatus($"Update stopped at '{op.Description}': {res?.Message}. Earlier changes are already applied.", Errors.Failed); return; }
+                }
+
+                _lastSummary = $"Updated {desired.EntityName} ({ops.Count} change(s)) in {(DateTime.Now - started).TotalMilliseconds:0} ms";
+                LogStatus(_lastSummary, Errors.Ok);
             }
-            _lastSummary = $"Updated {desired.EntityName} ({steps.Count} steps) in {(DateTime.Now - started).TotalMilliseconds:0} ms";
-            LogStatus(_lastSummary, Errors.Ok);
-            LoadEntitiesList(); SelectEntity(desired.EntityName); LoadOrCreateEntity(desired.EntityName); RefreshEditorModeState(desired.EntityName);
+            finally
+            {
+                LogDdlEvidence(migration, desired.EntityName);
+            }
+
+            InvalidateEntityProbe();
+            await LoadEntitiesListAsync().ConfigureAwait(true);
+            SelectEntity(desired.EntityName); LoadOrCreateEntity(desired.EntityName);
+            await ProbeEntityExistsAsync(desired.EntityName, token).ConfigureAwait(true);
+            RefreshEditorModeState(desired.EntityName);
         }
 
-        private static List<SchemaStep> BuildSchemaSteps(IDataSourceHelper h, string ent, List<EntityField> cur, List<EntityField> des)
+        /// <summary>
+        /// Writes the DDL evidence MigrationManager accumulated for a run, from the provider that
+        /// actually executed the operations.
+        /// </summary>
+        /// <remarks>
+        /// <c>SqlHash</c> is a SHA prefix, not the statement — the engine deliberately does not
+        /// retain the SQL — so this identifies an operation without pretending to show it. The
+        /// evidence list is per-MigrationManager-instance and is never cleared, so this must only be
+        /// called with an instance created for the run being reported.
+        /// </remarks>
+        private void LogDdlEvidence(MigrationManager migration, string entityName)
         {
-            var steps = new List<SchemaStep>();
+            foreach (var ev in migration.GetDdlEvidence())
+                beepService?.DMEEditor?.AddLogMessage("EntityEditor",
+                    $"[ddl/{ev.Outcome}] {ev.OperationName} {ev.EntityName}" +
+                    (string.IsNullOrWhiteSpace(ev.ColumnName) ? "" : $".{ev.ColumnName}") +
+                    $" via {ev.HelperSource}" +
+                    (string.IsNullOrWhiteSpace(ev.SqlHash) ? " (no SQL produced)" : $" sql#{ev.SqlHash}") +
+                    (string.IsNullOrWhiteSpace(ev.ReasonCode) ? "" : $" [{ev.ReasonCode}]") +
+                    (string.IsNullOrWhiteSpace(ev.Message) ? "" : $" — {ev.Message}"),
+                    DateTime.Now, 0, entityName,
+                    ev.Outcome == DdlOperationOutcome.Executed ? Errors.Ok : Errors.Warning);
+        }
+
+        private enum SchemaOpKind { Add, Alter, Drop }
+
+        /// <summary>
+        /// Diffs current vs desired fields into datasource-agnostic operations. No SQL is generated
+        /// here — MigrationManager owns the DDL for the connected datasource.
+        /// </summary>
+        private static List<SchemaOp> BuildSchemaOps(List<EntityField> cur, List<EntityField> des)
+        {
+            var ops = new List<SchemaOp>();
             var cd = cur.Where(f => !string.IsNullOrWhiteSpace(f?.FieldName)).ToDictionary(f => f.FieldName, StringComparer.OrdinalIgnoreCase);
             var dd = des.Where(f => !string.IsNullOrWhiteSpace(f?.FieldName)).ToDictionary(f => f.FieldName, StringComparer.OrdinalIgnoreCase);
-            foreach (var kv in dd) if (!cd.ContainsKey(kv.Key)) { var (s, ok, _) = h.GenerateAddColumnSql(ent, kv.Value); if (ok && !string.IsNullOrWhiteSpace(s)) steps.Add(new SchemaStep { Description = $"Add {kv.Key}", Sql = s }); }
-            foreach (var kv in dd) { if (!cd.TryGetValue(kv.Key, out var old) || FieldsEqual(old, kv.Value)) continue; var (s, ok, _) = h.GenerateAlterColumnSql(ent, kv.Key, kv.Value); if (ok && !string.IsNullOrWhiteSpace(s)) steps.Add(new SchemaStep { Description = $"Alter {kv.Key}", Sql = s }); }
-            foreach (var kv in cd) { if (dd.ContainsKey(kv.Key)) continue; var (s, ok, _) = h.GenerateDropColumnSql(ent, kv.Key); if (ok && !string.IsNullOrWhiteSpace(s)) steps.Add(new SchemaStep { Description = $"Drop {kv.Key}", Sql = s }); }
-            return steps;
+
+            foreach (var kv in dd)
+                if (!cd.ContainsKey(kv.Key))
+                    ops.Add(new SchemaOp { Kind = SchemaOpKind.Add, FieldName = kv.Key, Field = kv.Value, Description = $"Add {kv.Key}" });
+
+            foreach (var kv in dd)
+            {
+                if (!cd.TryGetValue(kv.Key, out var old) || FieldsEqual(old, kv.Value)) continue;
+                ops.Add(new SchemaOp { Kind = SchemaOpKind.Alter, FieldName = kv.Key, Field = kv.Value, Description = $"Alter {kv.Key}" });
+            }
+
+            foreach (var kv in cd)
+                if (!dd.ContainsKey(kv.Key))
+                    ops.Add(new SchemaOp { Kind = SchemaOpKind.Drop, FieldName = kv.Key, Field = kv.Value, Description = $"Drop {kv.Key} (data loss)" });
+
+            return ops;
         }
 
         private static bool FieldsEqual(EntityField a, EntityField b) =>
             a != null && b != null && string.Equals(a.Fieldtype, b.Fieldtype, StringComparison.OrdinalIgnoreCase) && a.Size1 == b.Size1;
 
-        private static string BuildPreviewMessage(List<SchemaStep> steps)
+        private static string BuildPreviewMessage(List<SchemaOp> ops)
         {
-            var sb = new StringBuilder(); sb.AppendLine($"Apply {steps.Count} change(s)?"); sb.AppendLine();
-            foreach (var s in steps.Take(8)) sb.AppendLine($"- {s.Description}");
-            if (steps.Count > 8) sb.AppendLine($"… +{steps.Count - 8} more");
+            var sb = new StringBuilder(); sb.AppendLine($"Apply {ops.Count} change(s)?"); sb.AppendLine();
+            foreach (var s in ops.Take(8)) sb.AppendLine($"- {s.Description}");
+            if (ops.Count > 8) sb.AppendLine($"… +{ops.Count - 8} more");
             return sb.ToString();
         }
 
-        private sealed class SchemaStep { public string Description { get; set; } = ""; public string Sql { get; set; } = ""; }
+        private sealed class SchemaOp
+        {
+            public SchemaOpKind Kind { get; set; }
+            public string FieldName { get; set; } = "";
+            public EntityField? Field { get; set; }
+            public string Description { get; set; } = "";
+        }
 
         // ── Logging + disclosure ───────────────────────────────────────────
+
+        /// <summary>
+        /// Asks an in-flight apply to stop at its next operation boundary. It cannot interrupt a
+        /// DDL statement already issued — the engine has no async or cancellable variant — so a
+        /// half-applied update stays half-applied; the log records what ran.
+        /// </summary>
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            _applyCts?.Cancel();
+            base.OnHandleDestroyed(e);
+        }
 
         private void LogStatus(string msg, Errors flag)
         {
@@ -447,13 +911,27 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         private void RefreshProgressiveDisclosure(string? entityName)
         {
             bool hasDs = _viewModel?.SourceConnection != null, hasEnt = !string.IsNullOrWhiteSpace(entityName), isExisting = hasEnt && _mode == EntityEditorMode.UpdateExisting;
-            EntitiesbeepComboBox.Enabled = hasDs;
-            EntityFieldsbeepGridPro.Enabled = hasDs && hasEnt;
-            ApplybeepButton.Enabled = hasDs && ApplybeepButton.Enabled;
+            // The selection combos are frozen while a schema operation runs. They are otherwise
+            // fully live across the DDL awaits, and switching datasource mid-apply would repoint
+            // SourceConnection at a different database while the operations are still executing.
+            DatasourcebeepComboBox.Enabled = !_isApplyingSchema;
+            EntitiesbeepComboBox.Enabled = hasDs && !_isApplyingSchema;
+            EntityFieldsbeepGridPro.Enabled = hasDs && hasEnt && !_isApplyingSchema;
+            ApplybeepButton.Enabled = hasDs && ApplybeepButton.Enabled && !_isApplyingSchema;
             _btnEditData.Visible = isExisting;
             _btnDefaults.Visible = isExisting;
             _btnMapEntity.Visible = isExisting;
-            _stateLabel.Text = !hasDs ? "Select datasource." : !hasEnt ? "Select or type entity name." : _mode == EntityEditorMode.CreateNew ? $"Review fields, then create '{entityName}'." : $"Review diff, then update '{entityName}'.";
+            // Carries _lastSummary through, mirroring RefreshEditorModeState. This runs at the end of
+            // every SyncBindings — including the one in ApplyAsync's finally — so writing a bare
+            // prompt here discarded the outcome of the operation that just ran ("Created X…",
+            // "No schema changes.", "Could not determine whether X exists…") before it could be read.
+            string prompt = !hasDs ? "Select datasource."
+                : !hasEnt ? "Select or type entity name."
+                : _mode == EntityEditorMode.CreateNew ? $"Review fields, then create '{entityName}'."
+                : $"Review diff, then update '{entityName}'.";
+            _stateLabel.Text = string.IsNullOrWhiteSpace(_lastSummary) || _lastSummary == "Idle"
+                ? prompt
+                : $"{prompt} | {_lastSummary}";
         }
 
         private void ConfigureEditorsFromEntityFieldProperties()

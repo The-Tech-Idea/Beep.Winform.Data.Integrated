@@ -37,11 +37,19 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         // Configure calls never stack delegates on the same event.
         private ITree? _tree;
 
-        public uc_FunctiontoFunctionMapping(IServiceProvider services): base(services)
+        /// <summary>
+        /// Designer/parameterless ctor. Must not chain to the IServiceProvider overload with null —
+        /// that resolves services off a null provider and throws. For the designer only; the runtime
+        /// must construct through the IServiceProvider overload.
+        /// </summary>
+        public uc_FunctiontoFunctionMapping() => InitializeControl();
+
+        public uc_FunctiontoFunctionMapping(IServiceProvider services) : base(services) => InitializeControl();
+
+        private void InitializeControl()
         {
             InitializeComponent();
             Details.AddinName = "Function to Function Mapping";
-            ApplyDpiScaledLayout();
         }
 
         /// <summary>
@@ -49,7 +57,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         /// chrome that the Designer serialized as static pixels. The Designer is the source
         /// of truth for layout; this method overlays DPI-scaled dimensions on top.
         /// </summary>
-        private void ApplyDpiScaledLayout()
+        protected override void ApplyDpiScaledLayout()
         {
             Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this);
         }

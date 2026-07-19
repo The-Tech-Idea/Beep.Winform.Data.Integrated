@@ -20,14 +20,21 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
     [AddinVisSchema(BranchID = 1, RootNodeName = "Configuration", Order = 1, ID = 1, BranchText = "Data Connections", BranchType = EnumPointType.Function, IconImageName = "rdbmsconnections.svg", BranchClass = "ADDIN", BranchDescription = "Data Connections Setup Screen")]
     public partial class uc_DataConnections : TemplateUserControl, IAddinVisSchema
     {
-        public uc_DataConnections(IServiceProvider services) : base(services)
+        /// <summary>
+        /// Designer/parameterless ctor. Must not chain to the IServiceProvider overload with null —
+        /// that resolves services off a null provider and throws.
+        /// </summary>
+        public uc_DataConnections() => InitializeControl();
+
+        public uc_DataConnections(IServiceProvider services) : base(services) => InitializeControl();
+
+        private void InitializeControl()
         {
             InitializeComponent();
             Details.AddinName = "Data Connections";
-            ApplyDpiScaledLayout();
         }
 
-        private void ApplyDpiScaledLayout()
+        protected override void ApplyDpiScaledLayout()
         {
             Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this);
         }

@@ -48,7 +48,21 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         private BeepButton _downloadBtn = null!;
         private BeepProgressBar _progressBar = null!;
 
-        public uc_DriverDownloadDialog(IServiceProvider services) : base(services)
+        /// <summary>
+        /// Designer/parameterless ctor. Must not chain to the IServiceProvider overload with null —
+        /// that resolves services off a null provider and throws.
+        /// </summary>
+        /// <remarks>
+        /// For the designer only. An instance built this way has no beepService, and Configure()
+        /// dereferences it — so the runtime must always construct through the IServiceProvider
+        /// overload. RoutingManager's Activator fallback is what makes that so: it now prefers this
+        /// type's (IServiceProvider) constructor rather than calling the parameterless one.
+        /// </remarks>
+        public uc_DriverDownloadDialog() => InitializeControl();
+
+        public uc_DriverDownloadDialog(IServiceProvider services) : base(services) => InitializeControl();
+
+        private void InitializeControl()
         {
             InitializeComponent();
             Details.AddinName = "Driver Download";
