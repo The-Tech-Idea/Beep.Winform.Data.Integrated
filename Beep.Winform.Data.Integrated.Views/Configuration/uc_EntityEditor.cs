@@ -23,6 +23,8 @@ using TheTechIdea.Beep.Editor;
 using TheTechIdea.Beep.Editor.Defaults;
 using TheTechIdea.Beep.Editor.Migration;
 using TheTechIdea.Beep.Editor.Mapping;
+using TheTechIdea.Beep.Editor.SchemaMigration;
+using TheTechIdea.Beep.Editor.UOW;
 using TheTechIdea.Beep.Logger;
 using TheTechIdea.Beep.ConfigUtil;
 using TheTechIdea.Beep.DataBase;
@@ -44,6 +46,13 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
     {
         private enum EntityEditorMode { CreateNew, UpdateExisting }
         private EntityEditorMode _mode = EntityEditorMode.CreateNew;
+
+        /// <summary>
+        /// Guards the name box against its own programmatic writes. SelectEntity and NewEntity both
+        /// set the text, and the TextChanged handler kicks off an existence probe — without this a
+        /// load would re-probe the name it had just loaded.
+        /// </summary>
+        private bool _suppressNameEvents;
         private bool _isApplyingSchema;
         private string _lastSummary = "Idle";
         private EntityManagerViewModel? _viewModel;
@@ -96,8 +105,6 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             InitializeComponent();
             Details.AddinName = "Entity Editor";
             WireButtonEvents();
-            // No ApplyDpiScaledLayout() here: the base drives it from OnHandleCreated, where the
-            // scale factor is real. Calling it from the ctor scaled nothing (handle not yet created).
         }
 
         // ── Skill § "Sizing tokens": DPI-scaled overrides applied in
@@ -108,16 +115,115 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         protected override void ApplyDpiScaledLayout()
         {
             Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this);
-            _comboRow.Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this);
+            _rootTable.Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this);
         }
 
         // ── Event wiring (Designer owns the controls; code-behind wires them)
 
         private void WireButtonEvents()
         {
+            _btnNew.Click += BtnNew_Click;
+            _btnRename.Click += BtnRename_Click;
+            _btnTruncate.Click += BtnTruncate_Click;
+            _btnDrop.Click += BtnDrop_Click;
+            _btnRefresh.Click += BtnRefresh_Click;
+            _btnPlan.Click += BtnPlan_Click;
+            _btnCopyPlan.Click += BtnCopyPlan_Click;
+
+            _btnAddColumn.Click += (_, _) => AddColumn();
+            _btnDeleteColumn.Click += (_, _) => DeleteSelectedColumns();
+            _btnMoveUp.Click += (_, _) => MoveSelectedColumn(-1);
+            _btnMoveDown.Click += (_, _) => MoveSelectedColumn(+1);
+
+            _btnCreateIndex.Click += BtnCreateIndex_Click;
+            _btnDropIndex.Click += BtnDropIndex_Click;
+            _btnAddFk.Click += BtnAddFk_Click;
+            _btnDropFk.Click += BtnDropFk_Click;
+            _cboFkEntity.SelectedItemChanged += (_, _) => _ = LoadFkColumnsAsync();
+
             _btnEditData.Click += BtnEditData_Click;
             _btnDefaults.Click += BtnDefaults_Click;
             _btnMapEntity.Click += BtnMapEntity_Click;
+
+            // The name box is the entity identity — typing a name that does not exist is how a new
+            // entity is created, so every keystroke re-derives Create-vs-Update.
+            _txtEntityName.TextChanged += TxtEntityName_TextChanged;
+        }
+
+        private void BtnNew_Click(object? sender, EventArgs e) => NewEntity();
+
+        private void BtnRefresh_Click(object? sender, EventArgs e)
+        {
+            var name = GetEntityNameFromUi();
+            if (string.IsNullOrWhiteSpace(name)) return;
+            InvalidateEntityProbe();
+            LoadOrCreateEntity(name);
+            LogStatus($"Reloaded '{name}' from the datasource.", Errors.Ok);
+        }
+
+        private void BtnPlan_Click(object? sender, EventArgs e) => _ = ShowPlanAsync();
+
+        private void BtnCopyPlan_Click(object? sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_txtPlan.Text)) return;
+            try { Clipboard.SetText(_txtPlan.Text); LogStatus("Plan copied to the clipboard.", Errors.Ok); }
+            catch (Exception ex) { LogStatus($"Could not copy the plan: {ex.Message}", Errors.Failed); }
+        }
+
+        private void TxtEntityName_TextChanged(object? sender, EventArgs e)
+        {
+            if (_suppressNameEvents) return;
+            var name = _txtEntityName.Text?.Trim();
+            RefreshEditorModeState(name);
+            RefreshProgressiveDisclosure(name);
+            _ = ProbeAndRefreshModeAsync(name);
+        }
+
+        /// <summary>
+        /// Re-probes existence for a typed name so the editor flips between Create and Update as the
+        /// user types. Fire-and-forget: it catches its own failures and only touches UI state.
+        /// </summary>
+        private async Task ProbeAndRefreshModeAsync(string? entityName)
+        {
+            if (string.IsNullOrWhiteSpace(entityName) || _viewModel?.SourceConnection == null) return;
+            int generation = NextSelectionGeneration();
+            try
+            {
+                _applyCts ??= new CancellationTokenSource();
+                await ProbeEntityExistsAsync(entityName.Trim(), _applyCts.Token).ConfigureAwait(true);
+                if (!IsCurrentSelection(generation)) return;
+                RefreshEditorModeState(entityName.Trim());
+                RefreshProgressiveDisclosure(entityName.Trim());
+            }
+            catch { /* probe failures are reported by ProbeEntityExistsAsync itself */ }
+        }
+
+        /// <summary>
+        /// Clears the editor to an unnamed draft with one starter column — the "New table" entry
+        /// point every database tool opens with, rather than making the user find an entity first.
+        /// </summary>
+        private void NewEntity()
+        {
+            if (_viewModel == null) { LogStatus("Select a datasource first.", Errors.Failed); return; }
+
+            _suppressNameEvents = true;
+            try
+            {
+                EntitiesbeepComboBox.SelectedItem = null;
+                EntitiesbeepComboBox.Text = string.Empty;
+                _txtEntityName.Text = string.Empty;
+            }
+            finally { _suppressNameEvents = false; }
+
+            InvalidateEntityProbe();
+            _viewModel.LoadOrCreateEntityStructure(string.Empty);
+            SyncBindings();
+            AddColumn();
+            _txtPlan.Text = string.Empty;
+            _lastDdlEvidence.Clear();
+            _mode = EntityEditorMode.CreateNew;
+            LogStatus("New entity — name it, define columns, then Create.", Errors.Ok);
+            _txtEntityName.Focus();
         }
 
         #region "IAddinVisSchema"
@@ -322,8 +428,13 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             SyncBindings(); return true;
         }
 
+        /// <summary>
+        /// The name box is the authority: it is what the user edits to rename or to name a new
+        /// entity. The combo only picks an existing entity to open, and writes into the box.
+        /// </summary>
         private string? GetEntityNameFromUi()
         {
+            if (!string.IsNullOrWhiteSpace(_txtEntityName.Text)) return _txtEntityName.Text.Trim();
             if (EntitiesbeepComboBox.SelectedItem is SimpleItem { Text: { Length: > 0 } t }) return t.Trim();
             if (!string.IsNullOrWhiteSpace(EntitiesbeepComboBox.Text)) return EntitiesbeepComboBox.Text.Trim();
             return _viewModel?.EntityName;
@@ -333,8 +444,15 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         {
             var existing = EntitiesbeepComboBox.ListItems?.Cast<SimpleItem>()
                 .FirstOrDefault(i => string.Equals(i.Text, entityName, StringComparison.OrdinalIgnoreCase));
-            if (existing != null) EntitiesbeepComboBox.SelectedItem = existing;
-            EntitiesbeepComboBox.Text = entityName;
+
+            _suppressNameEvents = true;
+            try
+            {
+                if (existing != null) EntitiesbeepComboBox.SelectedItem = existing;
+                EntitiesbeepComboBox.Text = entityName;
+                _txtEntityName.Text = entityName;
+            }
+            finally { _suppressNameEvents = false; }
         }
 
         // ── Navigation ─────────────────────────────────────────────────────
@@ -542,10 +660,44 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             entityManagerViewModelBindingSource.DataSource = _viewModel;
             entityManagerViewModelBindingSource.ResetBindings(false);
             fieldsBindingSource.ResetBindings(false);
-            if (_viewModel.DBWork != null) { EntityFieldsbeepGridPro.DataSource = null; EntityFieldsbeepGridPro.Uow = _viewModel.DBWork; }
-            else { EntityFieldsbeepGridPro.Uow = null; EntityFieldsbeepGridPro.DataSource = _viewModel.Fields; }
-            ConfigureEditorsFromEntityFieldProperties(); ConfigureFieldTypeColumn();
-            RefreshEditorModeState(_viewModel.EntityName); RefreshProgressiveDisclosure(_viewModel.EntityName);
+            BindFieldsGrid();
+            ConfigureColumnsGrid();
+            BindKeysTab();
+            RefreshEditorModeState(_viewModel.EntityName);
+            RefreshProgressiveDisclosure(_viewModel.EntityName);
+        }
+
+        /// <summary>
+        /// Binds the field grid to the view model's unit of work.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The UOW must be wrapped. <c>BeepGridPro.Uow</c> only recognises the non-generic
+        /// <c>IUnitofWork</c> and <c>IUnitOfWorkWrapper</c>, and <c>UnitofWork&lt;T&gt;</c> implements
+        /// neither — <c>IUnitofWork&lt;T&gt;</c> does not derive from the non-generic interface. Assigning
+        /// the raw UOW therefore bound nothing at all: the setter's casts both produced null, so the
+        /// grid fell back to <c>BindComplete(_regularDataSource)</c>, which had just been set to null.
+        /// </para>
+        /// <para>
+        /// That null is also why the grid showed no columns even for an entity with fields: setting
+        /// <c>DataSource = null</c> runs <c>ClearGrid()</c>, which drops every column except the three
+        /// system ones (two of which are hidden). Binding a real source regenerates them from the
+        /// element type, so an empty field list still produces a full header row.
+        /// </para>
+        /// </remarks>
+        private void BindFieldsGrid()
+        {
+            var uow = _viewModel?.DBWork;
+            if (uow != null)
+            {
+                EntityFieldsbeepGridPro.Uow = new UnitOfWorkWrapper(uow);
+                return;
+            }
+
+            // No UOW: clear UOW mode first so the DataSource setter is not ignored (UOW mode is
+            // authoritative), then bind the plain list.
+            EntityFieldsbeepGridPro.Uow = null;
+            EntityFieldsbeepGridPro.DataSource = _viewModel?.Fields;
         }
 
         /// <summary>
@@ -918,6 +1070,35 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             EntitiesbeepComboBox.Enabled = hasDs && !_isApplyingSchema;
             EntityFieldsbeepGridPro.Enabled = hasDs && hasEnt && !_isApplyingSchema;
             ApplybeepButton.Enabled = hasDs && ApplybeepButton.Enabled && !_isApplyingSchema;
+            _txtEntityName.Enabled = hasDs && !_isApplyingSchema;
+            _btnNew.Enabled = hasDs && !_isApplyingSchema;
+            _btnRefresh.Enabled = hasDs && hasEnt && !_isApplyingSchema;
+            _btnPlan.Enabled = hasDs && hasEnt && !_isApplyingSchema;
+            _btnAddColumn.Enabled = hasDs && hasEnt && !_isApplyingSchema;
+            _btnDeleteColumn.Enabled = hasDs && hasEnt && !_isApplyingSchema;
+            _btnMoveUp.Enabled = hasDs && hasEnt && !_isApplyingSchema;
+            _btnMoveDown.Enabled = hasDs && hasEnt && !_isApplyingSchema;
+
+            // Entity-level operations are offered only where the datasource's own migration provider
+            // declares support. A CSV or Web API source simply does not show Rename/Truncate/Drop
+            // rather than offering them and failing.
+            var caps = MigrationProvider?.Capabilities;
+            bool writable = caps != null && !caps.IsReadOnly;
+            _btnRename.Visible = isExisting && writable && caps!.SupportsRenameEntity;
+            _btnRename.Enabled = _btnRename.Visible && !_isApplyingSchema;
+            _btnTruncate.Visible = isExisting && writable && caps!.SupportsTruncateEntity;
+            _btnTruncate.Enabled = _btnTruncate.Visible && !_isApplyingSchema;
+            _btnDrop.Visible = isExisting && writable && caps!.SupportsDropEntity;
+            _btnDrop.Enabled = _btnDrop.Visible && !_isApplyingSchema;
+
+            // Index / foreign-key strips follow the same rule: shown only where the provider can run
+            // them, so a document or file datasource is not offered relational constraints.
+            _indexButtonsTable.Visible = writable && caps!.SupportsCreateIndex;
+            _btnCreateIndex.Enabled = isExisting && !_isApplyingSchema;
+            _btnDropIndex.Enabled = isExisting && !_isApplyingSchema && caps?.SupportsDropIndex == true;
+            _fkTable.Visible = writable && caps!.SupportsAddForeignKey;
+            _btnAddFk.Enabled = isExisting && !_isApplyingSchema;
+            _btnDropFk.Enabled = isExisting && !_isApplyingSchema && caps?.SupportsDropForeignKey == true;
             _btnEditData.Visible = isExisting;
             _btnDefaults.Visible = isExisting;
             _btnMapEntity.Visible = isExisting;
@@ -934,17 +1115,534 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                 : $"{prompt} | {_lastSummary}";
         }
 
-        private void ConfigureEditorsFromEntityFieldProperties()
+        /// <summary>
+        /// Shapes the grid into a column designer: the subset of <see cref="EntityField"/> an
+        /// operator actually sets when defining a table, in the order those tools present them.
+        /// </summary>
+        /// <remarks>
+        /// EntityField carries ~35 properties; auto-generation put all of them on screen, which is
+        /// why the grid was unusable as a designer. Anything not listed here is hidden rather than
+        /// removed, so values already loaded from the datasource survive a round trip.
+        /// </remarks>
+        private void ConfigureColumnsGrid()
         {
-            if (EntityFieldsbeepGridPro?.Columns == null) return;
-            foreach (var col in EntityFieldsbeepGridPro.Columns)
+            var grid = EntityFieldsbeepGridPro;
+            if (grid?.Columns == null || grid.Columns.Count == 0) return;
+
+            // Index stays a contiguous ordering across the whole collection: system columns first,
+            // then the designer columns in declared order, then the hidden remainder.
+            int next = grid.Columns.Count(c => c != null && (c.IsSelectionCheckBox || c.IsRowNumColumn || c.IsRowID));
+
+            var ordered = grid.Columns
+                .Where(c => c != null && !c.IsSelectionCheckBox && !c.IsRowNumColumn && !c.IsRowID)
+                .OrderBy(c => DesignerColumns.TryGetValue(c.ColumnName ?? string.Empty, out var s) ? s.Order : int.MaxValue)
+                .ToList();
+
+            foreach (var col in ordered)
             {
-                if (col == null || string.IsNullOrWhiteSpace(col.ColumnName) || string.Equals(col.ColumnName, "Fieldtype", StringComparison.OrdinalIgnoreCase)) continue;
-                var pt = ResolveEntityFieldPropertyType(col); if (pt == null) continue;
-                var t = Nullable.GetUnderlyingType(pt) ?? pt;
+                if (!DesignerColumns.TryGetValue(col.ColumnName ?? string.Empty, out var spec))
+                {
+                    col.Visible = false;
+                    col.Index = next++;
+                    continue;
+                }
+
+                col.Visible = true;
+                col.ColumnCaption = spec.Caption;
+                col.Width = spec.Width;
+                col.Index = next++;
+
+                var pt = ResolveEntityFieldPropertyType(col);
+                var t = pt == null ? null : Nullable.GetUnderlyingType(pt) ?? pt;
                 if (t == typeof(bool)) col.CellEditor = BeepColumnType.CheckBoxBool;
                 else if (t == typeof(char)) col.CellEditor = BeepColumnType.CheckBoxChar;
             }
+
+            ConfigureFieldTypeColumn();
+        }
+
+        /// <summary>
+        /// The designer surface: column name → caption, display order and width. Mirrors the column
+        /// list of a table designer (name, type, size, precision/scale, nullability, key flags,
+        /// default, comment).
+        /// </summary>
+        private static readonly Dictionary<string, (string Caption, int Order, int Width)> DesignerColumns =
+            new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["FieldName"]       = ("Column Name", 10, 180),
+                ["Fieldtype"]       = ("Data Type", 11, 160),
+                ["Size1"]           = ("Size", 12, 70),
+                ["NumericPrecision"]= ("Precision", 13, 80),
+                ["NumericScale"]    = ("Scale", 14, 70),
+                ["AllowDBNull"]     = ("Nullable", 15, 80),
+                ["IsKey"]           = ("PK", 16, 50),
+                ["IsAutoIncrement"] = ("Identity", 17, 70),
+                ["IsUnique"]        = ("Unique", 18, 70),
+                ["IsIndexed"]       = ("Indexed", 19, 70),
+                ["DefaultValue"]    = ("Default", 20, 140),
+                ["Description"]     = ("Comment", 21, 220),
+            };
+
+        private void ConfigureEditorsFromEntityFieldProperties() => ConfigureColumnsGrid();
+
+        // ── Column designer actions ────────────────────────────────────────
+
+        /// <summary>The editable field list behind the grid — the UOW units when one exists.</summary>
+        private IList<EntityField>? FieldList =>
+            _viewModel?.DBWork?.Units as IList<EntityField> ?? _viewModel?.Fields as IList<EntityField>;
+
+        private void AddColumn()
+        {
+            var fields = FieldList;
+            if (fields == null) { LogStatus("Open or start an entity before adding columns.", Errors.Failed); return; }
+
+            int n = fields.Count + 1;
+            string name = $"COLUMN{n}";
+            while (fields.Any(f => string.Equals(f?.FieldName, name, StringComparison.OrdinalIgnoreCase)))
+                name = $"COLUMN{++n}";
+
+            fields.Add(new EntityField
+            {
+                FieldName = name,
+                Fieldtype = "System.String",
+                Size1 = 50,
+                AllowDBNull = true,
+                EntityName = GetEntityNameFromUi() ?? string.Empty,
+                FieldIndex = fields.Count
+            });
+
+            EntityFieldsbeepGridPro.Refresh();
+            BindKeysTab();
+            LogStatus($"Added column '{name}'.", Errors.Ok);
+        }
+
+        private void DeleteSelectedColumns()
+        {
+            var fields = FieldList;
+            if (fields == null || fields.Count == 0) return;
+
+            var doomed = SelectedFields();
+            if (doomed.Count == 0) { LogStatus("Select the column(s) to delete first.", Errors.Failed); return; }
+
+            foreach (var f in doomed) fields.Remove(f);
+            EntityFieldsbeepGridPro.Refresh();
+            BindKeysTab();
+            LogStatus($"Removed {doomed.Count} column(s). Apply to push the change to the datasource.", Errors.Ok);
+        }
+
+        /// <summary>
+        /// Reorders a column. Order is real: it is the column order a CREATE emits, so the designer
+        /// keeps <see cref="EntityField.FieldIndex"/> in step with the list.
+        /// </summary>
+        private void MoveSelectedColumn(int delta)
+        {
+            var fields = FieldList;
+            if (fields == null || fields.Count < 2) return;
+
+            var selected = SelectedFields().FirstOrDefault();
+            if (selected == null) { LogStatus("Select a column to move.", Errors.Failed); return; }
+
+            int from = fields.IndexOf(selected);
+            int to = from + delta;
+            if (from < 0 || to < 0 || to >= fields.Count) return;
+
+            fields.RemoveAt(from);
+            fields.Insert(to, selected);
+            for (int i = 0; i < fields.Count; i++) fields[i].FieldIndex = i;
+
+            EntityFieldsbeepGridPro.Refresh();
+            LogStatus($"Moved '{selected.FieldName}' to position {to + 1}.", Errors.Ok);
+        }
+
+        /// <summary>
+        /// Checked rows when the selection checkbox column is in use, otherwise the active row.
+        /// </summary>
+        private List<EntityField> SelectedFields()
+        {
+            var fields = FieldList;
+            if (fields == null) return new List<EntityField>();
+
+            var checkedRows = EntityFieldsbeepGridPro.SelectedRows?
+                .Select(r => r?.RowData).OfType<EntityField>().ToList();
+            if (checkedRows is { Count: > 0 }) return checkedRows;
+
+            int idx = EntityFieldsbeepGridPro.CurrentRowIndex;
+            if (idx >= 0 && idx < fields.Count) return new List<EntityField> { fields[idx] };
+            return new List<EntityField>();
+        }
+
+        // ── Keys & indexes tab ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Lists the primary key, identity, unique and indexed columns from the field flags, plus the
+        /// foreign keys carried in <see cref="EntityStructure.Relations"/>. Index and FK rows keep the
+        /// underlying object in <c>Value</c> so Drop can act on the selected one.
+        /// </summary>
+        private void BindKeysTab()
+        {
+            if (_lstKeys.IsDisposed) return;
+            _lstKeys.ClearItems();
+
+            var fields = FieldList;
+            var items = new List<SimpleItem>();
+
+            if (fields == null || fields.Count == 0)
+            {
+                items.Add(new SimpleItem { Text = "No columns defined yet." });
+            }
+            else
+            {
+                var pk = fields.Where(f => f.IsKey).Select(f => f.FieldName).ToList();
+                items.Add(new SimpleItem
+                {
+                    Text = pk.Count == 0
+                        ? "[Primary key] none — tick PK on the Columns tab."
+                        : $"[Primary key] {string.Join(", ", pk)}"
+                });
+
+                foreach (var f in fields.Where(f => f.IsAutoIncrement))
+                    items.Add(new SimpleItem { Text = $"[Identity] {f.FieldName}" });
+
+                foreach (var f in fields.Where(f => f.IsUnique && !f.IsKey))
+                    items.Add(new SimpleItem { Text = $"[Unique] {f.FieldName}" });
+
+                // Indexed columns carry no index name in EntityField, so the deterministic name this
+                // editor creates them under is shown — that is what Drop Index will target.
+                foreach (var f in fields.Where(f => f.IsIndexed && !f.IsKey && !f.IsUnique))
+                    items.Add(new SimpleItem
+                    {
+                        Text = $"[Index] {IndexNameFor(new[] { f.FieldName })} on {f.FieldName}",
+                        Value = new IndexRef(IndexNameFor(new[] { f.FieldName }))
+                    });
+
+                foreach (var rel in _viewModel?.Structure?.Relations ?? new List<RelationShipKeys>())
+                    items.Add(new SimpleItem
+                    {
+                        Text = $"[Foreign key] {rel.RalationName}: {rel.EntityColumnID} → " +
+                               $"{rel.RelatedEntityID}.{rel.RelatedEntityColumnID}" +
+                               (string.IsNullOrWhiteSpace(rel.OnDeleteBehavior) ? "" : $" (on delete {rel.OnDeleteBehavior})"),
+                        Value = rel
+                    });
+
+                int nullable = fields.Count(f => f.AllowDBNull);
+                items.Add(new SimpleItem { Text = $"[Nullability] {fields.Count - nullable} required, {nullable} nullable." });
+            }
+
+            var caps = MigrationProvider?.Capabilities;
+            if (caps != null && !caps.SupportsCreateIndex && !caps.SupportsAddForeignKey)
+                items.Add(new SimpleItem
+                {
+                    Text = "[Note] This datasource's migration provider supports neither indexes nor foreign keys."
+                });
+
+            _lstKeys.AddItems(items);
+            _lstKeys.RefreshItems();
+            PopulateFkEntityList();
+        }
+
+        /// <summary>Marker for an index row in the keys list, so Drop Index can read its name back.</summary>
+        private sealed record IndexRef(string Name);
+
+        /// <summary>
+        /// Deterministic index name — the editor has no index catalogue to read names from, so it
+        /// derives one and uses the same rule when creating and when dropping.
+        /// </summary>
+        private string IndexNameFor(IEnumerable<string> columns) =>
+            $"IX_{GetEntityNameFromUi()}_{string.Join("_", columns)}";
+
+        // ── Index and foreign-key operations (provider-backed) ─────────────
+
+        private void BtnCreateIndex_Click(object? sender, EventArgs e)
+        {
+            var name = GetEntityNameFromUi();
+            if (string.IsNullOrWhiteSpace(name)) return;
+
+            var cols = SelectedFields().Select(f => f.FieldName).Where(c => !string.IsNullOrWhiteSpace(c)).ToArray();
+            if (cols.Length == 0) { LogStatus("Select the column(s) to index on the Columns tab first.", Errors.Failed); return; }
+
+            var indexName = IndexNameFor(cols);
+            _ = RunEntityOperationAsync($"Create index {indexName}",
+                m => m.CreateIndex(name!, indexName, cols), reloadAs: name);
+        }
+
+        private void BtnDropIndex_Click(object? sender, EventArgs e)
+        {
+            var name = GetEntityNameFromUi();
+            if (string.IsNullOrWhiteSpace(name)) return;
+
+            if (_lstKeys.SelectedItem?.Value is not IndexRef index)
+            { LogStatus("Select an [Index] row above to drop.", Errors.Failed); return; }
+
+            _ = RunEntityOperationAsync($"Drop index {index.Name}",
+                m => m.DropIndex(name!, index.Name), reloadAs: name);
+        }
+
+        private void BtnAddFk_Click(object? sender, EventArgs e)
+        {
+            var name = GetEntityNameFromUi();
+            if (string.IsNullOrWhiteSpace(name)) return;
+
+            var cols = SelectedFields().Select(f => f.FieldName).Where(c => !string.IsNullOrWhiteSpace(c)).ToArray();
+            if (cols.Length == 0) { LogStatus("Select the foreign-key column(s) on the Columns tab first.", Errors.Failed); return; }
+
+            var refEntity = _cboFkEntity.SelectedItem?.Value as string;
+            var refColumn = _cboFkColumn.SelectedItem?.Value as string;
+            if (string.IsNullOrWhiteSpace(refEntity) || string.IsNullOrWhiteSpace(refColumn))
+            { LogStatus("Choose the referenced entity and column.", Errors.Failed); return; }
+
+            var onDelete = _cboFkOnDelete.SelectedItem?.Value as string ?? "Cascade";
+            var constraint = $"FK_{name}_{refEntity}_{string.Join("_", cols)}";
+
+            _ = RunEntityOperationAsync($"Add foreign key {constraint}",
+                m => m.AddForeignKey(name!, cols, refEntity!, new[] { refColumn! }, onDelete, "Cascade", constraint),
+                reloadAs: name);
+        }
+
+        private void BtnDropFk_Click(object? sender, EventArgs e)
+        {
+            var name = GetEntityNameFromUi();
+            if (string.IsNullOrWhiteSpace(name)) return;
+
+            if (_lstKeys.SelectedItem?.Value is not RelationShipKeys rel || string.IsNullOrWhiteSpace(rel.RalationName))
+            { LogStatus("Select a [Foreign key] row above to drop.", Errors.Failed); return; }
+
+            _ = RunEntityOperationAsync($"Drop foreign key {rel.RalationName}",
+                m => m.DropForeignKey(name!, rel.RalationName), reloadAs: name);
+        }
+
+        /// <summary>Fills the FK target entity picker from the entities already listed for this datasource.</summary>
+        private void PopulateFkEntityList()
+        {
+            if (_cboFkEntity.IsDisposed) return;
+            var current = _cboFkEntity.SelectedItem?.Value as string;
+
+            _cboFkEntity.ListItems.Clear();
+            foreach (var item in EntitiesbeepComboBox.ListItems ?? new BindingList<SimpleItem>())
+                _cboFkEntity.ListItems.Add(new SimpleItem { Text = item.Text, Name = item.Text, Value = item.Value });
+
+            if (_cboFkOnDelete.ListItems.Count == 0)
+            {
+                foreach (var behaviour in new[] { "Cascade", "Restrict", "SetNull", "NoAction" })
+                    _cboFkOnDelete.ListItems.Add(new SimpleItem { Text = behaviour, Name = behaviour, Value = behaviour });
+                _cboFkOnDelete.SelectedItem = _cboFkOnDelete.ListItems.FirstOrDefault();
+            }
+
+            if (current != null)
+                _cboFkEntity.SelectedItem = _cboFkEntity.ListItems.FirstOrDefault(i => (string?)i.Value == current);
+        }
+
+        /// <summary>
+        /// Loads the referenced entity's columns so the FK target column can be picked rather than typed.
+        /// </summary>
+        private async Task LoadFkColumnsAsync()
+        {
+            _cboFkColumn.ListItems.Clear();
+            var refEntity = _cboFkEntity.SelectedItem?.Value as string;
+            var ds = _viewModel?.SourceConnection;
+            if (ds == null || string.IsNullOrWhiteSpace(refEntity)) return;
+
+            try
+            {
+                var structure = await Task.Run(() => ds.GetEntityStructure(refEntity, false)).ConfigureAwait(true);
+                if (_cboFkColumn.IsDisposed) return;
+                foreach (var f in structure?.Fields ?? new List<EntityField>())
+                    _cboFkColumn.ListItems.Add(new SimpleItem { Text = f.FieldName, Name = f.FieldName, Value = f.FieldName });
+
+                // Default to the referenced entity's key, which is what a foreign key points at.
+                var key = structure?.Fields?.FirstOrDefault(f => f.IsKey)?.FieldName;
+                if (key != null)
+                    _cboFkColumn.SelectedItem = _cboFkColumn.ListItems.FirstOrDefault(i => (string?)i.Value == key);
+            }
+            catch (Exception ex)
+            {
+                LogStatus($"Could not read columns for '{refEntity}': {ex.Message}", Errors.Failed);
+            }
+        }
+
+        // ── Plan tab ───────────────────────────────────────────────────────
+
+        /// <summary>
+        /// The migration provider bound to the current datasource. Every schema operation this
+        /// editor offers is one of its operations, and its <c>Capabilities</c> decide which of them
+        /// are even shown.
+        /// </summary>
+        /// <remarks>
+        /// This is the whole reason the editor composes no DDL of its own: each IDataSource has its
+        /// own <see cref="ISchemaMigrationProvider"/> which executes against that source's native
+        /// API — SQL for an RDBMS, a collection command for Mongo, a file rewrite for CSV. Asking
+        /// the provider is the only datasource-agnostic way to know what is possible.
+        /// </remarks>
+        private ISchemaMigrationProvider? MigrationProvider =>
+            _viewModel?.SourceConnection == null
+                ? null
+                : beepService?.DMEEditor?.GetMigrationProvider(_viewModel.SourceConnection);
+
+        /// <summary>
+        /// Shows what applying the current definition would do: the provider's declared capabilities
+        /// and the per-column operations MigrationManager would run, plus the DDL evidence recorded
+        /// by the last apply. Nothing here is generated by this view.
+        /// </summary>
+        private async Task ShowPlanAsync()
+        {
+            _txtPlan.Text = string.Empty;
+
+            var name = GetEntityNameFromUi();
+            if (string.IsNullOrWhiteSpace(name)) { LogStatus("Name the entity before planning.", Errors.Failed); return; }
+
+            var ds = _viewModel?.SourceConnection;
+            if (ds == null) { LogStatus("Datasource is not available.", Errors.Failed); return; }
+
+            var draft = BuildDraftStructure(name);
+            if (draft.Fields == null || draft.Fields.Count == 0) { LogStatus("Define at least one column first.", Errors.Failed); return; }
+
+            var sb = new StringBuilder();
+            var caps = MigrationProvider?.Capabilities;
+
+            sb.AppendLine($"Datasource : {ds.DatasourceName} ({ds.DatasourceType})");
+            sb.AppendLine($"Provider   : {MigrationProvider?.GetType().Name ?? "none resolved"}");
+            if (caps != null)
+            {
+                sb.AppendLine(caps.IsReadOnly
+                    ? "Schema     : READ-ONLY — this datasource's schema is managed externally."
+                    : $"Schema     : create={caps.SupportsCreateEntity}, addColumn={caps.SupportsAddColumn}, " +
+                      $"alterColumn={caps.SupportsAlterColumn}, dropColumn={caps.SupportsDropColumn}, " +
+                      $"rename={caps.SupportsRenameEntity}, truncate={caps.SupportsTruncateEntity}, drop={caps.SupportsDropEntity}");
+                sb.AppendLine($"Indexes/FK : index={caps.SupportsCreateIndex}, foreignKey={caps.SupportsAddForeignKey}, transactionalDdl={caps.SupportsTransactionalDdl}");
+            }
+            sb.AppendLine();
+
+            if (_mode == EntityEditorMode.CreateNew)
+            {
+                sb.AppendLine($"CREATE {name} — {draft.Fields.Count} column(s):");
+                foreach (var f in draft.Fields)
+                    sb.AppendLine($"  + {f.FieldName} {f.Fieldtype}{(f.Size1 > 0 ? $"({f.Size1})" : "")}" +
+                                  $"{(f.AllowDBNull ? "" : " NOT NULL")}{(f.IsKey ? " PK" : "")}{(f.IsAutoIncrement ? " IDENTITY" : "")}");
+            }
+            else
+            {
+                var live = await Task.Run(() => ds.GetEntityStructure(name, true)).ConfigureAwait(true);
+                var ops = BuildSchemaOps(live?.Fields ?? new List<EntityField>(), draft.Fields);
+                if (ops.Count == 0)
+                {
+                    sb.AppendLine($"ALTER {name} — no changes; the definition matches the datasource.");
+                }
+                else
+                {
+                    sb.AppendLine($"ALTER {name} — {ops.Count} operation(s):");
+                    foreach (var op in ops) sb.AppendLine($"  {op.Kind,-5} {op.Description}");
+                    if (caps != null)
+                    {
+                        if (ops.Any(o => o.Kind == SchemaOpKind.Alter) && !caps.SupportsAlterColumn)
+                            sb.AppendLine("  ! This provider cannot alter columns — those operations will be rejected.");
+                        if (ops.Any(o => o.Kind == SchemaOpKind.Drop) && !caps.SupportsDropColumn)
+                            sb.AppendLine("  ! This provider cannot drop columns — those operations will be rejected.");
+                    }
+                }
+            }
+
+            // DDL evidence from the previous apply, recorded by MigrationManager per operation.
+            if (_lastDdlEvidence.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine($"-- Evidence from the last apply ({_lastDdlEvidence.Count} operation(s)):");
+                foreach (var line in _lastDdlEvidence) sb.AppendLine($"   {line}");
+            }
+
+            _txtPlan.Text = sb.ToString();
+            _tabs.SelectedIndex = 2;
+            LogStatus($"Plan ready for '{name}'.", Errors.Ok);
+        }
+
+        /// <summary>Human-readable DDL evidence captured by the last apply, newest run only.</summary>
+        private readonly List<string> _lastDdlEvidence = new();
+
+        // ── Entity-level operations (all through MigrationManager) ─────────
+
+        /// <summary>
+        /// Runs an entity-level migration operation and reports it. The capability check lives in
+        /// MigrationManager — it returns an "unsupported" error for a provider that cannot do it,
+        /// so this never has to know which datasource kinds support what.
+        /// </summary>
+        private async Task RunEntityOperationAsync(string verb, Func<MigrationManager, IErrorsInfo> operation, string? reloadAs)
+        {
+            var ds = _viewModel?.SourceConnection;
+            if (ds == null || beepService?.DMEEditor == null) return;
+
+            var migration = new MigrationManager(beepService.DMEEditor, ds);
+            try
+            {
+                var result = await Task.Run(() => operation(migration)).ConfigureAwait(true);
+                CaptureDdlEvidence(migration);
+
+                bool ok = result?.Flag == Errors.Ok;
+                LogStatus(ok ? $"{verb} succeeded." : $"{verb} failed: {result?.Message}", ok ? Errors.Ok : Errors.Failed);
+                if (!ok) return;
+
+                InvalidateEntityProbe();
+                await LoadEntitiesListAsync().ConfigureAwait(true);
+                if (reloadAs != null) { SelectEntity(reloadAs); LoadOrCreateEntity(reloadAs); }
+                else NewEntity();
+            }
+            catch (Exception ex)
+            {
+                LogStatus($"{verb} failed: {ex.Message}", Errors.Failed);
+            }
+        }
+
+        private void CaptureDdlEvidence(MigrationManager migration)
+        {
+            _lastDdlEvidence.Clear();
+            foreach (var ev in migration.GetDdlEvidence() ?? Array.Empty<DdlOperationEvidence>())
+                _lastDdlEvidence.Add(
+                    $"{ev.OperationName} {ev.EntityName}{(string.IsNullOrWhiteSpace(ev.ColumnName) ? "" : "." + ev.ColumnName)}" +
+                    $" → {ev.Outcome} ({ev.HelperSource}){(string.IsNullOrWhiteSpace(ev.ReasonCode) ? "" : $" [{ev.ReasonCode}]")}");
+        }
+
+        private void BtnDrop_Click(object? sender, EventArgs e)
+        {
+            var name = GetEntityNameFromUi();
+            var ds = _viewModel?.SourceConnection;
+            if (ds == null || string.IsNullOrWhiteSpace(name)) return;
+            if (_mode != EntityEditorMode.UpdateExisting) { LogStatus("Only an existing entity can be dropped.", Errors.Failed); return; }
+
+            var answer = MessageBox.Show(this,
+                $"Drop '{name}' from '{ds.DatasourceName}'?\r\n\r\n" +
+                "This deletes the entity and everything in it. It cannot be undone from here.",
+                "Drop entity", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+            if (answer != DialogResult.Yes) return;
+
+            _ = RunEntityOperationAsync($"Drop '{name}'", m => m.DropEntity(name!), reloadAs: null);
+        }
+
+        private void BtnTruncate_Click(object? sender, EventArgs e)
+        {
+            var name = GetEntityNameFromUi();
+            var ds = _viewModel?.SourceConnection;
+            if (ds == null || string.IsNullOrWhiteSpace(name)) return;
+            if (_mode != EntityEditorMode.UpdateExisting) { LogStatus("Only an existing entity can be truncated.", Errors.Failed); return; }
+
+            var answer = MessageBox.Show(this,
+                $"Delete every row in '{name}'?\r\n\r\nThe definition is kept. This cannot be undone from here.",
+                "Truncate entity", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+            if (answer != DialogResult.Yes) return;
+
+            _ = RunEntityOperationAsync($"Truncate '{name}'", m => m.TruncateEntity(name!), reloadAs: name);
+        }
+
+        /// <summary>
+        /// Renames the entity to whatever the name box now holds — the box is the identity field, so
+        /// editing it and pressing Rename is the rename gesture.
+        /// </summary>
+        private void BtnRename_Click(object? sender, EventArgs e)
+        {
+            var newName = _txtEntityName.Text?.Trim();
+            var oldName = _viewModel?.EntityName?.Trim();
+            if (string.IsNullOrWhiteSpace(newName) || string.IsNullOrWhiteSpace(oldName)) return;
+            if (string.Equals(newName, oldName, StringComparison.OrdinalIgnoreCase))
+            { LogStatus("Type the new name in the entity name box first.", Errors.Failed); return; }
+
+            _ = RunEntityOperationAsync($"Rename '{oldName}' to '{newName}'",
+                m => m.RenameEntity(oldName!, newName!), reloadAs: newName);
         }
 
         private static Type? ResolveEntityFieldPropertyType(BeepColumnConfig col)

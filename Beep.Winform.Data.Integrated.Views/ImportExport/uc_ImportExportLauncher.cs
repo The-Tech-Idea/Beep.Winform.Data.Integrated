@@ -9,13 +9,22 @@ using TheTechIdea.Beep.Winform.Default.Views.ImportExport.Export;
 
 namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport
 {
-    [AddinAttribute(Caption = "Import/Export Wizard", Name = "uc_ImportExportLauncher",
+    [AddinAttribute(Caption = "Export Wizard", Name = "uc_ImportExportLauncher",
         misc = "Data", menu = "DataOperations", addinType = AddinType.Control,
         displayType = DisplayType.InControl, ObjectType = "Beep")]
     [AddinVisSchema(BranchID = 20, RootNodeName = "Data Operations", Order = 20, ID = 20,
-        BranchText = "Import/Export", BranchType = EnumPointType.Function,
+        BranchText = "Export", BranchType = EnumPointType.Function,
         IconImageName = "fileconnections.svg", BranchClass = "ADDIN",
-        BranchDescription = "Import and Export data wizard")]
+        BranchDescription = "Export data, and review import/export run history")]
+    /// <summary>
+    /// Export entry point plus the run-history feed for both operations.
+    /// </summary>
+    /// <remarks>
+    /// Import is not launched from here: <c>uc_DataImportWizard</c> (Configuration branch) is the
+    /// single import entry point and files its own run records under
+    /// <see cref="WizardKeys.ImportHistoryContext"/>. This view still reads that key back, so the
+    /// history grid remains a feed of both imports and exports.
+    /// </remarks>
     public partial class uc_ImportExportLauncher : TemplateUserControl, IAddinVisSchema
     {
         private readonly IServiceProvider? _services;
@@ -41,7 +50,6 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport
         private void InitializeControl()
         {
             InitializeComponent();
-            btnImport.Click += (_, _) => LaunchImportWizard();
             btnExport.Click += (_, _) => LaunchExportWizard();
             btnRefreshHistory.Click += async (_, _) => await LoadHistoryAsync().ConfigureAwait(true);
             Load += async (_, _) => await LoadHistoryAsync().ConfigureAwait(true);
@@ -49,21 +57,11 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport
 
         // ── Run history ───────────────────────────────────────────────────────
         //
-        // IImportRunHistoryStore is strictly per-context: SaveRunAsync files a record under
-        // record.ContextKey, and GetRunsAsync only ever returns one key's records — there is no way
-        // to enumerate contexts. This hub wants the opposite: a feed across every entity.
-        //
-        // So the hub records under two fixed keys of its own rather than under "{datasource}.{entity}".
-        // That also fixes the reason this grid was always empty: runs were SAVED under
-        // "{datasource}.{entity}" and READ back with the literal key "import", which can never match.
-        // The real source lives in the record's Summary, and the key itself distinguishes the two
-        // operations — so no string has to be parsed back out.
-        //
-        // Nothing else consumes these records: DataImportManager never reads
-        // DataImportConfiguration.RunHistoryStore, so the launcher is the only writer and reader and
-        // is free to choose the convention.
-        private const string ImportHistoryKey = "ImportExportHub.Import";
-        private const string ExportHistoryKey = "ImportExportHub.Export";
+        // The keys live on WizardKeys because the writers are now split across two views: this one
+        // files export runs, uc_DataImportWizard files import runs, and the grid below reads both.
+        // See WizardKeys for why fixed context keys are used instead of "{datasource}.{entity}".
+        private const string ImportHistoryKey = WizardKeys.ImportHistoryContext;
+        private const string ExportHistoryKey = WizardKeys.ExportHistoryContext;
 
         /// <summary>
         /// Guards against overlapping history loads. Load and the Refresh button both trigger one,
@@ -117,43 +115,6 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport
         public string BranchClass { get; set; } = "ADDIN";
         #endregion
 
-        private void LaunchImportWizard()
-        {
-            if (_services == null)
-            {
-                MessageBox.Show(this,
-                    "The import wizard needs application services, which are not available on this instance.",
-                    "Import", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            var step1 = new uc_ImportStep1_Configure(_services);
-            var step2 = new uc_ImportStep2_Columns(_services);
-            var step3 = new uc_ImportStep3_Mapping(_services);
-            var step4 = new uc_ImportStep4_Options(_services);
-            var step5 = new uc_ImportStep5_Run(_services);
-
-            var config = new WizardConfig
-            {
-                Title = "Import Wizard",
-                Description = "Import data from source to destination",
-                // Skill § 1: use BeepLayoutMetrics tokens for dialog sizes; ScaleSize() DPI-scales the value.
-                Size = BeepLayoutMetrics.DialogLarge.ScaleSize(this),
-                Style = WizardStyle.HorizontalStepper,
-            };
-
-            config.Steps.Add(new WizardStep { Key = "configure", Title = "Configure", Description = "Source & destination", Content = step1 });
-            config.Steps.Add(new WizardStep { Key = "columns", Title = "Columns", Description = "Select columns", Content = step2 });
-            config.Steps.Add(new WizardStep { Key = "mapping", Title = "Mapping", Description = "Map fields", Content = step3 });
-            config.Steps.Add(new WizardStep { Key = "options", Title = "Options", Description = "Batch size, quality rules", Content = step4 });
-            config.Steps.Add(new WizardStep { Key = "run", Title = "Run", Description = "Execute import", Content = step5 });
-
-            config.OnComplete = async ctx => await OnImportCompleteAsync(ctx).ConfigureAwait(true);
-
-            var instance = WizardManager.CreateWizard(config);
-            instance.ShowDialog(this);
-        }
-
         private void LaunchExportWizard()
         {
             if (_services == null)
@@ -187,33 +148,6 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport
 
             var instance = WizardManager.CreateWizard(config);
             instance.ShowDialog(this);
-        }
-
-        private async Task OnImportCompleteAsync(WizardContext context)
-        {
-            var config = context.GetValue<DataImportConfiguration?>(WizardKeys.ImportConfig, null);
-            var summary = context.GetValue<ImportRunSummary?>(WizardKeys.RunSummary, null);
-
-            if (config != null && Editor != null && summary != null)
-            {
-                var record = new ImportRunRecord
-                {
-                    ContextKey = ImportHistoryKey,
-                    StartedAt = DateTime.UtcNow - summary.Duration,
-                    FinishedAt = DateTime.UtcNow,
-                    FinalState = summary.FailedRows == 0 ? ImportState.Completed : ImportState.Faulted,
-                    SyncMode = config.SyncMode,
-                    RecordsRead = summary.TotalRows,
-                    RecordsWritten = summary.TotalRows - summary.FailedRows,
-                    RecordsBlocked = summary.FailedRows,
-                    Summary = $"{config.SourceDataSourceName}.{config.SourceEntityName} → " +
-                              $"{config.DestDataSourceName}.{config.DestEntityName} — " +
-                              $"Added:{summary.AddedRows} Updated:{summary.UpdatedRows} Failed:{summary.FailedRows}",
-                };
-                await SaveRunAsync(record, "import").ConfigureAwait(true);
-            }
-
-            await LoadHistoryAsync().ConfigureAwait(true);
         }
 
         private async Task OnExportCompleteAsync(WizardContext context)

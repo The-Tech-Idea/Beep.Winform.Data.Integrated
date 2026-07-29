@@ -1,6 +1,7 @@
 using TheTechIdea.Beep.Winform.Controls;
 using TheTechIdea.Beep.Winform.Controls.CheckBoxes;
 using TheTechIdea.Beep.Winform.Controls.VerticalTables;
+using TheTechIdea.Beep.Winform.Controls.Wizards.Forms;
 
 namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 {
@@ -14,15 +15,15 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             base.Dispose(disposing);
         }
 
+        // The designer owns the two step pages and a status line only. Wizard chrome — stepper,
+        // Back/Next/Cancel, progress, validation display — comes from the Wizards framework form
+        // that StartWizard embeds into _hostPanel.
         private void InitializeComponent()
         {
-            _rootPanel = new BeepPanel();
-            _headerPanel = new BeepPanel();
-            _lblTitle = new BeepLabel();
-            _lblSubtitle = new BeepLabel();
-            _contentHost = new BeepPanel();
+            _hostPanel = new System.Windows.Forms.Panel();
+            _lblStatus = new BeepLabel();
 
-            _stepScope = new BeepPanel();
+            _pageScope = new WizardPage();
             _scopeTable = new System.Windows.Forms.TableLayoutPanel();
             _lblSourceConn = new BeepLabel();
             _cboSourceConn = new BeepComboBox();
@@ -35,130 +36,106 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _chkAddMissingColumns = new BeepCheckBoxBool();
             _chkCreateDestination = new BeepCheckBoxBool();
 
-            _stepResults = new BeepPanel();
+            _pageResults = new WizardPage();
             _lblResultsSummary = new BeepLabel();
             _lblFingerprint = new BeepLabel();
             _tblCompare = new BeepVerticalTable();
             _lstResults = new BeepListBox();
 
-            _actionsPanel = new BeepPanel();
-            _actionsFlow = new System.Windows.Forms.FlowLayoutPanel();
-            _btnNext = new BeepButton();
-            _btnBack = new BeepButton();
-            _btnCancel = new BeepButton();
-            _lblStatus = new BeepLabel();
-
-            _rootPanel.SuspendLayout();
-            _headerPanel.SuspendLayout();
-            _contentHost.SuspendLayout();
-            _stepScope.SuspendLayout();
+            _hostPanel.SuspendLayout();
+            _pageScope.SuspendLayout();
             _scopeTable.SuspendLayout();
-            _stepResults.SuspendLayout();
-            _actionsPanel.SuspendLayout();
-            _actionsFlow.SuspendLayout();
+            _pageResults.SuspendLayout();
             SuspendLayout();
 
-            // ── root ──
-            _rootPanel.ControlStyle = TheTechIdea.Beep.Winform.Controls.Common.BeepControlStyle.Material3;
-            _rootPanel.IsFrameless = true;
-            _rootPanel.ShowTitle = false;
-            _rootPanel.ShowTitleLine = false;
-            _rootPanel.UseThemeColors = true;
-            _rootPanel.Dock = System.Windows.Forms.DockStyle.Fill;
-            _rootPanel.Padding = new System.Windows.Forms.Padding(12);
+            // ── host for the embedded wizard form ──
+            _hostPanel.Dock = System.Windows.Forms.DockStyle.Fill;
+            _hostPanel.Name = "_hostPanel";
 
-            // ── header ──
-            _headerPanel.IsFrameless = true;
-            _headerPanel.ShowTitle = false;
-            _headerPanel.ShowTitleLine = false;
-            _headerPanel.UseThemeColors = true;
-            _headerPanel.Dock = System.Windows.Forms.DockStyle.Top;
-            _headerPanel.Height = 76;
-
-            _lblSubtitle.UseThemeColors = true;
-            _lblSubtitle.IsFrameless = true;
-            _lblSubtitle.AutoEllipsis = true;
-            _lblSubtitle.Dock = System.Windows.Forms.DockStyle.Top;
-            _lblSubtitle.Height = 24;
-            _lblSubtitle.Padding = new System.Windows.Forms.Padding(16, 2, 16, 4);
-            _lblSubtitle.Text = "Compare a source and destination entity before syncing.";
-
-            _lblTitle.UseThemeColors = true;
-            _lblTitle.IsFrameless = true;
-            _lblTitle.AutoEllipsis = true;
-            _lblTitle.Dock = System.Windows.Forms.DockStyle.Top;
-            _lblTitle.Height = 40;
-            _lblTitle.Padding = new System.Windows.Forms.Padding(16, 12, 16, 0);
-            _lblTitle.Text = "Schema Compare & Sync Preflight";
-
-            _headerPanel.Controls.Add(_lblSubtitle);
-            _headerPanel.Controls.Add(_lblTitle);
-
-            // ── content host ──
-            _contentHost.IsFrameless = true;
-            _contentHost.ShowTitle = false;
-            _contentHost.ShowTitleLine = false;
-            _contentHost.UseThemeColors = true;
-            _contentHost.Dock = System.Windows.Forms.DockStyle.Fill;
-            _contentHost.Padding = new System.Windows.Forms.Padding(8);
+            _lblStatus.AutoEllipsis = true;
+            _lblStatus.Dock = System.Windows.Forms.DockStyle.Bottom;
+            _lblStatus.Height = 28;
+            _lblStatus.IsFrameless = true;
+            _lblStatus.Name = "_lblStatus";
+            _lblStatus.Padding = new System.Windows.Forms.Padding(12, 4, 12, 4);
+            _lblStatus.Text = "";
+            _lblStatus.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            _lblStatus.UseThemeColors = true;
 
             // ── step 1: scope ──
-            _stepScope.IsFrameless = true;
-            _stepScope.ShowTitle = false;
-            _stepScope.ShowTitleLine = false;
-            _stepScope.UseThemeColors = true;
-            _stepScope.Dock = System.Windows.Forms.DockStyle.Fill;
+            _pageScope.Description = "Choose source and destination entities.";
+            _pageScope.Dock = System.Windows.Forms.DockStyle.Fill;
+            _pageScope.Name = "_pageScope";
+            _pageScope.NextButtonText = "Run Preflight";
+            _pageScope.Title = "Scope";
 
-            _scopeTable.Dock = System.Windows.Forms.DockStyle.Fill;
             _scopeTable.ColumnCount = 2;
-            _scopeTable.RowCount = 7;
             _scopeTable.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 150F));
             _scopeTable.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            for (int i = 0; i < 6; i++)
-                _scopeTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 35F));
+            _scopeTable.Dock = System.Windows.Forms.DockStyle.Fill;
+            _scopeTable.Name = "_scopeTable";
+            _scopeTable.RowCount = 7;
+            // Six rows written out one at a time: the designer's code parser only understands
+            // assignments, object creation and method calls, so a loop here breaks the design view.
+            _scopeTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 35F));
+            _scopeTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 35F));
+            _scopeTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 35F));
+            _scopeTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 35F));
+            _scopeTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 35F));
+            _scopeTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 35F));
             _scopeTable.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
 
-            _lblSourceConn.UseThemeColors = true;
+            _lblSourceConn.Dock = System.Windows.Forms.DockStyle.Fill;
             _lblSourceConn.IsFrameless = true;
+            _lblSourceConn.Name = "_lblSourceConn";
             _lblSourceConn.Text = "Source connection";
             _lblSourceConn.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            _lblSourceConn.Dock = System.Windows.Forms.DockStyle.Fill;
-            _cboSourceConn.UseThemeColors = true;
+            _lblSourceConn.UseThemeColors = true;
             _cboSourceConn.Dock = System.Windows.Forms.DockStyle.Fill;
+            _cboSourceConn.Name = "_cboSourceConn";
+            _cboSourceConn.UseThemeColors = true;
 
-            _lblSourceEntity.UseThemeColors = true;
+            _lblSourceEntity.Dock = System.Windows.Forms.DockStyle.Fill;
             _lblSourceEntity.IsFrameless = true;
+            _lblSourceEntity.Name = "_lblSourceEntity";
             _lblSourceEntity.Text = "Source entity";
             _lblSourceEntity.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            _lblSourceEntity.Dock = System.Windows.Forms.DockStyle.Fill;
-            _cboSourceEntity.UseThemeColors = true;
+            _lblSourceEntity.UseThemeColors = true;
             _cboSourceEntity.Dock = System.Windows.Forms.DockStyle.Fill;
+            _cboSourceEntity.Name = "_cboSourceEntity";
+            _cboSourceEntity.UseThemeColors = true;
 
-            _lblDestConn.UseThemeColors = true;
+            _lblDestConn.Dock = System.Windows.Forms.DockStyle.Fill;
             _lblDestConn.IsFrameless = true;
+            _lblDestConn.Name = "_lblDestConn";
             _lblDestConn.Text = "Destination connection";
             _lblDestConn.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            _lblDestConn.Dock = System.Windows.Forms.DockStyle.Fill;
-            _cboDestConn.UseThemeColors = true;
+            _lblDestConn.UseThemeColors = true;
             _cboDestConn.Dock = System.Windows.Forms.DockStyle.Fill;
+            _cboDestConn.Name = "_cboDestConn";
+            _cboDestConn.UseThemeColors = true;
 
-            _lblDestEntity.UseThemeColors = true;
+            _lblDestEntity.Dock = System.Windows.Forms.DockStyle.Fill;
             _lblDestEntity.IsFrameless = true;
+            _lblDestEntity.Name = "_lblDestEntity";
             _lblDestEntity.Text = "Destination entity";
             _lblDestEntity.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            _lblDestEntity.Dock = System.Windows.Forms.DockStyle.Fill;
-            _cboDestEntity.UseThemeColors = true;
+            _lblDestEntity.UseThemeColors = true;
             _cboDestEntity.Dock = System.Windows.Forms.DockStyle.Fill;
+            _cboDestEntity.Name = "_cboDestEntity";
+            _cboDestEntity.UseThemeColors = true;
 
-            _chkAddMissingColumns.UseThemeColors = true;
-            _chkAddMissingColumns.Text = "Add missing destination columns";
             _chkAddMissingColumns.Checked = true;
             _chkAddMissingColumns.Dock = System.Windows.Forms.DockStyle.Fill;
+            _chkAddMissingColumns.Name = "_chkAddMissingColumns";
+            _chkAddMissingColumns.Text = "Add missing destination columns";
+            _chkAddMissingColumns.UseThemeColors = true;
 
-            _chkCreateDestination.UseThemeColors = true;
-            _chkCreateDestination.Text = "Create destination entity if it does not exist";
             _chkCreateDestination.Checked = true;
             _chkCreateDestination.Dock = System.Windows.Forms.DockStyle.Fill;
+            _chkCreateDestination.Name = "_chkCreateDestination";
+            _chkCreateDestination.Text = "Create destination entity if it does not exist";
+            _chkCreateDestination.UseThemeColors = true;
 
             _scopeTable.Controls.Add(_lblSourceConn, 0, 0);
             _scopeTable.Controls.Add(_cboSourceConn, 1, 0);
@@ -170,125 +147,79 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _scopeTable.Controls.Add(_cboDestEntity, 1, 3);
             _scopeTable.Controls.Add(_chkAddMissingColumns, 1, 4);
             _scopeTable.Controls.Add(_chkCreateDestination, 1, 5);
-            _stepScope.Controls.Add(_scopeTable);
+            _pageScope.Controls.Add(_scopeTable);
 
             // ── step 2: results ──
-            _stepResults.IsFrameless = true;
-            _stepResults.ShowTitle = false;
-            _stepResults.ShowTitleLine = false;
-            _stepResults.UseThemeColors = true;
-            _stepResults.Dock = System.Windows.Forms.DockStyle.Fill;
-            _stepResults.Visible = false;
+            _pageResults.Description = "Preflight results — build a sync draft when ready.";
+            _pageResults.Dock = System.Windows.Forms.DockStyle.Fill;
+            _pageResults.Name = "_pageResults";
+            _pageResults.Title = "Results";
+            _pageResults.Visible = false;
 
             // Field-level comparison table (source vs destination, via SchemaComparator).
             // A vertical comparison table reads far better than a flat grid for schema diffs:
             // one row per field, one column per side plus a verdict column.
             _tblCompare.Dock = System.Windows.Forms.DockStyle.Fill;
+            _tblCompare.Name = "_tblCompare";
             _tblCompare.RowGroupingEnabled = true;
             _tblCompare.SelectionMode = TheTechIdea.Beep.Winform.Controls.VerticalTables.VerticalTableSelectionMode.Single;
 
             // Preflight/draft log — the flat status/log lines live at the bottom so the
             // structured field comparison gets the main real estate.
-            _lstResults.UseThemeColors = true;
-            _lstResults.ShowSearch = false;
             _lstResults.Dock = System.Windows.Forms.DockStyle.Bottom;
             _lstResults.Height = 150;
+            _lstResults.Name = "_lstResults";
+            _lstResults.ShowSearch = false;
+            _lstResults.UseThemeColors = true;
 
-            _lblFingerprint.UseThemeColors = true;
-            _lblFingerprint.IsFrameless = true;
             _lblFingerprint.AutoEllipsis = true;
             _lblFingerprint.Dock = System.Windows.Forms.DockStyle.Top;
             _lblFingerprint.Height = 24;
+            _lblFingerprint.IsFrameless = true;
+            _lblFingerprint.Name = "_lblFingerprint";
             _lblFingerprint.Padding = new System.Windows.Forms.Padding(4, 0, 4, 0);
-            _lblFingerprint.Text = string.Empty;
+            _lblFingerprint.Text = "";
+            _lblFingerprint.UseThemeColors = true;
 
-            _lblResultsSummary.UseThemeColors = true;
-            _lblResultsSummary.IsFrameless = true;
             _lblResultsSummary.AutoEllipsis = true;
             _lblResultsSummary.Dock = System.Windows.Forms.DockStyle.Top;
             _lblResultsSummary.Height = 44;
+            _lblResultsSummary.IsFrameless = true;
+            _lblResultsSummary.Name = "_lblResultsSummary";
             _lblResultsSummary.Text = "Preflight has not run yet.";
+            _lblResultsSummary.UseThemeColors = true;
 
             // Fill added first so the docked edges (summary/fingerprint on top, log on
             // bottom) claim their bands and the table takes the remainder.
-            _stepResults.Controls.Add(_tblCompare);
-            _stepResults.Controls.Add(_lstResults);
-            _stepResults.Controls.Add(_lblFingerprint);
-            _stepResults.Controls.Add(_lblResultsSummary);
+            _pageResults.Controls.Add(_tblCompare);
+            _pageResults.Controls.Add(_lstResults);
+            _pageResults.Controls.Add(_lblFingerprint);
+            _pageResults.Controls.Add(_lblResultsSummary);
 
-            _contentHost.Controls.Add(_stepResults);
-            _contentHost.Controls.Add(_stepScope);
-
-            // ── actions ──
-            _actionsPanel.IsFrameless = true;
-            _actionsPanel.ShowTitle = false;
-            _actionsPanel.ShowTitleLine = false;
-            _actionsPanel.UseThemeColors = true;
-            _actionsPanel.Dock = System.Windows.Forms.DockStyle.Bottom;
-            _actionsPanel.Height = 52;
-            _actionsPanel.Padding = new System.Windows.Forms.Padding(10);
-
-            _actionsFlow.Dock = System.Windows.Forms.DockStyle.Fill;
-            _actionsFlow.FlowDirection = System.Windows.Forms.FlowDirection.RightToLeft;
-            _actionsFlow.WrapContents = false;
-
-            // Flow is RightToLeft: the first child is rightmost.
-            _btnNext.UseThemeColors = true;
-            _btnNext.Text = "Run Preflight";
-            _btnNext.MinimumSize = new System.Drawing.Size(130, 36);
-
-            _btnBack.UseThemeColors = true;
-            _btnBack.Text = "Back";
-            _btnBack.MinimumSize = new System.Drawing.Size(100, 32);
-            _btnBack.Enabled = false;
-
-            _btnCancel.UseThemeColors = true;
-            _btnCancel.Text = "Cancel";
-            _btnCancel.MinimumSize = new System.Drawing.Size(100, 32);
-
-            _lblStatus.UseThemeColors = true;
-            _lblStatus.IsFrameless = true;
-            _lblStatus.AutoEllipsis = true;
-            _lblStatus.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            _lblStatus.Dock = System.Windows.Forms.DockStyle.Left;
-            _lblStatus.Width = 320;
-            _lblStatus.Text = string.Empty;
-
-            _actionsFlow.Controls.Add(_btnNext);
-            _actionsFlow.Controls.Add(_btnBack);
-            _actionsFlow.Controls.Add(_btnCancel);
-            _actionsPanel.Controls.Add(_actionsFlow);
-            _actionsPanel.Controls.Add(_lblStatus);
-
-            _rootPanel.Controls.Add(_contentHost);
-            _rootPanel.Controls.Add(_headerPanel);
-            _rootPanel.Controls.Add(_actionsPanel);
+            // Parented here so they are owned (and disposed) even if the wizard never starts; the
+            // wizard form re-parents whichever page is current into its own content panel.
+            _hostPanel.Controls.Add(_pageResults);
+            _hostPanel.Controls.Add(_pageScope);
 
             // ── uc_SchemaManagerWizard ──
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            Controls.Add(_rootPanel);
+            Controls.Add(_hostPanel);
+            Controls.Add(_lblStatus);
             Name = "uc_SchemaManagerWizard";
             Size = new System.Drawing.Size(840, 560);
 
-            _actionsFlow.ResumeLayout(false);
-            _actionsPanel.ResumeLayout(false);
-            _stepResults.ResumeLayout(false);
+            _pageResults.ResumeLayout(false);
             _scopeTable.ResumeLayout(false);
-            _stepScope.ResumeLayout(false);
-            _contentHost.ResumeLayout(false);
-            _headerPanel.ResumeLayout(false);
-            _rootPanel.ResumeLayout(false);
+            _pageScope.ResumeLayout(false);
+            _hostPanel.ResumeLayout(false);
             ResumeLayout(false);
         }
 
-        private BeepPanel _rootPanel;
-        private BeepPanel _headerPanel;
-        private BeepLabel _lblTitle;
-        private BeepLabel _lblSubtitle;
-        private BeepPanel _contentHost;
+        private System.Windows.Forms.Panel _hostPanel;
+        private BeepLabel _lblStatus;
 
-        private BeepPanel _stepScope;
+        private WizardPage _pageScope;
         private System.Windows.Forms.TableLayoutPanel _scopeTable;
         private BeepLabel _lblSourceConn;
         private BeepComboBox _cboSourceConn;
@@ -301,17 +232,10 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         private BeepCheckBoxBool _chkAddMissingColumns;
         private BeepCheckBoxBool _chkCreateDestination;
 
-        private BeepPanel _stepResults;
+        private WizardPage _pageResults;
         private BeepLabel _lblResultsSummary;
         private BeepLabel _lblFingerprint;
         private BeepVerticalTable _tblCompare;
         private BeepListBox _lstResults;
-
-        private BeepPanel _actionsPanel;
-        private System.Windows.Forms.FlowLayoutPanel _actionsFlow;
-        private BeepButton _btnNext;
-        private BeepButton _btnBack;
-        private BeepButton _btnCancel;
-        private BeepLabel _lblStatus;
     }
 }

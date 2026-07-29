@@ -458,5 +458,10 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _cts?.Cancel();
             base.OnHandleDestroyed(e);
         }
+
+        private void _lblSubtitle_Click(object sender, EventArgs e)
+        {
+
+        }
     }
 }

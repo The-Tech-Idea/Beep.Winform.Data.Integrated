@@ -165,28 +165,32 @@ namespace TheTechIdea.Beep.Winform.Default.Views.ImportExport.Import
 
         private void PopulateTemplateCombo()
         {
-            if (Editor == null) return;
-            var names = ImportTemplateManager.ListAll(Editor);
+            if (Editor?.ConfigEditor == null) return;
+            List<string> names;
+            try { names = Editor.ConfigEditor.GetSavedImportConfigNames(); }
+            catch { return; }
             cmbTemplateLoad.ListItems = new BindingList<SimpleItem>(
                 names.Select(n => new SimpleItem { Text = n, Value = n }).ToList());
         }
 
         private void SaveTemplate()
         {
-            if (_config == null || Editor == null) return;
+            if (_config == null || Editor?.ConfigEditor == null) return;
             var name = cmbTemplateLoad.Text;
             if (string.IsNullOrWhiteSpace(name)) return;
             _config.Mapping = BuildMappingFromGrid();
-            ImportTemplateManager.Save(Editor, name, _config);
+            Editor.ConfigEditor.SaveImportConfiguration(name, _config);
             lblMappingStatus.Text = $"Template '{name}' saved.";
         }
 
         private void LoadTemplate()
         {
-            if (Editor == null) return;
+            if (Editor?.ConfigEditor == null) return;
             var name = cmbTemplateLoad.SelectedItem?.Value?.ToString();
             if (string.IsNullOrEmpty(name)) return;
-            var loaded = ImportTemplateManager.Load(Editor, name);
+            DataImportConfiguration? loaded;
+            try { loaded = Editor.ConfigEditor.LoadImportConfiguration(name); }
+            catch { return; }
             if (loaded?.Mapping?.MappedEntities != null)
             {
                 _config = loaded;

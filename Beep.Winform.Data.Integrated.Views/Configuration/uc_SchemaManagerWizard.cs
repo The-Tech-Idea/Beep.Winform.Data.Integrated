@@ -12,10 +12,13 @@ using TheTechIdea.Beep.Editor.Schema;
 using TheTechIdea.Beep.Vis;
 using TheTechIdea.Beep.Vis.Modules;
 using TheTechIdea.Beep.Winform.Controls;
-using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Controls.Models;
 using TheTechIdea.Beep.Winform.Controls.VerticalTables.Models;
+using TheTechIdea.Beep.Winform.Controls.Wizards;
+using TheTechIdea.Beep.Winform.Controls.Wizards.Validation;
 using TheTechIdea.Beep.Winform.Default.Views.Template;
+
+using WizardStepState = TheTechIdea.Beep.Winform.Controls.Wizards.StepState;
 
 namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 {
@@ -27,14 +30,19 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         IconImageName = "schema.svg", BranchClass = "ADDIN",
         BranchDescription = "Compare a source and destination entity, then preflight a sync (no DDL applied here).")]
 
+    /// <summary>
+    /// Two-step schema comparison built on the <c>Controls.Wizards</c> framework: the stepper,
+    /// Back/Next/Cancel and validation display come from the framework's host form, embedded here
+    /// because this addin is <see cref="DisplayType.InControl"/>. The engine work is unchanged —
+    /// <see cref="SyncSchemaPreflight"/> for the preflight and draft, <see cref="SchemaComparator"/>
+    /// for the field-level diff.
+    /// </summary>
     public partial class uc_SchemaManagerWizard : TemplateUserControl, IAddinVisSchema
     {
-        /// <summary>Scope selection, then preflight/draft results.</summary>
-        private enum Stage { Scope = 0, Results = 1 }
-
         public event EventHandler<WizardCompletedEventArgs>? Completed;
 
-        private Stage _stage = Stage.Scope;
+        private WizardInstance? _wizard;
+        private Form? _host;
         private bool _busy;
 
         /// <summary>
@@ -68,7 +76,17 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             Details.AddinName = "Schema Compare & Sync Preflight";
             WireEvents();
             PopulateConnections();
-            UpdateStageUi();
+        }
+
+        /// <summary>
+        /// The wizard is the view. OnLoad rather than the ctor so the VS designer never instantiates
+        /// the framework form.
+        /// </summary>
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            if (!DesignMode && _wizard == null)
+                StartWizard();
         }
 
         #region "IAddinVisSchema"
@@ -102,44 +120,125 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         public string AddinName { get; set; } = "uc_SchemaManagerWizard";
         #endregion
 
-        /// <summary>Result of the last preflight, or null before Run Preflight.</summary>
+        /// <summary>Result of the last preflight, or null before the Results step has been entered.</summary>
         public SchemaPreflightResult? Preflight => _preflight;
+
+        // ── wizard shell ──────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Declares the two steps and embeds the framework's host form. Scope gates on a complete
+        /// selection; Results runs the preflight on entry and gates Finish (which builds the draft)
+        /// on both sides having resolved.
+        /// </summary>
+        private void StartWizard()
+        {
+            var config = WizardBuilder.Create($"beep.schema.compare.{Guid.NewGuid():N}")
+                .WithTitle("Schema Compare & Sync Preflight")
+                .WithDescription("Compare a source and destination entity, then preflight a sync.")
+                .WithStyle(WizardStyle.HorizontalStepper)
+                .WithProgressBar()
+                .WithFinishText("Build Sync Draft")
+
+                .AddStep(new WizardStep
+                {
+                    Key = "scope",
+                    Title = _pageScope.Title,
+                    Description = _pageScope.Description,
+                    Content = _pageScope,
+                    NextButtonText = _pageScope.NextButtonText,
+                    Validators =
+                    {
+                        new PredicateValidator(_ => ScopeIsComplete(),
+                            "Choose a source connection and entity, and a destination connection and entity, first.")
+                    }
+                })
+
+                .AddStep(new WizardStep
+                {
+                    Key = "results",
+                    Title = _pageResults.Title,
+                    Description = _pageResults.Description,
+                    Content = _pageResults,
+                    OnEnterAsync = _ => RunPreflightAsync(),
+                    Validators =
+                    {
+                        // A draft is only meaningful once both sides resolved.
+                        new PredicateValidator(_ => DraftIsPossible(),
+                            "Preflight must resolve both the source and the destination before a sync draft can be built.")
+                    }
+                })
+
+                .OnComplete(async _ =>
+                {
+                    ReclaimPages();
+                    await BuildDraftAsync().ConfigureAwait(true);
+                })
+
+                .OnCancel(_ =>
+                {
+                    _cts?.Cancel();
+                    ReclaimPages();
+                    Completed?.Invoke(this, new WizardCompletedEventArgs { Cancelled = true });
+                })
+
+                .Build();
+
+            _wizard = WizardManager.CreateWizard(config);
+            config.Steps[0].State = WizardStepState.Current;
+
+            var host = WizardFormFactory.CreateForm(config.Style, _wizard);
+            _wizard.BindFormHost(host);
+
+            _host = (Form)host;
+            _host.TopLevel = false;
+            _host.FormBorderStyle = FormBorderStyle.None;
+            _host.Dock = DockStyle.Fill;
+
+            _hostPanel.Controls.Add(_host);
+            host.UpdateUI();          // parents step one before anything fires
+            _host.Show();
+            _host.BringToFront();
+
+            _host.FormClosed += (_, _) =>
+            {
+                if (IsDisposed || Disposing) return;
+                _wizard = null;
+                _host = null;
+                BeginInvoke(new Action(() =>
+                {
+                    if (!IsDisposed && !Disposing) StartWizard();
+                }));
+            };
+        }
+
+        /// <summary>
+        /// Takes the step pages back before the host form closes and disposes them with itself.
+        /// Runs from OnComplete/OnCancel, both of which fire before <c>IWizardFormHost.Close()</c>,
+        /// so the pages survive to be handed to the next wizard.
+        /// </summary>
+        private void ReclaimPages()
+        {
+            foreach (var page in new Control[] { _pageResults, _pageScope })
+            {
+                if (page.Parent == _hostPanel) continue;
+                page.Parent?.Controls.Remove(page);
+                page.Dock = DockStyle.Fill;
+                page.Visible = false;
+                _hostPanel.Controls.Add(page);
+            }
+        }
 
         private void WireEvents()
         {
-            _btnCancel.Click += (_, _) =>
-            {
-                _cts?.Cancel();
-                Completed?.Invoke(this, new WizardCompletedEventArgs { Cancelled = true });
-            };
-            _btnBack.Click += (_, _) =>
-            {
-                if (_busy || _stage == Stage.Scope) return;
-                _stage = Stage.Scope;
-                UpdateStageUi();
-            };
-            _btnNext.Click += BtnNext_Click;
             // Fire-and-forget is safe only because LoadEntities catches its own failures.
             _cboSourceConn.SelectedItemChanged += (_, _) =>
                 _ = LoadEntities(_cboSourceConn, _cboSourceEntity);
             _cboDestConn.SelectedItemChanged += (_, _) =>
                 _ = LoadEntities(_cboDestConn, _cboDestEntity);
-        }
 
-        protected override void ApplyDpiScaledLayout()
-        {
-            _rootPanel.Padding = BeepLayoutMetrics.DialogPadding.ScalePadding(this);
-            _contentHost.Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this);
-            _actionsPanel.Padding = BeepLayoutMetrics.ButtonStripPd.ScalePadding(this);
-
-            int btnH = BeepLayoutMetrics.ButtonStandard.Height.ScaleValue(this);
-            int btnLargeH = BeepLayoutMetrics.ButtonLarge.Height.ScaleValue(this);
-            _btnCancel.MinimumSize = new System.Drawing.Size(
-                BeepLayoutMetrics.ButtonStandard.Width.ScaleValue(this), btnH);
-            _btnBack.MinimumSize = new System.Drawing.Size(
-                BeepLayoutMetrics.ButtonStandard.Width.ScaleValue(this), btnH);
-            _btnNext.MinimumSize = new System.Drawing.Size(
-                BeepLayoutMetrics.ButtonLarge.Width.ScaleValue(this), btnLargeH);
+            // WizardPage.IsComplete is the framework's readiness signal for a step.
+            _cboSourceEntity.SelectedItemChanged += (_, _) => _pageScope.IsComplete = ScopeIsComplete();
+            _cboDestEntity.SelectedItemChanged += (_, _) => _pageScope.IsComplete = ScopeIsComplete();
         }
 
         private void PopulateConnections()
@@ -180,6 +279,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         private async Task LoadEntities(BeepComboBox connectionCombo, BeepComboBox entityCombo)
         {
             entityCombo.ListItems.Clear();
+            _pageScope.IsComplete = ScopeIsComplete();
 
             var editor = beepService?.DMEEditor;
             var name = connectionCombo.SelectedItem?.Value as string;
@@ -205,56 +305,14 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             }
         }
 
-        private async void BtnNext_Click(object? sender, EventArgs e)
-        {
-            if (_busy) return;
+        private bool ScopeIsComplete() =>
+            _cboSourceConn.SelectedItem != null
+            && _cboSourceEntity.SelectedItem != null
+            && _cboDestConn.SelectedItem != null
+            && _cboDestEntity.SelectedItem != null;
 
-            try
-            {
-                if (_stage == Stage.Scope)
-                {
-                    if (await RunPreflightAsync())
-                    {
-                        _stage = Stage.Results;
-                        UpdateStageUi();
-                    }
-                }
-                else
-                {
-                    await BuildDraftAsync();
-                }
-            }
-            catch (Exception ex)
-            {
-                SetStatus($"Schema manager error: {ex.Message}");
-            }
-        }
-
-        private void UpdateStageUi()
-        {
-            _stepScope.Visible = _stage == Stage.Scope;
-            _stepResults.Visible = _stage == Stage.Results;
-            (_stage == Stage.Scope ? (Control)_stepScope : _stepResults).BringToFront();
-
-            (_lblSubtitle.Text, _btnNext.Text) = _stage == Stage.Scope
-                ? ("Step 1 of 2 — choose source and destination entities.", "Run Preflight")
-                : ("Step 2 of 2 — preflight results; build a sync draft when ready.", "Build Sync Draft");
-
-            _btnBack.Enabled = !_busy && _stage != Stage.Scope;
-            _btnNext.Enabled = !_busy && CanAdvance();
-        }
-
-        private bool CanAdvance() => _stage switch
-        {
-            Stage.Scope => _cboSourceConn.SelectedItem != null
-                           && _cboSourceEntity.SelectedItem != null
-                           && _cboDestConn.SelectedItem != null
-                           && _cboDestEntity.SelectedItem != null,
-            // A draft is only meaningful once both sides resolved.
-            _ => _preflight != null
-                 && _preflight.SourceResolved
-                 && _preflight.DestinationResolved,
-        };
+        private bool DraftIsPossible() =>
+            _preflight != null && _preflight.SourceResolved && _preflight.DestinationResolved;
 
         private SchemaRequest BuildRequest() => new()
         {
@@ -266,13 +324,19 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             CreateDestinationIfNotExists = _chkCreateDestination.Checked
         };
 
-        private async Task<bool> RunPreflightAsync()
+        // ── step 2: preflight ─────────────────────────────────────────────────
+
+        /// <summary>
+        /// Runs the schema preflight and the field-level comparison. Driven by the framework's
+        /// <c>OnEnterAsync</c> for the Results step, so a Back-then-Next re-checks the new selection.
+        /// </summary>
+        private async Task RunPreflightAsync()
         {
             var editor = beepService?.DMEEditor;
             if (editor == null)
             {
                 SetStatus("IDMEEditor is not available; cannot run preflight.");
-                return false;
+                return;
             }
 
             _cts?.Cancel();
@@ -283,7 +347,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             var request = BuildRequest();
             var log = new List<string>();
 
-            using var busy = BeginBusy("Running schema preflight…");
+            BeginBusy("Running schema preflight…");
             try
             {
                 _preflight = await SyncSchemaPreflight
@@ -306,17 +370,20 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                     $"{_preflight.MissingDestinationFields.Count} missing field(s). {compareSummary}";
 
                 SetStatus(ok ? "Preflight completed." : $"Preflight reported: {_preflight.Status?.Message}");
-                return true;
             }
             catch (OperationCanceledException)
             {
                 SetStatus("Preflight cancelled.");
-                return false;
             }
             catch (Exception ex)
             {
                 SetStatus($"Preflight failed: {ex.Message}");
-                return false;
+            }
+            finally
+            {
+                if (!_pageResults.IsDisposed)
+                    _pageResults.IsComplete = DraftIsPossible();
+                EndBusy();
             }
         }
 
@@ -469,7 +536,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         /// Every column shares the same row list; each cell reads its own <c>Values[columnIndex]</c>.</summary>
         private void BindComparison(List<FeatureRow> rows)
         {
-            if (IsDisposed) return;
+            if (IsDisposed || _tblCompare.IsDisposed) return;
             _tblCompare.SetComparisonData(
                 ("Source", rows),
                 ("Destination", rows),
@@ -479,10 +546,15 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         /// <summary>Empties the comparison table between runs.</summary>
         private void ClearComparison()
         {
-            if (IsDisposed) return;
+            if (IsDisposed || _tblCompare.IsDisposed) return;
             _tblCompare.Columns.Clear();
         }
 
+        // ── finish: build the sync draft ──────────────────────────────────────
+
+        /// <summary>
+        /// Runs on Finish. No DDL is applied — this only builds and fingerprints the draft.
+        /// </summary>
         private async Task BuildDraftAsync()
         {
             var editor = beepService?.DMEEditor;
@@ -490,7 +562,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             // preflight has run. A draft before preflight would build against unresolved sources.
             if (editor == null || _preflight == null) return;
 
-            using var busy = BeginBusy("Building sync draft…");
+            BeginBusy("Building sync draft…");
             try
             {
                 var draft = await SyncSchemaPreflight
@@ -528,31 +600,28 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             {
                 SetStatus($"Draft failed: {ex.Message}");
             }
+            finally
+            {
+                EndBusy();
+            }
         }
 
-        private void SetStatus(string message) => _lblStatus.Text = message;
+        private void SetStatus(string message)
+        {
+            if (!_lblStatus.IsDisposed) _lblStatus.Text = message;
+        }
 
-        private IDisposable BeginBusy(string message)
+        private void BeginBusy(string message)
         {
             _busy = true;
             SetStatus(message);
-            _btnNext.Enabled = false;
-            _btnBack.Enabled = false;
             Cursor = Cursors.WaitCursor;
-            return new BusyScope(this);
         }
 
-        private sealed class BusyScope : IDisposable
+        private void EndBusy()
         {
-            private readonly uc_SchemaManagerWizard _owner;
-            public BusyScope(uc_SchemaManagerWizard owner) => _owner = owner;
-
-            public void Dispose()
-            {
-                _owner._busy = false;
-                _owner.Cursor = Cursors.Default;
-                _owner.UpdateStageUi();
-            }
+            _busy = false;
+            Cursor = Cursors.Default;
         }
 
         protected override void OnHandleDestroyed(EventArgs e)
@@ -560,6 +629,5 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             _cts?.Cancel();
             base.OnHandleDestroyed(e);
         }
-
     }
 }

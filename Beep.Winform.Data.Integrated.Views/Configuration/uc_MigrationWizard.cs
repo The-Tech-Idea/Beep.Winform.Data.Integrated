@@ -14,8 +14,9 @@ using TheTechIdea.Beep.Editor.Migration;
 using TheTechIdea.Beep.Vis;
 using TheTechIdea.Beep.Vis.Modules;
 using TheTechIdea.Beep.Winform.Controls;
-using TheTechIdea.Beep.Winform.Controls.Layouts.Helpers;
 using TheTechIdea.Beep.Winform.Controls.Models;
+using TheTechIdea.Beep.Winform.Controls.Wizards;
+using TheTechIdea.Beep.Winform.Controls.Wizards.Validation;
 using TheTechIdea.Beep.Winform.Default.Views.Template;
 
 // Two unrelated types are named SchemaDriftReport — this is the one MigrationManager.InspectDrift
@@ -33,21 +34,20 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
         IconImageName = "migration.svg", BranchClass = "ADDIN",
         BranchDescription = "Plan, validate, dry-run, apply, and verify migrations.")]
 
+    /// <summary>
+    /// Four-step migration built on the <c>Controls.Wizards</c> framework: the stepper,
+    /// Back/Next/Cancel and validation display come from the framework's host form, embedded here
+    /// because this addin is <see cref="DisplayType.InControl"/>. Engine work is unchanged —
+    /// <see cref="IMigrationManager"/> builds the plan, validates it, and executes it.
+    /// </summary>
     public partial class uc_MigrationWizard : TemplateUserControl, IAddinVisSchema
     {
-        /// <summary>The four stages of the migration lifecycle this wizard walks.</summary>
-        private enum Stage
-        {
-            Scope = 0,
-            Plan = 1,
-            Safety = 2,
-            Run = 3
-        }
-
         public event EventHandler<WizardCompletedEventArgs>? Completed;
 
-        private Stage _stage = Stage.Scope;
+        private WizardInstance? _wizard;
+        private Form? _host;
         private bool _busy;
+        private bool _migrationSucceeded;
 
         private IDataSource? _dataSource;
         private IMigrationManager? _migration;
@@ -99,7 +99,17 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             WireEvents();
             PopulateChoices();
             _gridPlan.DataSource = _planRows;
-            UpdateStageUi();
+        }
+
+        /// <summary>
+        /// The wizard is the view. OnLoad rather than the ctor so the VS designer never instantiates
+        /// the framework form.
+        /// </summary>
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            if (!DesignMode && _wizard == null)
+                StartWizard();
         }
 
         /// <summary>
@@ -179,25 +189,9 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
         private void WireEvents()
         {
-            _btnCancel.Click += BtnCancel_Click;
-            _btnBack.Click += BtnBack_Click;
-            _btnNext.Click += BtnNext_Click;
-        }
-
-        protected override void ApplyDpiScaledLayout()
-        {
-            _rootPanel.Padding = BeepLayoutMetrics.DialogPadding.ScalePadding(this);
-            _contentHost.Padding = BeepLayoutMetrics.ContainerPadding.ScalePadding(this);
-            _actionsPanel.Padding = BeepLayoutMetrics.ButtonStripPd.ScalePadding(this);
-
-            int btnH = BeepLayoutMetrics.ButtonStandard.Height.ScaleValue(this);
-            int btnLargeH = BeepLayoutMetrics.ButtonLarge.Height.ScaleValue(this);
-            _btnCancel.MinimumSize = new System.Drawing.Size(
-                BeepLayoutMetrics.ButtonStandard.Width.ScaleValue(this), btnH);
-            _btnBack.MinimumSize = new System.Drawing.Size(
-                BeepLayoutMetrics.ButtonStandard.Width.ScaleValue(this), btnH);
-            _btnNext.MinimumSize = new System.Drawing.Size(
-                BeepLayoutMetrics.ButtonLarge.Width.ScaleValue(this), btnLargeH);
+            // WizardPage.IsComplete is the framework's readiness signal for a step; the wizard form
+            // watches it to enable Next.
+            _cboConnection.SelectedItemChanged += (_, _) => _pageScope.IsComplete = ScopeIsComplete();
         }
 
         /// <summary>
@@ -234,105 +228,147 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             }
         }
 
-        // ── navigation ────────────────────────────────────────────────────────
+        // ── wizard shell ──────────────────────────────────────────────────────
 
-        private void BtnCancel_Click(object? sender, EventArgs e)
+        /// <summary>
+        /// Declares the four steps and embeds the framework's host form. Each step's work runs from
+        /// its <c>OnEnterAsync</c>, and each gate that used to live in <c>CanAdvance</c> is now a
+        /// framework validator on the step you are leaving — so a blocked plan stops with a message
+        /// instead of a silently disabled button.
+        /// </summary>
+        private void StartWizard()
         {
-            _runCts?.Cancel();
-            Completed?.Invoke(this, new WizardCompletedEventArgs { Cancelled = true });
-        }
+            var config = WizardBuilder.Create($"beep.migration.{Guid.NewGuid():N}")
+                .WithTitle("Migration Wizard")
+                .WithDescription("Plan, validate, dry-run, apply, and verify migrations.")
+                .WithStyle(WizardStyle.HorizontalStepper)
+                .WithProgressBar()
+                .WithFinishText("Finish")
+                .WithConfirmOnCancel("Cancel the migration wizard? A run already in flight will be stopped.")
 
-        private void BtnBack_Click(object? sender, EventArgs e)
-        {
-            if (_busy || _stage == Stage.Scope) return;
-            _stage = (Stage)((int)_stage - 1);
-            UpdateStageUi();
-        }
-
-        private async void BtnNext_Click(object? sender, EventArgs e)
-        {
-            if (_busy) return;
-
-            try
-            {
-                switch (_stage)
+                .AddStep(new WizardStep
                 {
-                    case Stage.Scope:
-                        if (await BuildPlanAsync())
-                        {
-                            _stage = Stage.Plan;
-                            UpdateStageUi();
-                        }
-                        break;
+                    Key = "scope",
+                    Title = _pageScope.Title,
+                    Description = _pageScope.Description,
+                    Content = _pageScope,
+                    NextButtonText = _pageScope.NextButtonText,
+                    Validators =
+                    {
+                        new PredicateValidator(_ => ScopeIsComplete(),
+                            "Select the connection to migrate before continuing.")
+                    }
+                })
 
-                    case Stage.Plan:
-                        if (await ValidatePlanAsync())
-                        {
-                            _stage = Stage.Safety;
-                            UpdateStageUi();
-                        }
-                        break;
+                .AddStep(new WizardStep
+                {
+                    Key = "plan",
+                    Title = _pagePlan.Title,
+                    Description = _pagePlan.Description,
+                    Content = _pagePlan,
+                    NextButtonText = _pagePlan.NextButtonText,
+                    OnEnterAsync = _ => BuildPlanAsync(),
+                    Validators =
+                    {
+                        new PredicateValidator(_ => _plan != null && _plan.PendingOperationCount > 0,
+                            "The plan has no pending operations, so there is nothing to validate or apply.")
+                    }
+                })
 
-                    case Stage.Safety:
-                        _stage = Stage.Run;
-                        UpdateStageUi();
-                        await ExecutePlanAsync();
-                        break;
+                .AddStep(new WizardStep
+                {
+                    Key = "safety",
+                    Title = _pageSafety.Title,
+                    Description = _pageSafety.Description,
+                    Content = _pageSafety,
+                    NextButtonText = _pageSafety.NextButtonText,
+                    OnEnterAsync = _ => ValidatePlanAsync(),
+                    Validators =
+                    {
+                        // A blocking policy finding or a failed preflight must not be executable.
+                        new PredicateValidator(_ => SafetyCleared(),
+                            "This migration is blocked by a policy finding or a failed preflight. Resolve the findings below before running it.")
+                    }
+                })
 
-                    case Stage.Run:
-                        Completed?.Invoke(this, new WizardCompletedEventArgs
-                        {
-                            Succeeded = true,
-                            Summary = _lblRunStatus.Text
-                        });
-                        break;
-                }
-            }
-            catch (Exception ex)
+                .AddStep(new WizardStep
+                {
+                    Key = "run",
+                    Title = _pageRun.Title,
+                    Description = _pageRun.Description,
+                    Content = _pageRun,
+                    OnEnterAsync = _ => ExecutePlanAsync()
+                })
+
+                .OnComplete(_ =>
+                {
+                    ReclaimPages();
+                    Completed?.Invoke(this, new WizardCompletedEventArgs
+                    {
+                        Succeeded = _migrationSucceeded,
+                        Summary = _lblRunStatus.IsDisposed ? string.Empty : _lblRunStatus.Text
+                    });
+                })
+
+                .OnCancel(_ =>
+                {
+                    _runCts?.Cancel();
+                    ReclaimPages();
+                    Completed?.Invoke(this, new WizardCompletedEventArgs { Cancelled = true });
+                })
+
+                .Build();
+
+            _wizard = WizardManager.CreateWizard(config);
+            config.Steps[0].State = TheTechIdea.Beep.Winform.Controls.Wizards.StepState.Current;
+
+            var host = WizardFormFactory.CreateForm(config.Style, _wizard);
+            _wizard.BindFormHost(host);
+
+            _host = (Form)host;
+            _host.TopLevel = false;
+            _host.FormBorderStyle = FormBorderStyle.None;
+            _host.Dock = DockStyle.Fill;
+
+            _hostPanel.Controls.Add(_host);
+            host.UpdateUI();
+            _host.Show();
+            _host.BringToFront();
+
+            _host.FormClosed += (_, _) =>
             {
-                SetStatus($"Migration wizard error: {ex.Message}");
+                if (IsDisposed || Disposing) return;
+                _wizard = null;
+                _host = null;
+                BeginInvoke(new Action(() =>
+                {
+                    if (!IsDisposed && !Disposing) StartWizard();
+                }));
+            };
+        }
+
+        /// <summary>
+        /// Takes the step pages back before the host form closes and disposes them with itself.
+        /// Runs from OnComplete/OnCancel, both of which fire before <c>IWizardFormHost.Close()</c>.
+        /// </summary>
+        private void ReclaimPages()
+        {
+            foreach (var page in new Control[] { _pageRun, _pageSafety, _pagePlan, _pageScope })
+            {
+                if (page.Parent == _hostPanel) continue;
+                page.Parent?.Controls.Remove(page);
+                page.Dock = DockStyle.Fill;
+                page.Visible = false;
+                _hostPanel.Controls.Add(page);
             }
         }
 
-        private void UpdateStageUi()
-        {
-            _stepScope.Visible = _stage == Stage.Scope;
-            _stepPlan.Visible = _stage == Stage.Plan;
-            _stepSafety.Visible = _stage == Stage.Safety;
-            _stepRun.Visible = _stage == Stage.Run;
+        private bool ScopeIsComplete() => _cboConnection.SelectedItem != null;
 
-            var active = _stage switch
-            {
-                Stage.Scope => (Control)_stepScope,
-                Stage.Plan => _stepPlan,
-                Stage.Safety => _stepSafety,
-                _ => _stepRun
-            };
-            active.BringToFront();
-
-            (_lblSubtitle.Text, _btnNext.Text) = _stage switch
-            {
-                Stage.Scope => ("Step 1 of 4 — choose the target connection and what to migrate.", "Build Plan"),
-                Stage.Plan => ("Step 2 of 4 — review the operations this migration will perform.", "Validate"),
-                Stage.Safety => ("Step 3 of 4 — policy, preflight, and dry-run results.", "Run Migration"),
-                _ => ("Step 4 of 4 — execution progress and result.", "Finish")
-            };
-
-            _btnBack.Enabled = !_busy && _stage != Stage.Scope && _stage != Stage.Run;
-            _btnNext.Enabled = !_busy && CanAdvance();
-        }
-
-        /// <summary>Gates Next on the state the current stage actually requires.</summary>
-        private bool CanAdvance() => _stage switch
-        {
-            Stage.Scope => _cboConnection.SelectedItem != null,
-            Stage.Plan => _plan != null && _plan.PendingOperationCount > 0,
-            // A blocking policy finding or a failed preflight must not be executable.
-            Stage.Safety => _plan != null
-                            && !_plan.PolicyEvaluation.HasBlockingFindings
-                            && _plan.PreflightReport.CanApply,
-            _ => true
-        };
+        private bool SafetyCleared() =>
+            _plan != null
+            && !_plan.PolicyEvaluation.HasBlockingFindings
+            && _plan.PreflightReport.CanApply;
 
         // ── stage 1 → plan ────────────────────────────────────────────────────
 
@@ -785,6 +821,10 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                         policyOptions: _policyOptions)
                     .ConfigureAwait(true);
 
+                // Carried to the wizard's OnComplete so Finish reports the real outcome rather than
+                // "succeeded because the last step was reached".
+                _migrationSucceeded = result.Success;
+
                 _progress.Value = result.Success ? 100 : _progress.Value;
                 _lblRunStatus.Text = result.Success
                     ? $"Migration completed — {result.AppliedCount} operation(s) applied."
@@ -932,6 +972,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
             if (resumed.Success)
             {
+                _migrationSucceeded = true;
                 _progress.Value = 100;
                 _lblRunStatus.Text = "Migration completed after resume.";
             }
@@ -1004,18 +1045,21 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
         // ── helpers ───────────────────────────────────────────────────────────
 
-        private void SetStatus(string message) => _lblStatus.Text = message;
+        private void SetStatus(string message)
+        {
+            if (!_lblStatus.IsDisposed) _lblStatus.Text = message;
+        }
 
         /// <summary>
-        /// Marks the wizard busy for the lifetime of an operation so Next/Back cannot
-        /// re-enter it, and restores button state on dispose.
+        /// Marks the wizard busy for the lifetime of an operation. The framework's host form owns
+        /// the navigation buttons now, and it blocks navigation for the duration of the step's
+        /// OnEnterAsync anyway (WizardInstance.IsNavigating); this only guards re-entry here and
+        /// carries the wait cursor.
         /// </summary>
         private IDisposable BeginBusy(string message)
         {
             _busy = true;
             SetStatus(message);
-            _btnNext.Enabled = false;
-            _btnBack.Enabled = false;
             Cursor = Cursors.WaitCursor;
             return new BusyScope(this);
         }
@@ -1029,7 +1073,6 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             {
                 _owner._busy = false;
                 _owner.Cursor = Cursors.Default;
-                _owner.UpdateStageUi();
             }
         }
 
