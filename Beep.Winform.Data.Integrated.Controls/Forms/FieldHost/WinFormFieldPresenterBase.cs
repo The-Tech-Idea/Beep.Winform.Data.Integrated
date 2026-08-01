@@ -3,6 +3,8 @@ using TheTechIdea.Beep.DataBase;
 using TheTechIdea.Beep.Editor.Forms.Hosts;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Vis.Modules;
+using TheTechIdea.Beep.Winform.Controls.Badges;
+using TheTechIdea.Beep.Winform.Controls.Badges.Builtin;
 
 namespace TheTechIdea.Beep.Winform.Data.Integrated.Forms.FieldHost;
 
@@ -13,6 +15,7 @@ public abstract class WinFormFieldPresenterBase : IFieldPresenter, IDisposable
     private string _label;
     private string? _validationError;
     private string? _prompt;
+    private BeepValidationBadge? _validationBadge;
 
     protected WinFormFieldPresenterBase(EntityField field, IBeepUIComponent editor)
     {
@@ -29,6 +32,7 @@ public abstract class WinFormFieldPresenterBase : IFieldPresenter, IDisposable
         Editor.IsEditable = !Editor.IsReadOnly;
         Editor.IsVisible = !field.IsHidden;
         Editor.OnValueChanged += EditorOnValueChanged;
+        Control.ParentChanged += ControlOnParentChanged;
     }
 
     protected EntityField Field { get; }
@@ -64,8 +68,53 @@ public abstract class WinFormFieldPresenterBase : IFieldPresenter, IDisposable
     public string? ValidationError
     {
         get => _validationError;
-        set { _validationError = value; Editor.ToolTipText = value ?? _prompt ?? string.Empty; }
+        set
+        {
+            _validationError = value;
+            Editor.ToolTipText = value ?? _prompt ?? string.Empty;
+            UpdateValidationBadge();
+        }
     }
+
+    /// <summary>
+    /// True while this field is carrying a visible error marker. Exposed so a host
+    /// (and the integration harness) can assert the marker without reaching into
+    /// the badge manager.
+    /// </summary>
+    public bool HasValidationMarker => _validationBadge is not null;
+
+    /// <summary>
+    /// Shows or clears the field's error marker, using the control library's
+    /// <see cref="BeepValidationBadge"/> rather than a hand-drawn adornment.
+    /// </summary>
+    /// <remarks>
+    /// A badge attaches to the target's <em>parent</em>, so it cannot be applied
+    /// before the editor is laid out. When the error is set first — which is the
+    /// normal order, since the block host validates as it builds — the badge is
+    /// applied when the parent arrives.
+    /// </remarks>
+    private void UpdateValidationBadge()
+    {
+        if (_disposed) return;
+
+        if (string.IsNullOrWhiteSpace(_validationError))
+        {
+            if (_validationBadge is not null)
+            {
+                Control.ClearBadge();
+                _validationBadge = null;
+            }
+            return;
+        }
+
+        if (Control.Parent is null) return;
+
+        _validationBadge = new BeepValidationBadge(ValidationState.Error)
+            .SetMessage(_validationError!);
+        Control.ShowBadge(_validationBadge);
+    }
+
+    private void ControlOnParentChanged(object? sender, EventArgs e) => UpdateValidationBadge();
     public string? Prompt
     {
         get => _prompt;
@@ -126,6 +175,12 @@ public abstract class WinFormFieldPresenterBase : IFieldPresenter, IDisposable
         if (_disposed) return;
         _disposed = true;
         Editor.OnValueChanged -= EditorOnValueChanged;
+        Control.ParentChanged -= ControlOnParentChanged;
+        if (_validationBadge is not null)
+        {
+            Control.ClearBadge();
+            _validationBadge = null;
+        }
         Control.Dispose();
         GC.SuppressFinalize(this);
     }

@@ -17,6 +17,14 @@ public partial class WinFormFormHost : UserControl, IBeepFormsHost
 
         public string? ActiveBlockName => _activeBlockName;
 
+        /// <summary>
+        /// Blocks declared on this form at design time. Generated designer code
+        /// registers into it with
+        /// <c>this._formsHost.Definition.Blocks.Add(Ord);</c>, so it is never
+        /// null and needs no guard in generated source.
+        /// </summary>
+        public FormDefinition Definition { get; } = new();
+
         public IUnitofWorksManager? FormsManager
         {
             get => _formsManager;
@@ -76,6 +84,18 @@ public partial class WinFormFormHost : UserControl, IBeepFormsHost
                     }
 
                     AttachManagerEvents(manager);
+
+                    // Design-time blocks become live blocks here, BEFORE the
+                    // binding pass below — that pass skips any block the manager
+                    // does not know, and a designer-declared block is not known
+                    // until this runs.
+                    //
+                    // The logic lives in the engine. This host is a thin
+                    // presentation layer and must not carry its own copy; the
+                    // WPF host makes the same single call.
+                    TheTechIdea.Beep.Editor.Forms.Helpers.DefinitionBlockRegistrar
+                        .RegisterAll(manager, Definition);
+
                     foreach (var snapshot in bindingSnapshot)
                     {
                         if (!manager.BlockExists(snapshot.BlockName))

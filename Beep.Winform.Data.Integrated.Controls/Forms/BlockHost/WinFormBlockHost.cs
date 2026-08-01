@@ -54,7 +54,13 @@ public partial class WinFormBlockHost : UserControl, IBlockView
     public IBeepFormsHost? FormsHost => _formsHost;
     public object View => this;
     public IBlockNavigationBar? NavigationBar { get; set; }
-    public object? Definition { get; set; }
+
+    /// <summary>
+    /// Design-time definition of this block. Fields still come from the engine
+    /// at runtime (<see cref="IBeepFormsHost.GetBlockFields"/>); this carries
+    /// what the designer declared.
+    /// </summary>
+    public BlockDefinition? Definition { get; set; }
     public object ViewState { get; } = new BeepViewState();
     public int RecordCount => _formsHost?.GetBlockRecordCount(ManagerBlockName) ?? 0;
     public int CurrentRecordIndex => _currentIndex;
@@ -79,7 +85,19 @@ public partial class WinFormBlockHost : UserControl, IBlockView
             Unbind();
 
         _formsHost = formsHost;
-        if (AutoGenerateFields) GenerateMissingPresenters();
+
+        // A multi-record block hosts BeepGridPro instead of a field layout —
+        // see WinFormBlockHost.GridMode.cs. Field presenters are not generated
+        // for it; the grid's columns carry the same editors.
+        if (IsMultiRecord)
+        {
+            BuildGrid();
+        }
+        else if (AutoGenerateFields)
+        {
+            GenerateMissingPresenters();
+        }
+
         foreach (var presenter in _presenters)
         {
             presenter.ValueChanged -= PresenterOnValueChanged;
@@ -92,6 +110,7 @@ public partial class WinFormBlockHost : UserControl, IBlockView
     public void Unbind()
     {
         DisconnectNavigationBar();
+        TeardownGrid();
         foreach (var presenter in _presenters)
             presenter.ValueChanged -= PresenterOnValueChanged;
         _formsHost = null;
@@ -185,6 +204,15 @@ public partial class WinFormBlockHost : UserControl, IBlockView
         {
             _currentIndex = _formsHost.GetCurrentBlockRecordIndex(ManagerBlockName);
             _queryMode = _formsHost.GetBlockMode(ManagerBlockName) == DataBlockMode.EnterQuery;
+
+            // Multi-record blocks render through the grid; there are no field
+            // presenters to push values into.
+            if (IsMultiRecord)
+            {
+                SyncGridFromManager();
+                return;
+            }
+
             foreach (var presenter in _presenters)
             {
                 var rawValue = _formsHost.GetFieldValue(
@@ -276,7 +304,30 @@ public partial class WinFormBlockHost : UserControl, IBlockView
         }
 
         var success = _formsHost.SetFieldValue(ManagerBlockName, presenter.FieldName, value);
-        presenter.ValidationError = success ? null : $"{presenter.Label} is invalid.";
+        presenter.ValidationError = success ? null : DescribeItemFailure(presenter, value);
+    }
+
+    /// <summary>
+    /// Builds the message shown on a rejected item.
+    /// </summary>
+    /// <remarks>
+    /// <c>SetFieldValue</c> validates internally but reports only a bool, so the
+    /// rule's own message is not available at the call site. Ask the rules for it
+    /// rather than showing "X is invalid" — an authored rule that says why is the
+    /// whole point of item-level validation. A rejection raised by a
+    /// When-Validate-Item trigger rather than a registered rule has no rule
+    /// message, hence the fallback.
+    /// </remarks>
+    private string DescribeItemFailure(IFieldPresenter presenter, object? value)
+    {
+        var detail = _formsHost?.ValidateItem(
+            ManagerBlockName,
+            presenter.FieldName,
+            value,
+            ValidationTiming.OnChange);
+        return string.IsNullOrWhiteSpace(detail?.FirstError)
+            ? $"{presenter.Label} is invalid."
+            : detail!.FirstError;
     }
 
     public async Task<bool> ExecuteQueryAsync(CancellationToken cancellationToken = default)

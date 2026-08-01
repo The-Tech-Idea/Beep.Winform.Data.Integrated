@@ -104,4 +104,5 @@ The fresh-start effort is successful when:
 - `04-phase4-oracle-forms-workflows.md`
 - `05-phase5-design-time-and-samples.md`
 - `06-phase6-cutover-and-legacy-retirement.md`
-- `todo-tracker.md`
+- `08-winform-thin-ui-completion.md` — **the plan of record**
+- `todo-tracker.md` — *retired 2026-08-01; tracked classes that were never built*
