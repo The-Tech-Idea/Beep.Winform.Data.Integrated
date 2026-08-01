@@ -201,5 +201,10 @@ public partial class WinFormFormHost
             {
                 block.SyncFromManager();
             }
+
+            // Status surfaces track the same engine state as the blocks, so they
+            // refresh on the same beat. Without this a status line only updated
+            // when the caller remembered to call SyncFromManager itself.
+            RefreshStatusSurfaces();
         });
 }

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 ﻿using System;
 using System.Collections.Generic;
 using TheTechIdea.Beep.Editor.Forms.Hosts;
@@ -6,6 +7,10 @@ using TheTechIdea.Beep.Editor.UOWManager.Interfaces;
 
 namespace TheTechIdea.Beep.Winform.Data.Integrated.Forms.FormHost
 {
+[ToolboxItem(true)]
+[DisplayName("Beep Form Host")]
+[Category("Beep Forms")]
+[Description("Hosts a BeepDM form: owns the FormsManager and wires the block views and status surfaces on the form.")]
 public partial class WinFormFormHost : UserControl, IBeepFormsHost
 {
         private readonly Dictionary<string, IBlockView> _blocks =
@@ -107,6 +112,13 @@ public partial class WinFormFormHost : UserControl, IBeepFormsHost
                         snapshot.Block.Bind(this);
                         snapshot.Block.SyncFromManager();
                     }
+
+                    // Views dropped on the form before a manager existed were
+                    // discovered but could not bind, and a status surface bound
+                    // to a manager-less host showed nothing. There is one now:
+                    // sweep again and let them read it.
+                    AutoWireSurfaces();
+                    RefreshStatusSurfaces();
                 }
                 catch (Exception originalException)
                 {

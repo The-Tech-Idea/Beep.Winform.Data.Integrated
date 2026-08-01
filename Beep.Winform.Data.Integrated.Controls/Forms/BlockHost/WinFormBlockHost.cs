@@ -1,4 +1,5 @@
-using System.Windows.Forms;
+using System.ComponentModel;
+﻿using System.Windows.Forms;
 using TheTechIdea.Beep.Editor.Forms.Hosts;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Editor.UOWManager.Models;
@@ -8,6 +9,10 @@ using TheTechIdea.Beep.Winform.Data.Integrated.Forms.FieldHost;
 
 namespace TheTechIdea.Beep.Winform.Data.Integrated.Forms.BlockHost;
 
+[ToolboxItem(true)]
+[DisplayName("Beep Data Block")]
+[Category("Beep Forms")]
+[Description("A data block: renders its fields from the block definition and maps the Oracle Forms function keys.")]
 public partial class WinFormBlockHost : UserControl, IBlockView
 {
     private readonly List<IFieldPresenter> _presenters = [];
@@ -42,6 +47,11 @@ public partial class WinFormBlockHost : UserControl, IBlockView
         };
     }
 
+    [Browsable(true)]
+    [Category("Beep Forms")]
+    [Description("Name of the engine block this view binds to. Persisted to .Designer.cs.")]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
+    [DefaultValue("")]
     public string BlockName { get; set; } = string.Empty;
     public string ManagerBlockName => BlockName.Trim();
     public string EntityName { get; set; } = string.Empty;

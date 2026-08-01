@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using TheTechIdea.Beep.Editor.Forms.Hosts;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Winform.Controls.Badges;
@@ -26,6 +26,10 @@ namespace TheTechIdea.Beep.Winform.Data.Integrated.Forms.StatusBar;
 /// every <c>SetMessage</c> call in the engine went nowhere.
 /// </para>
 /// </remarks>
+[ToolboxItem(true)]
+[DisplayName("Beep Form Status Bar")]
+[Category("Beep Forms")]
+[Description("The form's message line and record-status indicators. Binds itself to the form host on the same form.")]
 public class WinFormFormStatusBar : BeepStatusBar
 {
     /// <summary>Segment key for "Record n of m".</summary>
@@ -98,6 +102,16 @@ public class WinFormFormStatusBar : BeepStatusBar
     {
         var block = ResolveBlockName();
         if (_formsHost is null || string.IsNullOrWhiteSpace(block))
+        {
+            ClearSegments();
+            return;
+        }
+
+        // Nothing to show for a block this host does not carry. (Note that
+        // IsBlockRegistered asks the *host's* view registry, not the engine —
+        // it says the host knows the block, not that a manager exists. The host
+        // is what defers binding until it has a manager.)
+        if (!_formsHost.IsBlockRegistered(block))
         {
             ClearSegments();
             return;

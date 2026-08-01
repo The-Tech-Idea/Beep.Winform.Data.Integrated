@@ -410,6 +410,11 @@ public partial class WinFormFormHost
                     block.SyncFromManager();
                 }
             }
+
+            // This is the path every ordinary operation takes, so it is where a
+            // status surface has to be refreshed. Record position and dirty
+            // state change on exactly these operations.
+            RefreshStatusSurfaces();
         });
     }
 
