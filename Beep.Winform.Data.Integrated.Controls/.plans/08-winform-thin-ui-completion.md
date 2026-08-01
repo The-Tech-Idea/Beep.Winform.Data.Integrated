@@ -481,6 +481,9 @@ message queue) was already fixed for WPF, because all of them were fixed in
 BeepDM. That is the "one place" rule paying for itself: the WPF host contributes
 one line of block registration and inherits the rest.
 
+**§8.9 extended it to feature parity** — as first written this section proved
+runtime *bring-up*, not that WPF had §8.4 and §8.5. It did not. See below.
+
 **Separate project, not a section in the WinForms harness.** The WPF stack is
 `net9.0-windows` and project-references BeepDM, so it binds the net9.0 build of
 `DataManagementEngine`; the WinForms harness is `net10.0-windows`. Loading both
@@ -501,6 +504,55 @@ WPF does have filtering, scoped to the grid — `GridFilterRow`,
 `GridAdvancedFilterHelper`. What it lacks is a *standalone* filter control
 matching WinForms' `Filtering/` family. Building one is new product work rather
 than parity, so it is recorded here and deferred, not invented.
+
+---
+
+### 8.9 — WPF feature parity for validation and status — ✅ DONE (2026-08-01)
+
+§8.6 proved the WPF host *runs*. It did not give WPF §8.4 or §8.5, and saying
+"WPF runtime parity — done" invited the reading that it had. AGENTS.md §8 wants a
+counterpart or an explicit deferral; this is the counterpart.
+
+**Validation marker.** `WpfFieldPresenterBase` already pushed `ValidationError`
+and `HasError` onto the editor through `IBeepValidatable` — and **no editor
+template in the WPF library binds `HasError`**, so a rejected field carried the
+error state and rendered nothing at all. Only `TextWpfFieldPresenter` did
+anything (inline `ErrorText`). The base now drives a `BeepValidationBadge` — the
+same control the WinForms side uses, from the WPF library — exposed as
+`ValidationMarker` for the host to place, with `HasValidationMarker` to assert.
+
+Exposed rather than self-attached because WPF has no badge manager: an adorner
+needs an `AdornerDecorator` ancestor, which a block built outside a window does
+not have, and that would have made the marker untestable headless.
+`BeepWpfBlock` already lays fields out as label | editor, so it gained a third
+`Auto` column for the marker. The presenter owns state, the host owns placement.
+
+**Status line.** `BeepWpfStatusBar` existed as a shell control with a message and
+form/block labels, and nothing bound it to a host — so the engine's MESSAGE
+built-in had no WPF surface. `WpfFormStatusBar` adds the binding and the record
+segments on top of it rather than building a second status bar.
+
+The WPF harness grew from 11 checks to 19: an authored rule blocks the commit,
+the field carries the rule's message, the badge shows and clears, the position
+segment tracks navigation, and a message reaches the line with its severity and
+clears.
+
+### 8.10 — Query-by-example ignored its operators — ✅ FIXED (2026-08-01)
+
+`JsonMultiFileDataSource.MatchesFilters` compared every filter with string
+equality and **never read `AppFilter.Operator`**, so `Qty > 100` silently behaved
+as `Qty = 100`. §8.3's round-trip did not catch it because the check used
+equality, which is the one operator the bug happens to implement correctly.
+
+Operators now honoured: `=`, `<>`/`!=`, `>`, `>=`, `<`, `<=`, `like`/`not like`
+(with `%` and `_`), `in`/`not in`, `between` (inclusive), `is null`/`is not
+null`. Comparison is numeric when both sides parse as numbers, then date, then
+ordinal case-insensitive — so `9 < 100` orders as a number, not as text. **An
+operator this source does not implement now rejects the row** rather than
+falling through to equality; a silent wrong answer is worse than an empty one.
+
+The new check discriminates: orders are 5, 50 and 500, so `Qty > 100` must return
+exactly the 500. Under string equality it returned none.
 
 ---
 
@@ -566,6 +618,8 @@ mirror of the integration harness would close it.
 | 8.6 | WPF runtime parity | ✅ done | — |
 | 8.7 | `BeepStatusBar` for WinForms (control library) | ✅ done | — |
 | 8.8 | Confirm or add WPF `BeepFilter` equivalent (control library) | ✅ confirmed — not needed | 8.3 |
+| 8.9 | WPF feature parity for validation + status | ✅ done | 8.4, 8.5, 8.6 |
+| 8.10 | Query-by-example operators honoured | ✅ done | 8.3 |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
