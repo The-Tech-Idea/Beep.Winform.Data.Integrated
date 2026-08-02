@@ -1,4 +1,4 @@
-# Phase 8 — Completing the WinForms thin UI for Oracle Forms parity
+﻿# Phase 8 — Completing the WinForms thin UI for Oracle Forms parity
 
 **Created 2026-08-01.** The plan of record for this project. It replaced
 `todo-tracker.md`, which was **retired the same day** (§8.0) — see §0 for what
@@ -556,6 +556,85 @@ exactly the 500. Under string equality it returned none.
 
 ---
 
+### 8.11 — The form wires itself — ✅ DONE (2026-08-01)
+
+Nothing discovered anything: every block view had to be passed to
+`RegisterBlock` and every status bar to `Bind`, by hand, in the right order,
+after the manager was assigned — and the harness had to do it too. If a harness
+has to hand-wire a form, so does every user of the product.
+
+`WinFormFormHost` now walks the form it lives on and adopts what it finds.
+Discovery is idempotent and re-runs on `ControlAdded`, so design-time drops,
+runtime additions and controls created before the manager exists all wire the
+same way. Adoption and binding are separate steps: discovery runs as soon as a
+control appears, usually before a manager exists, and a status surface binding
+then would immediately read block status — which the host throws on by design.
+
+The three controls also carry `[ToolboxItem]` / `[DisplayName]` / `[Category]`
+for the first time, so they can be dragged from the Toolbox at all, and
+`BlockName` is marked for designer serialisation so it round-trips through
+`.Designer.cs`.
+
+**Proof:** a `Form` with a host, a block view and a status bar; one line of
+manager assignment; no `RegisterBlock`, no `Bind`, no `SyncFromManager`.
+
+### 8.12 — The trigger matrix: 1 verified → 19 — ✅ DONE (2026-08-02)
+
+One trigger type was ever verified to fire (`WhenValidateItem`), out of the ~50
+the engine has fire points for. *Registered* is not *fires*: a registration can
+be accepted, stored, returned by `GetBlockTriggers`, and never invoked. The
+harness now arms a handler per type across query, record, block, DML and commit,
+drives the ordinary operations, and asserts all 19.
+
+Four engine defects, all of the same shape — a trigger that could be registered
+and could never run:
+
+1. **`PreRecord` / `PostRecord` / `WhenNewRecordInstance` had no fire point.**
+   Present in the enum and in `TriggerLibrary`'s catalogue; never invoked.
+   `WHEN-NEW-RECORD-INSTANCE` is the trigger most Oracle Forms code uses to react
+   to the cursor moving. Now fired around navigation.
+2. **`PreBlock` / `PostBlock` had no fire point** — `WhenNewBlockInstance` fired
+   on a block switch and its companions did not.
+3. **`PreCommit` / `PostCommit` could never fire.** `TriggerManager` registers a
+   form trigger under `FormName ?? "DEFAULT"` and looks one up under
+   `formName ?? "DEFAULT"`, but `CommitFormAsync` passed
+   `_currentFormName ?? "FORM"` — searching a bucket nothing is registered in.
+   Two defaults that disagreed, so any form whose name the engine was never told
+   could not fire a commit trigger.
+4. **`WhenValidateRecord` had no fire point.** Now fires from
+   `ValidateRecordForOperation`, the gate INSERT/UPDATE/DELETE pass through.
+
+**And a broken delete, found through a trigger.** `PreDelete` fired and
+`PostDelete` did not, because `PostDelete` is only reached on a *successful*
+delete. `JsonMultiFileDataSource.DeleteEntity` matched `JObject`,
+`Dictionary<string,object>` and an `int` index — and `UnitofWork.DeleteAsync`
+passes the entity itself, so a POCO fell through every branch and it reported
+"No matching record found to delete", blaming the data. It also took the *first*
+property as the identifier and compared case-sensitively — the same two faults
+the update path had. The missing trigger was the symptom; the broken delete was
+the cause.
+
+**Method note.** The matrix first appeared to deadlock the engine, and it did
+not. Creating WinForms controls installs a `WindowsFormsSynchronizationContext`
+on that thread which survives the UI section with no message loop; the engine
+awaits without `ConfigureAwait(false)`, so continuations were posted to a dead
+context. A stack dump — main thread blocked on a task, every pool thread idle,
+no Beep frame anywhere — said "orphaned continuation", not "lock contention".
+Running the matrix on a pool thread fixed it. **The underlying hazard is real
+for any WinForms app calling an engine method with `.Result` on the UI thread;
+the durable fix is `ConfigureAwait(false)` through the engine's async paths, and
+it has not been made.**
+
+### 8.13 — The LOV resolves — ✅ DONE (2026-08-02)
+
+The harness proved the engine *held* the LOV the IDE registered and stopped
+there. Now it loads the list from the LOV's own datasource, validates a present
+value, rejects an absent one — an LOV that accepts anything restricts nothing —
+and resolves a value back to its record. Four checks, all green on the first
+run; this one closed a gap rather than finding a defect.
+
+---
+
 ### 8.2 (original) — Master-detail synchronisation visible in the UI — **P0**
 
 The engine synchronises detail blocks on master navigation. Nothing verifies the
@@ -620,6 +699,9 @@ mirror of the integration harness would close it.
 | 8.8 | Confirm or add WPF `BeepFilter` equivalent (control library) | ✅ confirmed — not needed | 8.3 |
 | 8.9 | WPF feature parity for validation + status | ✅ done | 8.4, 8.5, 8.6 |
 | 8.10 | Query-by-example operators honoured | ✅ done | 8.3 |
+| 8.11 | The form wires itself (no hand-registration) | ✅ done | — |
+| 8.12 | Trigger matrix: 19 types verified | ✅ done | — |
+| 8.13 | LOV resolves at runtime | ✅ done | — |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
