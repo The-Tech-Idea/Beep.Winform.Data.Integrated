@@ -1,4 +1,4 @@
-using Moq;
+﻿using Moq;
 using TheTechIdea.Beep.Editor.Forms.Hosts;
 using TheTechIdea.Beep.Editor.Forms.Models;
 using TheTechIdea.Beep.Editor.UOWManager.Interfaces;
@@ -148,9 +148,15 @@ public class WinFormFormHostAdvancedTests
             locking.Setup(x => x.LockCurrentRecordAsync(
                     "ORDERS", It.IsAny<CancellationToken>()))
                 .ReturnsAsync(true);
-            savepoints.Setup(x => x.CreateSavepoint("ORDERS", "before-edit"))
+            // The host goes through the manager's data-aware wrappers, not the
+            // savepoint store. This test mocked the store until 2026-08-02, and
+            // in doing so pinned the defect: the store's CreateSavepoint
+            // captures no field values and its RollbackToSavepointAsync only
+            // prunes later savepoints, so the host created savepoints that
+            // snapshotted nothing and "rolled back" without restoring anything.
+            manager.Setup(m => m.CreateBlockSavepoint("ORDERS", "before-edit"))
                 .Returns("before-edit");
-            savepoints.Setup(x => x.RollbackToSavepointAsync(
+            manager.Setup(m => m.RollbackToSavepointAsync(
                     "ORDERS", "before-edit", It.IsAny<CancellationToken>()))
                 .ReturnsAsync(true);
             using var host = new WinFormFormHost { FormsManager = manager.Object };
