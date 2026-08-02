@@ -96,6 +96,22 @@ In the UI layer itself, present and working:
 - Oracle Forms function keys on the block host — `F4` duplicate, `F6` create,
   `Shift+F6` delete, `F7` enter-query, `F8` execute-query, `F9` list-of-values,
   `F10` commit
+
+Verified since (2026-08-01/02), each by reading state back out of the engine:
+
+- **The form wires itself** — a block view or status bar dropped on the form
+  registers and binds with no `RegisterBlock` / `Bind` call (§8.11)
+- **19 trigger types fire** across query, record, block, DML and commit, asserted
+  as a set (§8.12)
+- **LOVs resolve** — list loads, present value validates, absent value rejected
+  (§8.13)
+- **CRUD round-trips to the datasource**, including delete, with the committed
+  value read back out of the file
+- **Query-by-example honours its operators**, not just equality (§8.10)
+- **Validation, status line and record position on both platforms** (§8.4, §8.5,
+  §8.9)
+- **Savepoints restore, undo works, dirty items report, audit records,
+  sequences/parameter lists/record groups populate** (§8.14)
 - `TabIndex` honoured from item metadata
 - Field controls built from the block definition by
   `WinFormFieldPresenterRegistry` — the IDE deliberately emits no controls
@@ -635,6 +651,85 @@ run; this one closed a gap rather than finding a defect.
 
 ---
 
+### 8.14 — The feature panels' capabilities — ✅ DONE (2026-08-02)
+
+The eighteen `Forms/FeatureControls/` panels are pure pass-throughs to
+`IBeepFormsHost` — `WinFormSavepointPanel.Create` is one line calling
+`Host.CreateSavepoint`. So testing a panel means testing the capability behind
+it, and **none of them had any coverage.** The sweep covers savepoints, locking,
+undo, dirty state, sequences, parameter lists, record groups, item properties,
+cross-block validation and audit.
+
+It runs on its **own `FormsManager`**. These operations lock records, enable undo
+and leave edits behind; on the shared manager they broke the trigger matrix and
+the LOV section for reasons unrelated to what those test.
+
+**Six defects, all "reports success, does nothing":**
+
+1. **Undo was entirely inert.** `UnitOfWorkWrapper` carried
+   `CanUndo`/`CanRedo`/`Undo`/`Redo` and never declared `IUndoable`, and
+   `FormsManager` reaches undo through `GetUnitOfWork(name) as IUndoable`. Blocks
+   are registered with the wrapper, so the cast was always null and
+   `SetBlockUndoEnabled` / `UndoBlock` / `CanUndoBlock` silently no-opped. This is
+   the **same defect as the `IAggregatable` gap fixed earlier on the same class** —
+   an optional-capability interface is silent when unimplemented, which is what
+   makes dropping one so expensive.
+2. **`UnitofWork.Rollback()` required transaction support.** It called
+   `DataSource.EndTransaction` unconditionally and failed if the result was not
+   `Ok` — the **identical defect fixed in `Commit()`, in its sibling method,
+   missed at the time.** Rolling back was impossible on JSON/CSV/file/cache, and
+   savepoint restore died with it.
+3. **The host bypassed the engine's savepoint wrappers.** It called
+   `RequireManager().Savepoints` — the *store*, whose two-argument
+   `CreateSavepoint` captures no values and whose `RollbackToSavepointAsync` only
+   prunes later savepoints. So it created savepoints that snapshotted nothing and
+   rolled back without restoring, reporting success both times.
+   `CreateBlockSavepoint` and the data-aware `RollbackToSavepointAsync` existed on
+   `FormsManager` and were on **no interface**, so the host could not reach them;
+   both are now on `IUnitofWorksManager`.
+4. **The item-property store was never populated.**
+   `RegisterItemsFromEntityStructure` had no caller anywhere, so no block had
+   items: `GetDirtyItems` always empty, `MarkItemDirty` finding nothing to mark,
+   `WinFormDirtyStatePanel` permanently blank. Seeded at block registration.
+5. **Record-group population was unimplemented** — honestly declared, returning
+   false with a reason: "pending a dedicated `IDataSource.CreateUnitOfWork` API".
+   The premise no longer held: a record group is a queried row set, and
+   `GetEntity` returns rows.
+6. **Audit never reached the store on a block save.** `AuditManager` accumulates
+   pending changes and flushes only in `CommitFormAsync`, but the UI saves through
+   the block path — Save button, F10, `WinFormBlockHost.SaveAsync`. Every audit
+   entry from normal editing stayed pending forever.
+
+**Method note — the false-alarm rate.** Four failures in this section were the
+harness's own doing, not the engine: auditing is off by default (reasonable);
+`LockCurrentRecordAsync` short-circuits to `true` when the lock mode is `None`
+(coherent — locking is off, nothing blocks the edit); undo is carried by the
+block's *collection*, so it must be enabled **after** the query that loads it;
+and a deliberately always-failing cross-block rule, left registered, failed every
+later commit. Shared-manager ordering produced more false alarms here than real
+defects. If this section grows, give each check its own manager rather than
+cleanup calls.
+
+### 8.15 — The transactional commit branch — ✅ EXERCISED (2026-08-02)
+
+`UnitofWork.Commit` and `Rollback` both branch on
+`DataSourceCapabilityMatrix.Supports(..., SupportsTransactions)`. Everything ran
+against JSON, which reports false, so **the `true` side had never executed** —
+and two defects were fixed in it blind (Commit's unconditional
+`BeginTransaction`, then Rollback's, the second surfacing only because savepoint
+restore depended on it).
+
+`DatasourceType` is settable, so a source can be made to *claim* transactions it
+does not implement. That drives the engine down the transactional path and pins
+the contract: when a source claims support and then fails to begin a
+transaction, the commit aborts and **writes nothing**.
+
+**This proves the engine's branch, not a driver's.** No RDBMS datasource exists
+in this engine assembly — the SQL drivers are separate plugins — so running
+against a real database remains open and needs a target chosen.
+
+---
+
 ### 8.2 (original) — Master-detail synchronisation visible in the UI — **P0**
 
 The engine synchronises detail blocks on master navigation. Nothing verifies the
@@ -702,6 +797,8 @@ mirror of the integration harness would close it.
 | 8.11 | The form wires itself (no hand-registration) | ✅ done | — |
 | 8.12 | Trigger matrix: 19 types verified | ✅ done | — |
 | 8.13 | LOV resolves at runtime | ✅ done | — |
+| 8.14 | Feature-panel capabilities | ✅ done | — |
+| 8.15 | Transactional commit branch exercised | ✅ done | — |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
@@ -718,3 +815,28 @@ The bar is the one this codebase has had to learn twice: **reading state back
 out of the engine, not out of the UI's own fields.** A UI test that asserts what
 the UI just set proves nothing — that is precisely how the registration path
 stayed green for months while emitting code that named methods existing nowhere.
+
+---
+
+## 6. What is still open (2026-08-02)
+
+Everything in §4 is done. This is what stands between the current state and
+"Oracle Forms ready", stated plainly so it is not mistaken for finished.
+
+| Open | Why it matters |
+|---|---|
+| **No real database.** No RDBMS datasource exists in this engine assembly; the SQL drivers are separate plugins. | `UnitofWork.Commit`'s transactional path is exercised only by a source that *claims* support (§8.15) — that proves the engine's branch, not a driver's. Two defects were already fixed in that code blind. Needs a target chosen. |
+| **`ConfigureAwait(false)` is absent from the engine's async paths.** | Any WinForms caller using `.Result` or `.Wait()` on the UI thread deadlocks: the continuation is posted to a context that is not pumping. The harness hit this and works around it with `Task.Run`; the hosts avoid it only by awaiting properly. |
+| **The extension is never driven inside Visual Studio.** | `command-reachability.py` is static analysis. Nothing exercises the Remote UI dialogs in the experimental hive. |
+| **`UpdateCurrentRecordAsync` is not on `IUnitofWorksManager`.** | A host cannot reach the explicit update path at all — only `SetFieldValue` plus commit. The harness casts to `FormsManager` to test it. |
+| **Panels still uncovered:** multi-form (`CallFormAsync`), timers, history, security. | Same pass-through shape as §8.14, so the same approach applies. |
+
+### The pattern worth carrying forward
+
+Nearly every defect found across §8.1–§8.15 reported success while doing
+nothing: a null-yielding `as` cast, a `?? 0`, an interface a wrapper forgot to
+declare, a method with no caller, a snapshot captured and never restored, a
+buffer flushed on a path the UI never takes. **A green build and a `true` return
+prove nothing here.** Assert the observable effect — read the row back out of
+the file, count the triggers that actually fired, check the marker is visible.
+That is what turned "it compiles" into evidence.
