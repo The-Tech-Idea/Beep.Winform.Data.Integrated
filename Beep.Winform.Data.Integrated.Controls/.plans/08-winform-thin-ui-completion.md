@@ -1035,7 +1035,7 @@ So the honest shape of driver coverage is by *family*, not by count:
 | Client/server SQL (`RDBSource`) | §8.24 (13 checks, SQL Server) | ✅ — Postgres / Oracle / MySQL share the code but are unrun |
 | Document / NoSQL | §8.25 (15 checks, LiteDB) | ✅ |
 | HTTP / WebAPI | §8.26 (12 checks, loopback listener) | ✅ |
-| In-memory / cache | — | never run against Forms |
+| In-memory / cache | §8.27 (12 checks, InMemoryCacheDataSource) | ✅ |
 
 ---
 
@@ -1108,6 +1108,30 @@ being wrong.
 
 ---
 
+### 8.27 — An in-memory cache — ✅ DONE, and clean (2026-08-03)
+
+`TheTechIdea.Beep.Desktop.Examples.InMemoryForms`. The fifth and last family.
+The other four persist somewhere; this one has no storage at all. Its entity is
+**declared by the caller** rather than read from a catalogue, sampled from
+documents or inferred from a payload, and its rows live in a dictionary — so
+every check reads back through `IDataSource.GetEntity`, the source's own view,
+because there is no file to inspect.
+
+12 checks, and **no engine defects.** That is the result, not an absence of one:
+§8.25 and §8.26 both found a driver returning something other than an entity type
+from `GetEntityType`, and both cache sources already build theirs through
+`EntityTypeFactory` — the contract done right. The run is evidence that the
+contract is followable, not just enforceable.
+
+**One self-inflicted failure**, in the tradition of the timer probe (§8.22) and
+§8.14's four: the example asserted against order id 1 after `FirstRecordAsync`,
+but the cache stores rows in a `ConcurrentDictionary` whose enumeration order is
+unspecified — the first record is whichever the source yielded first, and the
+update had correctly gone to the row that really was current. It now reads the
+current record's id and asserts against that, which is right on any source.
+
+---
+
 ## 4. Sequencing
 
 | # | Item | Priority | Depends on |
@@ -1139,6 +1163,7 @@ being wrong.
 | 8.24 | A second driver family (client/server SQL) | ✅ done — found and fixed two defects | 8.16 |
 | 8.25 | A document store (NoSQL) | ✅ done — found and fixed two defects | 8.24 |
 | 8.26 | An HTTP source (WebAPI) | ✅ done — found and fixed two defects | 8.25 |
+| 8.27 | An in-memory cache | ✅ done — no defects found | 8.26 |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
@@ -1160,24 +1185,29 @@ stayed green for months while emitting code that named methods existing nowhere.
 
 ## 6. What is still open (2026-08-03, final)
 
-Five datasource families run: multi-file JSON, embedded SQL, client/server SQL,
-document/NoSQL, and HTTP. All eighteen feature panels are covered and the dialog
-inventory is closed.
+**Every datasource family BeepDM has now runs against Forms:** multi-file JSON,
+embedded SQL, client/server SQL, document/NoSQL, HTTP, and in-memory. All
+eighteen feature panels are covered and the dialog inventory is closed.
 
 | Open | Why it matters |
 |---|---|
-| **In-memory / cache sources have never run against Forms.** | The last family, and the cheapest to close — `InMemoryCacheDataSource` and `CachedMemoryDataSource` are in the engine assembly, so an example needs no plugin and no fixture. |
-| **Postgres, Oracle and MySQL are unrun.** | They share `RDBSource`, so §8.24's two fixes almost certainly reach them — but that is inference. Oracle is the one to run: it is the only driver overriding `ParameterDelimiter` (to `:`), and the DML generator's 30-character identifier truncation exists for it. |
+| **Postgres, Oracle and MySQL are unrun.** | They share `RDBSource`, so §8.24's two fixes almost certainly reach them — but that is inference, and §8.26 repeating §8.25's defect in an unrelated driver is the argument against trusting inference here. Oracle is the one to run: it is the only driver overriding `ParameterDelimiter` (to `:`), and the DML generator's 30-character identifier truncation exists for it. |
 | **No human has driven the extension in Visual Studio.** | §8.21 closed the binding-resolution failure mode statically. Layout, theming, command enablement, and anything that only misbehaves under a real click are still unproven; only an interactive hive session settles them. |
 
-**Four families, eight defects, and not one of them was reachable from the
-family before it.** SQLite found what real schema metadata exposes; SQL Server
-found what a server-side transaction and an IDENTITY key expose; LiteDB found
-that the unit of work demanded a POCO no document store can supply; WebAPI found
-a data source that threw in its own constructor. Adding a family has had a far
-higher yield than adding another driver within one — and §8.26 repeating
-§8.25's defect in a different driver says the remaining families are worth
-running rather than reasoned about.
+### What the family sweep cost and returned
+
+Five examples, ten defects, and none reachable from the family before it:
+
+| Family | Found |
+|---|---|
+| Embedded SQL (§8.16) | 4 — what real schema metadata exposes: a compiler returning null, missing DataAnnotations, `[MaxLength]` on `Int64`, a using header |
+| Client/server SQL (§8.24) | 2 — a discarded `IDbTransaction`, and an IDENTITY key skipped by the UPDATE binder |
+| Document / NoSQL (§8.25) | 2 — no NoSQL source could back a form at all; a sampled key never published |
+| HTTP (§8.26) | 2 — a data source that threw in its own constructor; `GetEntityType` returning the metadata type |
+| In-memory (§8.27) | 0 |
+
+The zero at the end is as informative as the rest: it is the family whose
+drivers already followed the `GetEntityType` contract the other two broke.
 
 ### The pattern worth carrying forward
 
