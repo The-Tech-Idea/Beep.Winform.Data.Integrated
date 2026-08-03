@@ -1132,6 +1132,50 @@ current record's id and asserts against that, which is right on any source.
 
 ---
 
+### 8.28 — The driver audit — ✅ DONE (2026-08-03)
+
+Running Forms against five families kept finding the same shape of defect: a
+driver returning something from `GetEntityType` that cannot close
+`UnitofWork<T>`. That is a **static** property of each driver, so the remaining
+~50 were audited by reading rather than by running. 33 implement the method.
+
+**Eight could never back a form.** `CouchBase`, `CouchBaseLite`, `InfluxDB`,
+`LMDB`, `LevelDB`, `LiteDB`, `RocksDB`, `Supabase` returned
+`typeof(Dictionary<string, object>)` — every embedded key-value and document
+store. The block failed to register with "violates the constraint of type 'T'"
+and the failure was swallowed as "could not register declared block". They now
+build from the entity structure.
+
+**Fifteen raced.** They called `DMTypeBuilder.CreateNewObject(...)` and then read
+`DMTypeBuilder.MyType` — a mutable static holding the last type built anywhere.
+Correct single-threaded, wrong the moment another thread resolves a different
+entity in between. Not carelessness: **there was no API that returned a `Type`**,
+so that was the only option available. `DMTypeBuilder.GetOrCreateType` now exists
+(and `typeCache` is a `ConcurrentDictionary`, having been a plain `Dictionary`
+shared by every driver), and the drivers take the type off the instance
+`CreateNewObject` returns — which needs no new engine API, so it works against
+every BeepDM version these plugins pin (1.0.0 through 3.1.1).
+
+**Four flagged as suspect were already correct** — Kusto, Petastorm, Rockset,
+Firebase. The audit heuristic matched `return obj?.GetType()` and assumed `obj`
+was a sampled row; it is the freshly created instance.
+
+Eight plugins do not compile, all for pre-existing reasons (older BeepDM pins
+missing `IInMemoryDB` members, `IBeepService.AddDataSourceDriver`,
+`IDataViewDataSource`). Proven pre-existing by stashing the edit and rebuilding:
+identical error counts, no error naming the changed code.
+
+**Two process failures worth recording, both mine.**
+`git add -A` over a tree staged three `CompositeLayerDataSource6` files as
+deleted — 900 lines — and the summary line did not say so. Restored byte-for-byte
+in `b3e5460f`; the mechanism that removed them from disk was never identified.
+And re-running the transformation script corrupted the 14 files it had already
+fixed, because the explanatory comment it inserts contains the literal
+`DMTypeBuilder.MyType` and the script re-matched its own output. **A codemod must
+not leave its own trigger pattern in the text it writes.**
+
+---
+
 ## 4. Sequencing
 
 | # | Item | Priority | Depends on |
@@ -1164,6 +1208,7 @@ current record's id and asserts against that, which is right on any source.
 | 8.25 | A document store (NoSQL) | ✅ done — found and fixed two defects | 8.24 |
 | 8.26 | An HTTP source (WebAPI) | ✅ done — found and fixed two defects | 8.25 |
 | 8.27 | An in-memory cache | ✅ done — no defects found | 8.26 |
+| 8.28 | Static audit of all 33 drivers' GetEntityType | ✅ done — 8 unusable, 15 racy | 8.27 |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
@@ -1192,6 +1237,8 @@ eighteen feature panels are covered and the dialog inventory is closed.
 | Open | Why it matters |
 |---|---|
 | **Postgres, Oracle and MySQL are unrun.** | They share `RDBSource`, so §8.24's two fixes almost certainly reach them — but that is inference, and §8.26 repeating §8.25's defect in an unrelated driver is the argument against trusting inference here. Oracle is the one to run: it is the only driver overriding `ParameterDelimiter` (to `:`), and the DML generator's 30-character identifier truncation exists for it. |
+| **Eleven drivers generate into a shared namespace.** | `"TheTechIdea.Classes"` rather than one scoped to the data source, so two connections with a same-named entity share one cached type and the first one's fields win. Mongo, RavenDB and RDBSource already scope theirs; the eight rewritten in §8.28 scope to `"Beep." + DatasourceName`. Changing the other eleven means changing a cache key — a behavioural change, so it needs a decision rather than a patch. |
+| **Eight plugins do not compile.** | Pre-existing, and untouched by §8.28: they pin older BeepDM packages and fail on `IInMemoryDB` members, `IBeepService.AddDataSourceDriver` or `IDataViewDataSource`. Nothing in Forms depends on them, but they cannot be verified while they cannot build. |
 | **No human has driven the extension in Visual Studio.** | §8.21 closed the binding-resolution failure mode statically. Layout, theming, command enablement, and anything that only misbehaves under a real click are still unproven; only an interactive hive session settles them. |
 
 ### What the family sweep cost and returned
