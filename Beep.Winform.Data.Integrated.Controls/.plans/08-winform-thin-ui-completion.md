@@ -1,8 +1,18 @@
-﻿# Phase 8 — Completing the WinForms thin UI for Oracle Forms parity
+﻿# Phase 8 — Completing the thin UI for Oracle Forms parity
 
 **Created 2026-08-01.** The plan of record for this project. It replaced
 `todo-tracker.md`, which was **retired the same day** (§8.0) — see §0 for what
 was wrong with it, since the same failure is worth not repeating.
+
+> **The north star is Oracle Forms.** BeepDM Forms is the engine; the VS IDE
+> extension authors forms; the WinForms and WPF hosts run them as thin UI. The
+> single authoritative "where are we against Oracle Forms" view is the **parity
+> matrix** at the top of
+> `TheTechIdea.Beep.Desktop.IDE.Extensions/.plans/MASTER-TODO-TRACKER-DATABLOCK-CONNECTION.md`.
+> Every §8.x section below is a cell in that matrix; the matrix says what is
+> proven, what is inferred, and what is still a gap. This plan began as "WinForms
+> thin UI" but has since carried the WPF, datasource, and driver work too
+> (§8.25–§8.30) — read the matrix first, then drop here for the detail.
 
 ---
 
