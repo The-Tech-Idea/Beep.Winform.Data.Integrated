@@ -974,39 +974,66 @@ dialog XAML must pair with a data class, so the inventory cannot regrow silently
 
 ---
 
-### 8.24 — A second driver — ⚠ DONE, AND IT FOUND A DEFECT (2026-08-03)
+### 8.24 — A second driver — ✅ DONE (2026-08-03)
 
 `TheTechIdea.Beep.Desktop.Examples.SqlServerForms` runs the SQLite example
-against SQL Server LocalDB. Eleven of thirteen checks pass — connection, driver
-registration, table discovery, block registration, the read path, rollback.
+against SQL Server LocalDB. **13/13**, but only after fixing two defects it
+found — which is the entire reason the plan refused to call §8.16 done.
 
-**The two that fail are the reason this was worth doing.**
-`RDBSource.BeginTransaction` (in the **BeepDataSources** repo,
-`PartialClasses/RDBSource/RDBSource.Transaction.cs`) calls
-`DbConn.BeginTransaction()` and **discards the `IDbTransaction` it returns**.
-`Commit` and `EndTransaction` then try to recover it by reflecting a
-`Transaction` property off the *connection*, which `SqlConnection` does not have,
-so both are silent no-ops. SqlClient meanwhile flags the connection as having a
-pending local transaction and rejects every command that does not carry it:
+Both live in `RDBSource` (the **BeepDataSources** repo), fixed in `c3901629`:
 
-> ExecuteNonQuery requires the command to have a transaction when the connection
-> assigned to the command is in a pending local transaction.
+1. **`BeginTransaction` discarded the `IDbTransaction` it opened.** `Commit` and
+   `EndTransaction` then tried to recover it by reflecting a `Transaction`
+   property off the *connection*, which ADO.NET connections do not expose — so
+   both were silent no-ops and nothing was ever committed or rolled back. The
+   connection was left holding a pending local transaction, and providers that
+   enforce the command/transaction association rejected everything after it:
+   *"ExecuteNonQuery requires the command to have a transaction ..."*. The
+   transaction is now held, attached in `GetDataCommand` (all 34 command sites
+   funnel through it), and completed for real.
+2. **The UPDATE binder skipped auto-increment fields.** Right for INSERT, where
+   the server assigns the key — but `GetUpdateString` appends the primary keys to
+   `UpdateFieldSequnce` precisely so they can be bound for `where Id = @p_Id`,
+   and an IDENTITY primary key is auto-increment. The placeholder was left
+   unbound: *"Must declare the scalar variable @p_Id"*. **No row on an
+   IDENTITY-keyed table could be updated at all.**
 
-So against SQL Server the engine opens a transaction it can then neither use,
-commit, nor roll back. `System.Data.SQLite` does not enforce the
-command/transaction association, which is precisely why **one driver could never
-have shown this** — and why this item was left open after §8.16 rather than
-called done.
+Neither fix hardcodes a parameter prefix — both go through the existing
+per-driver `ParameterDelimiter` (`@` for SQL Server and MySQL, `:` for Oracle).
 
-The fix is a few lines and lives in another repository, so the example reports it
-rather than patching from here. It is committed **failing**, with the cause named
-in the check text: a harness that hides a defect to stay green is the failure
-mode this plan exists to remove.
+`System.Data.SQLite` enforces neither the command/transaction association nor
+auto-increment flags in its schema reader, so **one driver could never have shown
+either of these.**
 
 Two wiring notes for any plugin-backed driver: the driver config
 (`AddSqlServerDatabase`) **and** an assembly scan (`LoadAssemblies`) are both
 required, and the factory returns a source whose `Dataconnection.ConnectionProp`
 and `DataSourceDriver` are unset — the example assigns both explicitly.
+
+---
+
+### A correction on scope: Forms is not an RDBMS feature
+
+An earlier draft of this section called the `RDBSource` defect "the largest open
+item, and the only one blocking a real deployment". That was wrong, and worth
+recording because the mistake is easy to repeat.
+
+**BeepDM Forms runs on `IDataSource`, not on a database.** `UnitofWork.Commit`
+branches on `DataSourceCapabilityMatrix.Supports(type, SupportsTransactions)`:
+JSON, CSV, file and most NoSQL sources report false and take the
+non-transactional path — which is the path §8.1–§8.15 exercised on
+`JsonMultiFileDataSource` all along. The `RDBSource` defects blocked writes on
+**RDBMS-backed forms only**. File-backed forms were never affected and were
+already proven.
+
+So the honest shape of driver coverage is by *family*, not by count:
+
+| Family | Proven by | State |
+|---|---|---|
+| Multi-file JSON | §8.1–§8.15, §8.22 (107 integration checks) | ✅ |
+| Embedded SQL (SQLite) | §8.16 (13 checks) | ✅ |
+| Client/server SQL (`RDBSource`) | §8.24 (13 checks, SQL Server) | ✅ — Postgres / Oracle / MySQL share the code but are unrun |
+| NoSQL, WebAPI, in-memory | — | never run against Forms |
 
 ---
 
@@ -1038,7 +1065,7 @@ and `DataSourceDriver` are unset — the example assigns both explicitly.
 | 8.21 | Dialog binding conformance | ✅ done | — |
 | 8.22 | The last four feature panels | ✅ done | 8.14 |
 | 8.23 | Delete three never-built dialogs | ✅ done | 8.21 |
-| 8.24 | A second database driver | ⚠ done — found a driver defect | 8.16 |
+| 8.24 | A second driver family (client/server SQL) | ✅ done — found and fixed two defects | 8.16 |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
@@ -1058,17 +1085,18 @@ stayed green for months while emitting code that named methods existing nowhere.
 
 ---
 
-## 6. What is still open (2026-08-03, later)
+## 6. What is still open (2026-08-03, final)
 
-All eighteen feature panels are covered, the dialog inventory is closed, and a
-second driver runs. What is left is smaller than it has ever been, and none of
-it is hidden.
+All eighteen feature panels are covered, the dialog inventory is closed, and
+three datasource families run. What is left is stated by family rather than by
+count, because Forms is an `IDataSource` feature and "how many databases" was
+never the right question.
 
 | Open | Why it matters |
 |---|---|
-| **`RDBSource` cannot use the transaction it opens.** §8.24. | Every client/server RDBMS is affected — SQL Server, Postgres, Oracle, MySQL all go through `RDBSource`. Writes through the transactional path fail outright. The fix is a few lines in the **BeepDataSources** repo and needs its owner's call. **This is the largest open item and the only one blocking a real deployment.** |
+| **NoSQL, WebAPI and in-memory sources have never run against Forms.** | The largest genuine gap. These are non-transactional, so they take the same commit path as JSON — but nothing has confirmed that entity discovery, key handling and navigation behave over a document or HTTP source. An example per family, in the shape of §8.16/§8.24, is the way to close it. |
+| **Postgres, Oracle and MySQL are unrun.** | They share `RDBSource`, so §8.24's two fixes almost certainly reach them — but that is inference. Oracle is the interesting one: it is the only driver overriding `ParameterDelimiter` (to `:`), and the DML generation's 30-character identifier truncation exists for it. |
 | **No human has driven the extension in Visual Studio.** | §8.21 closed the binding-resolution failure mode statically. Layout, theming, command enablement, and anything that only misbehaves under a real click are still unproven; only an interactive hive session settles them. |
-| **Two drivers, not many.** | §8.24 covers SQL Server. Postgres, Oracle and MySQL share `RDBSource`, so the defect above almost certainly reaches them, but that is inference — nothing has run against them. |
 
 ### The pattern worth carrying forward
 
