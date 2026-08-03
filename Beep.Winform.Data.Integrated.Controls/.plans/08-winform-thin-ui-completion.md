@@ -907,6 +907,109 @@ mirror of the integration harness would close it.
 
 ---
 
+### 8.22 — The last four feature panels — ✅ DONE (2026-08-03)
+
+Timers, security, multi-form and history — the four §8.14 left. What it had
+covered of them was the shallow half: a timer is created and listed, a query
+denial is honoured, a *modeless* call reaches a registered form. History was not
+touched at all. 23 checks, and **five defects**:
+
+1. **A modal `CALL_FORM` hung forever when the callee was CLOSED.**
+   `CloseFormAsync` never touched the call stack, so the caller stayed awaiting a
+   `TaskCompletionSource` nobody would set. Oracle Forms returns control to the
+   caller when a called form closes. The entry lives on the *caller's* manager,
+   so the callee now finds it through the registry — which is already shared per
+   `DMEEditor`.
+2. **`FormCallStackEntry.Completion` was a bare `Task`**, discarding the bool
+   `Complete()` sets, so "callee closed" and "callee returned" were
+   indistinguishable. Now `Task<bool>`.
+3. **Security denials were honoured but never recorded.** `SetBlockSecurity`
+   calls `ApplyAllSecurityFlags`, which writes the policy *into* the block's CRUD
+   flags — and all four operations checked those flags **before** calling
+   `EnforceBlockSecurity`. So the security check was unreachable in exactly the
+   case it exists for, and `GetSecurityViolations` was empty for every real
+   denial. Security speaks first now, at all four sites.
+4. **Query history recorded nothing** — `UnitofWorkQueryHistory.Push` had no
+   caller anywhere in the engine.
+5. **`UnitOfWorkWrapper` did not declare `IUnitofWorkHistory`** — the **third**
+   optional-capability interface it implemented in full and forgot to declare,
+   after `IAggregatable` and `IUndoable`. Its `GetQueryHistory` also called
+   through `dynamic` into an *explicitly*-implemented member, which dynamic
+   dispatch cannot see; the `RuntimeBinderException` was swallowed.
+
+Two more found on the way, not defects in the panels themselves:
+`PostMessage` could never deliver, because `FormsManager` built a **private**
+message bus one line below where it picks up the **shared** registry —
+`DMEEditor` now owns a shared bus the same way it owns the registry. And the
+engine's own `FormsManagerTests` asserted `DataBlockMode.Query` for ENTER_QUERY;
+F7 enters query mode and F8 runs the query, so that assertion had been left
+behind by the earlier `EnterQueryAsync` fix.
+
+**One self-inflicted failure, in the §8.14 tradition:** form triggers are keyed
+by `FormName`, defaulting to `"DEFAULT"` when null, so a probe registered without
+one never matches a timer firing against a real form name. It looked exactly like
+"timers do not fire". Timers were fine.
+
+---
+
+### 8.23 — Three dialogs that were documented but never built — ✅ REMOVED (2026-08-03)
+
+`BlockCreationDialog`, `FieldControlTypeSelectorDialog` and
+`TriggerRegistrationDiffDialog` were one XAML file each: no data class, no
+wrapper, no C# anywhere that opens them. Their functions are covered by block
+create/delete, the fields editor and the trigger editor.
+
+What made them worth deleting rather than leaving alone is what the docs claimed.
+`CHANGELOG.md` listed a "Trigger registration diff viewer". A v1.3 release note
+described the dialog, a `CompareTriggersCommand` and a "Compare runtime vs
+design" row menu item, and listed three implementation files as new — none of
+which exist. `future-requirements-todo.md` marked M3-IDE-012 and -013 **Done**.
+`TOOLBAR.md` named `FieldControlTypeSelectorDialog` as what the Field Defaults
+button opens; it opens `FieldDefaultPolicyDialog`.
+
+Every claim is corrected. The v1.3 section is marked WITHDRAWN **in place** — a
+release note that quietly disappears is how the claim got believed to begin with.
+`NavigatorBindingConformance` no longer carries an exclusion list: every embedded
+dialog XAML must pair with a data class, so the inventory cannot regrow silently.
+
+---
+
+### 8.24 — A second driver — ⚠ DONE, AND IT FOUND A DEFECT (2026-08-03)
+
+`TheTechIdea.Beep.Desktop.Examples.SqlServerForms` runs the SQLite example
+against SQL Server LocalDB. Eleven of thirteen checks pass — connection, driver
+registration, table discovery, block registration, the read path, rollback.
+
+**The two that fail are the reason this was worth doing.**
+`RDBSource.BeginTransaction` (in the **BeepDataSources** repo,
+`PartialClasses/RDBSource/RDBSource.Transaction.cs`) calls
+`DbConn.BeginTransaction()` and **discards the `IDbTransaction` it returns**.
+`Commit` and `EndTransaction` then try to recover it by reflecting a
+`Transaction` property off the *connection*, which `SqlConnection` does not have,
+so both are silent no-ops. SqlClient meanwhile flags the connection as having a
+pending local transaction and rejects every command that does not carry it:
+
+> ExecuteNonQuery requires the command to have a transaction when the connection
+> assigned to the command is in a pending local transaction.
+
+So against SQL Server the engine opens a transaction it can then neither use,
+commit, nor roll back. `System.Data.SQLite` does not enforce the
+command/transaction association, which is precisely why **one driver could never
+have shown this** — and why this item was left open after §8.16 rather than
+called done.
+
+The fix is a few lines and lives in another repository, so the example reports it
+rather than patching from here. It is committed **failing**, with the cause named
+in the check text: a harness that hides a defect to stay green is the failure
+mode this plan exists to remove.
+
+Two wiring notes for any plugin-backed driver: the driver config
+(`AddSqlServerDatabase`) **and** an assembly scan (`LoadAssemblies`) are both
+required, and the factory returns a source whose `Dataconnection.ConnectionProp`
+and `DataSourceDriver` are unset — the example assigns both explicitly.
+
+---
+
 ## 4. Sequencing
 
 | # | Item | Priority | Depends on |
@@ -933,6 +1036,9 @@ mirror of the integration harness would close it.
 | 8.19 | `ConfigureAwait(false)` through the engine | ✅ done | — |
 | 8.20 | `UpdateCurrentRecordAsync` on the interface | ✅ done | — |
 | 8.21 | Dialog binding conformance | ✅ done | — |
+| 8.22 | The last four feature panels | ✅ done | 8.14 |
+| 8.23 | Delete three never-built dialogs | ✅ done | 8.21 |
+| 8.24 | A second database driver | ⚠ done — found a driver defect | 8.16 |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
@@ -952,18 +1058,17 @@ stayed green for months while emitting code that named methods existing nowhere.
 
 ---
 
-## 6. What is still open (2026-08-03)
+## 6. What is still open (2026-08-03, later)
 
-Everything in §4 is done, and the four items listed here on 2026-08-02 are now
-closed (§8.16, §8.19, §8.20, §8.21). This is what is left, stated plainly so
-it is not mistaken for finished.
+All eighteen feature panels are covered, the dialog inventory is closed, and a
+second driver runs. What is left is smaller than it has ever been, and none of
+it is hidden.
 
 | Open | Why it matters |
 |---|---|
-| **Panels still uncovered:** multi-form (`CallFormAsync`), timers, history, security. | Same pass-through shape as §8.14, so the same approach applies. This is the largest remaining block of unverified surface. |
-| **No human has driven the extension in Visual Studio.** | §8.21 closed the binding-resolution failure mode statically. Layout, theming, command enablement, and anything that only misbehaves under a real click are still unproven, and only an interactive hive session can settle them. |
-| **Three dialogs are documented but do not exist.** | `BlockCreationDialog`, `FieldControlTypeSelectorDialog`, `TriggerRegistrationDiffDialog` — XAML with no data class and no caller, described as shipped in `CHANGELOG.md` and a release note. Implement or delete; either way correct the docs. |
-| **One database, one driver.** | §8.16 runs on SQLite. The transactional branch is now proven against a real driver, but only that one — server-side sources (transactions, locking, generated keys) may behave differently. |
+| **`RDBSource` cannot use the transaction it opens.** §8.24. | Every client/server RDBMS is affected — SQL Server, Postgres, Oracle, MySQL all go through `RDBSource`. Writes through the transactional path fail outright. The fix is a few lines in the **BeepDataSources** repo and needs its owner's call. **This is the largest open item and the only one blocking a real deployment.** |
+| **No human has driven the extension in Visual Studio.** | §8.21 closed the binding-resolution failure mode statically. Layout, theming, command enablement, and anything that only misbehaves under a real click are still unproven; only an interactive hive session settles them. |
+| **Two drivers, not many.** | §8.24 covers SQL Server. Postgres, Oracle and MySQL share `RDBSource`, so the defect above almost certainly reaches them, but that is inference — nothing has run against them. |
 
 ### The pattern worth carrying forward
 
