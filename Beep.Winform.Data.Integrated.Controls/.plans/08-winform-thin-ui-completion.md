@@ -1034,7 +1034,8 @@ So the honest shape of driver coverage is by *family*, not by count:
 | Embedded SQL (SQLite) | §8.16 (13 checks) | ✅ |
 | Client/server SQL (`RDBSource`) | §8.24 (13 checks, SQL Server) | ✅ — Postgres / Oracle / MySQL share the code but are unrun |
 | Document / NoSQL | §8.25 (15 checks, LiteDB) | ✅ |
-| WebAPI, in-memory | — | never run against Forms |
+| HTTP / WebAPI | §8.26 (12 checks, loopback listener) | ✅ |
+| In-memory / cache | — | never run against Forms |
 
 ---
 
@@ -1072,6 +1073,41 @@ a relational one cannot.
 
 ---
 
+### 8.26 — An HTTP source — ✅ DONE (2026-08-03)
+
+`TheTechIdea.Beep.Desktop.Examples.WebApiForms`. The fourth family, and the one
+with least in common with the rest: every source before it was a local file or a
+database handle, where a query is a function call. Here a query is a network
+round trip, the schema is INFERRED from a JSON payload rather than read from a
+catalogue (SQL) or sampled from documents (LiteDB), and a write is a PUT that
+either arrives or does not.
+
+The example hosts its own `HttpListener` on a loopback port and **records every
+request**, so the checks assert that a commit arrived at the server and that a
+rollback sent nothing — read from the server's state, never from the engine's
+return value. 12 checks, two defects (BeepDM `0744e61`):
+
+1. **The data source could not be constructed at all.**
+   `NormalizeConnectionProperties` assigned `TimeoutMs` unconditionally from a
+   `ConnectionProperties` that usually has neither `TimeoutMs` nor `Timeout` set,
+   writing **0** over the class default of 30000. The constructor then did
+   `HttpClient.Timeout = TimeSpan.Zero` and threw. Fixed at the source, and the
+   constructor now guards the assignment too — a zero can arrive by other routes.
+2. **`GetEntityType` returned `structure?.GetType()`** — the type of the METADATA
+   object — so every entity on every WebAPI source reported `EntityStructure`.
+   Not an `Entity`, cannot close `UnitofWork<T>`: no HTTP-backed entity could
+   back a form. It now builds the type from the structure via
+   `EntityTypeFactory`, as the engine does everywhere else.
+
+Note the second defect is the **same shape** as §8.25's, found independently in a
+different driver: a source reporting something other than an entity type where
+the unit of work needs one. §8.25 fixed the engine to cope; this fixed the driver
+to be correct. Both were needed — the engine fallback is what stops a third
+driver with the same bug from being unusable, and the driver fix is what stops it
+being wrong.
+
+---
+
 ## 4. Sequencing
 
 | # | Item | Priority | Depends on |
@@ -1102,6 +1138,7 @@ a relational one cannot.
 | 8.23 | Delete three never-built dialogs | ✅ done | 8.21 |
 | 8.24 | A second driver family (client/server SQL) | ✅ done — found and fixed two defects | 8.16 |
 | 8.25 | A document store (NoSQL) | ✅ done — found and fixed two defects | 8.24 |
+| 8.26 | An HTTP source (WebAPI) | ✅ done — found and fixed two defects | 8.25 |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
@@ -1123,22 +1160,24 @@ stayed green for months while emitting code that named methods existing nowhere.
 
 ## 6. What is still open (2026-08-03, final)
 
-Four datasource families run: multi-file JSON, embedded SQL, client/server SQL,
-and document/NoSQL. All eighteen feature panels are covered and the dialog
+Five datasource families run: multi-file JSON, embedded SQL, client/server SQL,
+document/NoSQL, and HTTP. All eighteen feature panels are covered and the dialog
 inventory is closed.
 
 | Open | Why it matters |
 |---|---|
-| **WebAPI and in-memory sources have never run against Forms.** | The remaining family gap. An HTTP-backed source is the interesting one — it is the only family where a query is a network round trip, so latency, paging and failure handling all land on paths nothing has exercised. |
-| **Postgres, Oracle and MySQL are unrun.** | They share `RDBSource`, so §8.24's two fixes almost certainly reach them — but that is inference. Oracle is the one to run: it is the only driver overriding `ParameterDelimiter` (to `:`), and the DML generation's 30-character identifier truncation exists for it. |
+| **In-memory / cache sources have never run against Forms.** | The last family, and the cheapest to close — `InMemoryCacheDataSource` and `CachedMemoryDataSource` are in the engine assembly, so an example needs no plugin and no fixture. |
+| **Postgres, Oracle and MySQL are unrun.** | They share `RDBSource`, so §8.24's two fixes almost certainly reach them — but that is inference. Oracle is the one to run: it is the only driver overriding `ParameterDelimiter` (to `:`), and the DML generator's 30-character identifier truncation exists for it. |
 | **No human has driven the extension in Visual Studio.** | §8.21 closed the binding-resolution failure mode statically. Layout, theming, command enablement, and anything that only misbehaves under a real click are still unproven; only an interactive hive session settles them. |
 
-**The shape of the last three sections is worth noting.** Each new datasource
-family found defects the previous ones structurally could not: SQLite found what
-a schema with real metadata exposes, SQL Server found what a server-side
-transaction and an IDENTITY key expose, LiteDB found that the unit of work
-required a POCO no document store can supply. Adding a family has had a far
-higher yield than adding another driver within one.
+**Four families, eight defects, and not one of them was reachable from the
+family before it.** SQLite found what real schema metadata exposes; SQL Server
+found what a server-side transaction and an IDENTITY key expose; LiteDB found
+that the unit of work demanded a POCO no document store can supply; WebAPI found
+a data source that threw in its own constructor. Adding a family has had a far
+higher yield than adding another driver within one — and §8.26 repeating
+§8.25's defect in a different driver says the remaining families are worth
+running rather than reasoned about.
 
 ### The pattern worth carrying forward
 
