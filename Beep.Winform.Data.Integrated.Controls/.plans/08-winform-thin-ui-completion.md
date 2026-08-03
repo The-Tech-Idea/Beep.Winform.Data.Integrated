@@ -1176,6 +1176,36 @@ not leave its own trigger pattern in the text it writes.**
 
 ---
 
+### 8.29 — One type per data source — ✅ DONE (2026-08-03)
+
+`DMTypeBuilder` caches generated types under `"{namespace}.{EntityName}"`, and
+**seventeen call sites passed the constant `"TheTechIdea.Classes"`**. An entity
+called `orders` therefore got the key `TheTechIdea.Classes.orders` no matter
+which connection it came from, so two data sources exposing a same-named entity
+**shared one generated type** — first one wins, the second block silently gets
+the first's field set. Wrong columns, no error, no log line.
+
+Two more shapes of the same bug: RavenDB passed `EntityName` as the namespace
+(`orders.orders` — entity-scoped, still collides across connections), and
+TxtXlsCSV's sheet path passed the sheet name, so two workbooks with a `Sheet1`
+collided. All now use `"Beep." + DatasourceName`, matching MongoDB and the eight
+rewritten in §8.28. `RDBSource` already scoped to `DatasourceName`, so every
+relational driver was safe throughout.
+
+**And the engine had it too.** `DMTypeBuilder.DataSourceNameSpace` was keyed by
+bare `EntityName`, and its only writer guarded with `ContainsValue` — a scan of
+VALUES answering a question about KEYS — before calling `Add`, which is keyed. So
+the second data source did not overwrite quietly; it **threw** *"An item with the
+same key has already been added"*. Now a `ConcurrentDictionary` keyed by full
+type name, written with `TryAdd`.
+
+This changes generated types' `FullName` from `TheTechIdea.Classes.orders` to
+`Beep.<connection>.orders`. Checked before changing it: nothing in BeepDM, the
+IDE, WinForms, WPF or the plugins references the literal — the only mentions are
+inside `DMTypeBuilder` as its fallback default.
+
+---
+
 ## 4. Sequencing
 
 | # | Item | Priority | Depends on |
@@ -1209,6 +1239,7 @@ not leave its own trigger pattern in the text it writes.**
 | 8.26 | An HTTP source (WebAPI) | ✅ done — found and fixed two defects | 8.25 |
 | 8.27 | An in-memory cache | ✅ done — no defects found | 8.26 |
 | 8.28 | Static audit of all 33 drivers' GetEntityType | ✅ done — 8 unusable, 15 racy | 8.27 |
+| 8.29 | Scope generated types per data source | ✅ done — 17 sites + the engine map | 8.28 |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
@@ -1237,7 +1268,6 @@ eighteen feature panels are covered and the dialog inventory is closed.
 | Open | Why it matters |
 |---|---|
 | **Postgres, Oracle and MySQL are unrun.** | They share `RDBSource`, so §8.24's two fixes almost certainly reach them — but that is inference, and §8.26 repeating §8.25's defect in an unrelated driver is the argument against trusting inference here. Oracle is the one to run: it is the only driver overriding `ParameterDelimiter` (to `:`), and the DML generator's 30-character identifier truncation exists for it. |
-| **Eleven drivers generate into a shared namespace.** | `"TheTechIdea.Classes"` rather than one scoped to the data source, so two connections with a same-named entity share one cached type and the first one's fields win. Mongo, RavenDB and RDBSource already scope theirs; the eight rewritten in §8.28 scope to `"Beep." + DatasourceName`. Changing the other eleven means changing a cache key — a behavioural change, so it needs a decision rather than a patch. |
 | **Eight plugins do not compile.** | Pre-existing, and untouched by §8.28: they pin older BeepDM packages and fail on `IInMemoryDB` members, `IBeepService.AddDataSourceDriver` or `IDataViewDataSource`. Nothing in Forms depends on them, but they cannot be verified while they cannot build. |
 | **No human has driven the extension in Visual Studio.** | §8.21 closed the binding-resolution failure mode statically. Layout, theming, command enablement, and anything that only misbehaves under a real click are still unproven; only an interactive hive session settles them. |
 
