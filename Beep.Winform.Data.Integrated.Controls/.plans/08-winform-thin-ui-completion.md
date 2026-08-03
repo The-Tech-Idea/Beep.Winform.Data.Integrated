@@ -1206,6 +1206,40 @@ inside `DMTypeBuilder` as its fallback default.
 
 ---
 
+### 8.30 — Author a block onto a WPF form — ✅ DONE (2026-08-03)
+
+The drop gesture — arm an entity, right-click a form, **Drop Here** — worked end
+to end for WinForms and did **nothing** for WPF. The drop resolved a
+`<form>.Designer.cs`, which a WPF form has none of, and `DesignerBlockGenerator`
+emits the WinForms shape only. WPF was **scan-only**: the navigator could read a
+WPF form's existing blocks but could not author one — half the core promise the
+design docs make ("Dragging … onto a WinForms Form **or WPF UserControl**
+generates code in the target project").
+
+Now WPF authors too:
+
+- `WpfBlockGenerator` writes a `BeepWpfBlock` construction, its property
+  assignments, and `host.RegisterBlock` into the `.xaml.cs` code-behind, inside a
+  `<copilot-generated-wpf-blocks>` marker region, idempotent by block name. It
+  emits `AutoGenerateFields = true` and **no** field definitions — a WPF block
+  gets its fields from the engine at runtime (§3.5). The emitted shape is exactly
+  what `WpfProjectScanner` reads back: **one contract, two emitters.**
+- `ResolveDesignerPathForFormFile` maps a WPF form to its `.xaml.cs`; `CreateBlockCoreAsync`
+  branches on the target, one `BlockDefinition` spec driving both platforms.
+
+`Verification` proves the round trip, mirroring the WinForms payoff test: author
+a block into a prepared code-behind, then the same scanner reads it back with the
+right entity and connection — plus idempotency (re-authoring is byte-stable) and
+that an unprepared form is refused, not written into blind.
+
+**Still to build:** preparing a *fresh* WPF `UserControl` — laying down the host
+and the block region — is the counterpart of the WinForms form template, and
+authoring requires a prepared form exactly as the WinForms path requires its
+bootstrap markers. So the drop works on a WPF form that has been prepared; a
+brand-new empty one still needs that one-time preparation step.
+
+---
+
 ## 4. Sequencing
 
 | # | Item | Priority | Depends on |
@@ -1240,6 +1274,7 @@ inside `DMTypeBuilder` as its fallback default.
 | 8.27 | An in-memory cache | ✅ done — no defects found | 8.26 |
 | 8.28 | Static audit of all 33 drivers' GetEntityType | ✅ done — 8 unusable, 15 racy | 8.27 |
 | 8.29 | Scope generated types per data source | ✅ done — 17 sites + the engine map | 8.28 |
+| 8.30 | Author blocks onto WPF forms | ✅ done — drop gesture now works on both platforms | 8.29 |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
