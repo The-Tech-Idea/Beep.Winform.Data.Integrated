@@ -730,6 +730,134 @@ against a real database remains open and needs a target chosen.
 
 ---
 
+### 8.16 — A real database — ✅ DONE (2026-08-02)
+
+`TheTechIdea.Beep.Desktop.Examples.SqliteForms` runs the whole stack on SQLite
+through `SqliteDatasourceCore`, the user's own plugin: engine boots, a form is
+generated, a block queries, edits, inserts, deletes and commits, and every
+assertion reads the row back **out of the database file**. 13 checks.
+
+This closed 8.15's open item, and it earned its keep immediately. A database
+carries key, required and length metadata that a JSON file's inferred schema
+does not, so it exercised a class of defect the file datasources could not
+reach:
+
+- `RoslynCompiler.CompileClassTypeandAssembly` returned `null` on any compile
+  error, so a missing assembly reference surfaced as "type not found" hundreds
+  of frames away. It now throws with the diagnostics.
+- `DataAnnotations` was missing from the compiler's base references, so every
+  generated entity with an attribute failed to compile — invisibly, per above.
+- `PocoClassGeneratorHelper` emitted `[MaxLength]` on `Int64` columns, which
+  throws at validation time on commit. Now gated on the CLR type.
+- `DMTypeBuilder`'s using header omitted `DataAnnotations` and `Schema`.
+
+**A correction worth recording:** I reported the first failure here as "a bug in
+the plugin itself, in your BeepDataSources repo." That was wrong. The test that
+led me there ran *before* the compiler fix, so it was invalid. Both defects were
+in the engine. The plugin repo is untouched.
+
+---
+
+### 8.17 — `CREATE_RECORD` wrote to the datasource immediately — ✅ FIXED (2026-08-02)
+
+`InsertRecordAsync` with no record supplied built a blank row and **wrote it
+straight to the datasource**, then ran validation against it. In Oracle Forms
+`CREATE_RECORD` creates a row in the block; `COMMIT` writes it. The old shape
+meant a blank row hit the database the instant the user pressed the key, and
+required-field rules fired on a record the user had not filled in yet.
+
+Now the new record goes to `blockInfo.UnitOfWork.Add(record)` — in-memory,
+marked Added, written on commit — with a before/after count check, and no
+create-time validation.
+
+This is a behavioural change to a core operation with wide blast radius, so it
+was made on the user's explicit call, not quietly.
+
+---
+
+### 8.18 — Rollback restored nothing — ✅ FIXED (2026-08-02)
+
+Savepoint restore (8.15) put back the row count but not the row *values*: the
+snapshot was captured and then thrown away.
+
+The cause was two constructors' worth of duplicated work.
+`ObservableBindingList(IEnumerable<T>)` created a tracking per item, and then
+`UpdateItemIndexMapping` created **another** one — snapshot-less — that replaced
+it. Every original value was gone before the first edit.
+
+Four diagnoses before this one were wrong (missing trackings, `Rollback`'s early
+return, the snapshot point in `PropertyChanged`, the constructor overload in
+use). What settled it was abandoning the end-to-end harness for a 20-line
+isolated repro, which showed the replacement in one run.
+
+`UpdateItemIndexMapping` now skips items that already have a tracking, and
+`ListChanges` fills a missing snapshot rather than assuming one.
+
+**The method lesson:** when an edit to the obviously-correct path changes
+nothing, stop editing it and prove the caller reaches it.
+
+---
+
+### 8.19 — `ConfigureAwait(false)` through the engine — ✅ DONE (2026-08-03)
+
+**408 awaits across 72 files** under `Editor/`. Two are deliberately left alone
+(`await Task.Yield()` in `DMEEditor`, `await enumerator.DisposeAsync()` in
+`PipelineEngine`).
+
+The bug this prevents is not theoretical — it is the one that cost most of a day
+during 8.12, when the trigger matrix appeared to hang and I told the user it was
+"a genuine engine deadlock." **It was not.** A `dotnet-stack` dump showed the
+main thread blocked and every pool thread idle: a continuation orphaned on a
+`WindowsFormsSynchronizationContext` that was no longer pumping. The engine was
+fine; the await was captured.
+
+A WinForms host that blocks on an engine call from the UI thread now completes
+instead of hanging, and a check pins it: *an engine call can be blocked on from
+a thread with a UI context.*
+
+---
+
+### 8.20 — `UpdateCurrentRecordAsync` on `IUnitofWorksManager` — ✅ DONE (2026-08-03)
+
+It existed on `FormsManager` but not on the interface, so a host could not reach
+the explicit update path at all — only `SetFieldValue` plus commit — and the
+harness had to cast to the concrete class to test it. Now declared on
+`IUnitofWorksManager` alongside `CreateBlockSavepoint` and
+`RollbackToSavepointAsync`, which had the same problem.
+
+---
+
+### 8.21 — The dialogs' bindings — ✅ DONE (2026-08-03)
+
+Driving the extension inside a VS experimental hive is interactive and cannot be
+automated from here. What *can* be settled without a hive is the failure mode
+that testing would be looking for: Remote UI resolves bindings by name at
+runtime, so a typo renders a blank control and reports nothing.
+
+`NavigatorBindingConformance` checked one XAML file. It now checks all 27
+dialogs, pairing each with its `<Name>Data` class and resolving `DataTemplate`
+bindings through the element type of the collection they iterate. 96 → 8 → 4
+→ 0.
+
+It found a real defect on its first run: `QueryBuilderDialog`'s operator
+dropdown used `SelectedValuePath="Value"` with an item template of
+`{Binding DisplayName}` against an `ObservableCollection<string>`. Strings have
+neither. Every entry rendered blank and the selection could never bind back.
+
+Three dialogs have no data class and no C# that opens them, while `CHANGELOG.md`,
+`FORMS-NAVIGATOR-MAPPING.md` and a v1.3 release note describe them as shipped:
+`BlockCreationDialog`, `FieldControlTypeSelectorDialog`,
+`TriggerRegistrationDiffDialog`. They are listed by name in the check rather
+than skipped silently — **still the documentation-ahead-of-the-product pattern
+this plan exists to unwind.** Wire one up or delete it, then take it off the
+list.
+
+**This is a substitute for hive testing, not a replacement.** Layout, theming,
+command enablement and anything that only misbehaves when a human clicks it
+remain unproven.
+
+---
+
 ### 8.2 (original) — Master-detail synchronisation visible in the UI — **P0**
 
 The engine synchronises detail blocks on master navigation. Nothing verifies the
@@ -799,6 +927,12 @@ mirror of the integration harness would close it.
 | 8.13 | LOV resolves at runtime | ✅ done | — |
 | 8.14 | Feature-panel capabilities | ✅ done | — |
 | 8.15 | Transactional commit branch exercised | ✅ done | — |
+| 8.16 | A real database (SQLite example) | ✅ done | 8.15 |
+| 8.17 | `CREATE_RECORD` defers INSERT to commit | ✅ done | 8.16 |
+| 8.18 | Rollback restores row values | ✅ done | 8.15 |
+| 8.19 | `ConfigureAwait(false)` through the engine | ✅ done | — |
+| 8.20 | `UpdateCurrentRecordAsync` on the interface | ✅ done | — |
+| 8.21 | Dialog binding conformance | ✅ done | — |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
@@ -818,18 +952,18 @@ stayed green for months while emitting code that named methods existing nowhere.
 
 ---
 
-## 6. What is still open (2026-08-02)
+## 6. What is still open (2026-08-03)
 
-Everything in §4 is done. This is what stands between the current state and
-"Oracle Forms ready", stated plainly so it is not mistaken for finished.
+Everything in §4 is done, and the four items listed here on 2026-08-02 are now
+closed (§8.16, §8.19, §8.20, §8.21). This is what is left, stated plainly so
+it is not mistaken for finished.
 
 | Open | Why it matters |
 |---|---|
-| **No real database.** No RDBMS datasource exists in this engine assembly; the SQL drivers are separate plugins. | `UnitofWork.Commit`'s transactional path is exercised only by a source that *claims* support (§8.15) — that proves the engine's branch, not a driver's. Two defects were already fixed in that code blind. Needs a target chosen. |
-| **`ConfigureAwait(false)` is absent from the engine's async paths.** | Any WinForms caller using `.Result` or `.Wait()` on the UI thread deadlocks: the continuation is posted to a context that is not pumping. The harness hit this and works around it with `Task.Run`; the hosts avoid it only by awaiting properly. |
-| **The extension is never driven inside Visual Studio.** | `command-reachability.py` is static analysis. Nothing exercises the Remote UI dialogs in the experimental hive. |
-| **`UpdateCurrentRecordAsync` is not on `IUnitofWorksManager`.** | A host cannot reach the explicit update path at all — only `SetFieldValue` plus commit. The harness casts to `FormsManager` to test it. |
-| **Panels still uncovered:** multi-form (`CallFormAsync`), timers, history, security. | Same pass-through shape as §8.14, so the same approach applies. |
+| **Panels still uncovered:** multi-form (`CallFormAsync`), timers, history, security. | Same pass-through shape as §8.14, so the same approach applies. This is the largest remaining block of unverified surface. |
+| **No human has driven the extension in Visual Studio.** | §8.21 closed the binding-resolution failure mode statically. Layout, theming, command enablement, and anything that only misbehaves under a real click are still unproven, and only an interactive hive session can settle them. |
+| **Three dialogs are documented but do not exist.** | `BlockCreationDialog`, `FieldControlTypeSelectorDialog`, `TriggerRegistrationDiffDialog` — XAML with no data class and no caller, described as shipped in `CHANGELOG.md` and a release note. Implement or delete; either way correct the docs. |
+| **One database, one driver.** | §8.16 runs on SQLite. The transactional branch is now proven against a real driver, but only that one — server-side sources (transactions, locking, generated keys) may behave differently. |
 
 ### The pattern worth carrying forward
 
