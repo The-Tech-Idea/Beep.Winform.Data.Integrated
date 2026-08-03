@@ -1033,7 +1033,42 @@ So the honest shape of driver coverage is by *family*, not by count:
 | Multi-file JSON | §8.1–§8.15, §8.22 (107 integration checks) | ✅ |
 | Embedded SQL (SQLite) | §8.16 (13 checks) | ✅ |
 | Client/server SQL (`RDBSource`) | §8.24 (13 checks, SQL Server) | ✅ — Postgres / Oracle / MySQL share the code but are unrun |
-| NoSQL, WebAPI, in-memory | — | never run against Forms |
+| Document / NoSQL | §8.25 (15 checks, LiteDB) | ✅ |
+| WebAPI, in-memory | — | never run against Forms |
+
+---
+
+### 8.25 — A document store — ✅ DONE (2026-08-03)
+
+`TheTechIdea.Beep.Desktop.Examples.LiteDbForms`. The third datasource family,
+and the one that mattered most: every relational driver funnels through a single
+`RDBSource` base class, so §8.16 and §8.24 were one code path run twice.
+`LiteDBDataSource` implements `IDataSource` directly, its collections are
+schemaless — fields discovered by SAMPLING documents rather than read from a
+catalogue — and it reports `SupportsTransactions = true`, so the transactional
+branch runs through a third unrelated implementation.
+
+15 checks. Two defects, and the first one was total:
+
+1. **No NoSQL source could back a form at all.** `UnitofWork<T>` is constrained
+   `where T : Entity, new()`, and a document store has no compile-time POCO to
+   report — LiteDB's `GetEntityType` returns `Dictionary<string, object>`.
+   `MakeGenericType` failed with *"violates the constraint of type 'T'"*,
+   `DefinitionBlockRegistrar` reported only "could not register declared block",
+   and the block silently did not exist. Fixed in the **engine**
+   (`UnitOfWorkFactory`, BeepDM `0d65f680`): an entity type IS its structure, so
+   one is generated through the existing `EntityTypeFactory` when the source's
+   own type cannot close the generic. In one place, so no document driver has to
+   carry a copy of that logic — or know `ClassCreator` exists.
+2. **The sampled structure never published its key.** `IsKey` was set on the
+   field but nothing copied it into `EntityStructure.PrimaryKeys`, which is what
+   master-detail setup, the IDE's block editors and the DML binders all read
+   (BeepDataSources `6b436aab`).
+
+Two of the checks deliberately test the schemaless shape rather than the CRUD
+round trip — that a sampled collection yields a usable field list at all, and
+that it names a key — because those are what a document store can get wrong and
+a relational one cannot.
 
 ---
 
@@ -1066,6 +1101,7 @@ So the honest shape of driver coverage is by *family*, not by count:
 | 8.22 | The last four feature panels | ✅ done | 8.14 |
 | 8.23 | Delete three never-built dialogs | ✅ done | 8.21 |
 | 8.24 | A second driver family (client/server SQL) | ✅ done — found and fixed two defects | 8.16 |
+| 8.25 | A document store (NoSQL) | ✅ done — found and fixed two defects | 8.24 |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
@@ -1087,16 +1123,22 @@ stayed green for months while emitting code that named methods existing nowhere.
 
 ## 6. What is still open (2026-08-03, final)
 
-All eighteen feature panels are covered, the dialog inventory is closed, and
-three datasource families run. What is left is stated by family rather than by
-count, because Forms is an `IDataSource` feature and "how many databases" was
-never the right question.
+Four datasource families run: multi-file JSON, embedded SQL, client/server SQL,
+and document/NoSQL. All eighteen feature panels are covered and the dialog
+inventory is closed.
 
 | Open | Why it matters |
 |---|---|
-| **NoSQL, WebAPI and in-memory sources have never run against Forms.** | The largest genuine gap. These are non-transactional, so they take the same commit path as JSON — but nothing has confirmed that entity discovery, key handling and navigation behave over a document or HTTP source. An example per family, in the shape of §8.16/§8.24, is the way to close it. |
-| **Postgres, Oracle and MySQL are unrun.** | They share `RDBSource`, so §8.24's two fixes almost certainly reach them — but that is inference. Oracle is the interesting one: it is the only driver overriding `ParameterDelimiter` (to `:`), and the DML generation's 30-character identifier truncation exists for it. |
+| **WebAPI and in-memory sources have never run against Forms.** | The remaining family gap. An HTTP-backed source is the interesting one — it is the only family where a query is a network round trip, so latency, paging and failure handling all land on paths nothing has exercised. |
+| **Postgres, Oracle and MySQL are unrun.** | They share `RDBSource`, so §8.24's two fixes almost certainly reach them — but that is inference. Oracle is the one to run: it is the only driver overriding `ParameterDelimiter` (to `:`), and the DML generation's 30-character identifier truncation exists for it. |
 | **No human has driven the extension in Visual Studio.** | §8.21 closed the binding-resolution failure mode statically. Layout, theming, command enablement, and anything that only misbehaves under a real click are still unproven; only an interactive hive session settles them. |
+
+**The shape of the last three sections is worth noting.** Each new datasource
+family found defects the previous ones structurally could not: SQLite found what
+a schema with real metadata exposes, SQL Server found what a server-side
+transaction and an IDENTITY key expose, LiteDB found that the unit of work
+required a POCO no document store can supply. Adding a family has had a far
+higher yield than adding another driver within one.
 
 ### The pattern worth carrying forward
 
