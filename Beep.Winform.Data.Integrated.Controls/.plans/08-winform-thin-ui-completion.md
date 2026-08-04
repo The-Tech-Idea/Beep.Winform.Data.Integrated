@@ -1250,6 +1250,38 @@ brand-new empty one still needs that one-time preparation step.
 
 ---
 
+### 8.31 — WPF trigger firing proven, and fresh WPF forms auto-prepared — ✅ DONE (2026-08-04)
+
+Two pieces that finish WPF authoring parity.
+
+**All five WPF trigger families fire, proven.** The WPF harness drives the engine
+through the host and asserts the authored handler ran, for navigation
+(`PostRecord`, `WhenNewRecordInstance`), DML (`WhenCreateRecord`, `Pre/PostInsert`,
+`Pre/PostUpdate`, `Pre/PostDelete`), item validation
+(`WhenValidateItem`/`WhenValidateRecord`), commit (`PreCommit`/`PostCommit`) and
+the timer (`WhenTimerExpired`). Three lessons, all the deadlock/isolation class,
+none an engine defect: the check must run where the block is CLEAN (a dirty
+record correctly refuses to navigate); navigation must be driven off the STA
+thread (a firing trigger resumes on the Dispatcher the STA thread must keep
+pumping); and the probes must be unregistered before the STA-thread edit sections
+run. A follow-up fell out of the timer: on the SHARED manager after heavy use the
+engine timer stopped firing (a plain `System.Threading.Timer` fired), so the
+timer check uses a dedicated manager — worth isolating.
+
+**A fresh empty WPF `UserControl` is prepared on the first drop.** Authoring
+previously required a form already carrying the marker regions; dropping onto an
+empty one was refused. `WpfFormPreparer` — the counterpart of
+`FormTemplateEmitter` for WinForms — lays down the host in the `.xaml`, the block
+region in the constructor, and a `RegisterBeepFormsMetadata()` holding the manager
+local and the four registration regions. `CreateBlockCoreAsync` prepares before
+authoring, idempotently. `Verification` proves the whole path: a bare `.xaml.cs`
+is prepared, re-preparing is byte-stable, a block AND a trigger author into it,
+and the scanner reads the block back. **WinForms and WPF now reach authoring
+parity for the drop gesture** — a block and the four registrations, on either
+platform, on a brand-new form.
+
+---
+
 ## 4. Sequencing
 
 | # | Item | Priority | Depends on |
@@ -1285,6 +1317,7 @@ brand-new empty one still needs that one-time preparation step.
 | 8.28 | Static audit of all 33 drivers' GetEntityType | ✅ done — 8 unusable, 15 racy | 8.27 |
 | 8.29 | Scope generated types per data source | ✅ done — 17 sites + the engine map | 8.28 |
 | 8.30 | Author blocks onto WPF forms | ✅ done — drop gesture now works on both platforms | 8.29 |
+| 8.31 | WPF trigger firing proven + fresh-form auto-preparation | ✅ done — WPF authoring parity | 8.30 |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
