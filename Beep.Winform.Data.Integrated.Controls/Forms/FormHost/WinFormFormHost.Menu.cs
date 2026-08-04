@@ -19,6 +19,7 @@ namespace TheTechIdea.Beep.Winform.Data.Integrated.Forms.FormHost
     public partial class WinFormFormHost
     {
         private BeepMenuBar? _menuBar;
+        private FormMenuShellAdapter? _shellAdapter;
 
         /// <summary>
         /// The form's rendered menu bar, or null when the form has no menu. The
@@ -63,7 +64,7 @@ namespace TheTechIdea.Beep.Winform.Data.Integrated.Forms.FormHost
             var bar = new BeepMenuBar
             {
                 Dock = DockStyle.Top,
-                MenuItems = BuildMenuItems(def.Items),
+                MenuItems = new BindingList<SimpleItem>(FormMenuBinder.BuildItems(def.Items)),
             };
             bar.SelectedItemChanged += (_, e) =>
             {
@@ -80,34 +81,26 @@ namespace TheTechIdea.Beep.Winform.Data.Integrated.Forms.FormHost
         }
 
         /// <summary>
-        /// Maps a <see cref="FormMenuItem"/> tree onto the shared
-        /// <see cref="SimpleItem"/> model the Beep menu bar renders. The engine id
-        /// rides in <see cref="SimpleItem.Name"/> — the click handler reads it back
-        /// to invoke. No <c>MethodName</c> is set, so the control does not attempt
-        /// its own global-function dispatch.
+        /// Opt-in: fold this form's menu into a shell menu bar (typically
+        /// <c>AppManager.MenuStrip</c>) while the form is active in the Beep
+        /// desktop shell, and remove it again with <see cref="UnmergeMenuFromShell"/>.
+        /// The per-form bar still renders on the host; this is the additional
+        /// shell-level surface. Dispatch stays in the engine — merged items forward
+        /// to the same <c>InvokeMenuItemAsync</c>.
         /// </summary>
-        private static BindingList<SimpleItem> BuildMenuItems(IEnumerable<FormMenuItem> items)
+        public bool MergeMenuIntoShell(object shellMenu)
         {
-            var result = new BindingList<SimpleItem>();
-            foreach (var item in items)
-            {
-                var simple = new SimpleItem
-                {
-                    Text = item.Label,
-                    Name = item.Id,
-                    KeyCombination = item.Shortcut ?? string.Empty,
-                };
+            UnmergeMenuFromShell();
+            if (_formsManager is null) return false;
+            _shellAdapter = FormMenuShellAdapter.TryCreate(shellMenu, _formsManager);
+            return _shellAdapter?.Attach() == true;
+        }
 
-                if (item.Children is { Count: > 0 })
-                {
-                    foreach (var child in BuildMenuItems(item.Children))
-                        simple.Children.Add(child);
-                }
-
-                result.Add(simple);
-            }
-
-            return result;
+        /// <summary>Removes this form's items from the shell menu bar.</summary>
+        public void UnmergeMenuFromShell()
+        {
+            _shellAdapter?.Detach();
+            _shellAdapter = null;
         }
     }
 }

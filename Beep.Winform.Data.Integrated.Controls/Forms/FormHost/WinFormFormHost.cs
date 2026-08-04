@@ -219,6 +219,7 @@ public partial class WinFormFormHost : UserControl, IBeepFormsHost
                 }
 
                 _blocks.Clear();
+                UnmergeMenuFromShell();
                 RenderMenu(null);
                 _activeBlockName = null;
                 if (_formsManager is not null)
