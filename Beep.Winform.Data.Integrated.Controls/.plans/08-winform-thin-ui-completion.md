@@ -1311,10 +1311,11 @@ Every layer, each with a proof:
 round-trip (byte-stable), and **the pixel** — an authored attribute recolours the
 field's border on the WinForms host (Integration) and the WPF host (WPF harness).
 
-**One last mile:** `VisualAttributeEditorDialog` is built but not yet wired to a
-navigator command, so a user cannot open it from the tree yet. The contract it
-needs exists; wiring is the three-step command pattern, same as the LOV editor.
-The engine, hosts and emitter are done and proven.
+**Wired to the tree (2026-08-04):** an **Edit Visual Attribute…** item-menu
+command opens the editor, which reads the item's existing attribute back on open
+and writes it through the emitter on Save. Reachability and dialog-binding
+conformance pass. Every layer — engine, both hosts, emitter, editor — is done and
+proven; nothing here is a scaffold.
 
 ---
 
@@ -1354,7 +1355,7 @@ The engine, hosts and emitter are done and proven.
 | 8.29 | Scope generated types per data source | ✅ done — 17 sites + the engine map | 8.28 |
 | 8.30 | Author blocks onto WPF forms | ✅ done — drop gesture now works on both platforms | 8.29 |
 | 8.31 | WPF trigger firing proven + fresh-form auto-preparation | ✅ done — WPF authoring parity | 8.30 |
-| 8.32 | Visual Attributes: engine contract + both hosts + emitter | ✅ done — pixel-proven; dialog wiring the one last mile | 8.31 |
+| 8.32 | Visual Attributes: engine + both hosts + emitter + editor | ✅ done — authorable end to end, pixel-proven | 8.31 |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
