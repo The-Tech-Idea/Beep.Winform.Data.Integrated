@@ -274,9 +274,34 @@ public partial class WinFormBlockHost : UserControl, IBlockView
                             presenter.FieldName)
                         : true);
             }
+            SyncVisualAttributes();
             RefreshNavigationBar();
         }
         finally { _synchronizing = false; }
+    }
+
+    /// <summary>
+    /// Resolves and applies each field's Visual Attribute from the engine — the
+    /// runtime half of the Oracle Forms VA. Rides SyncFromManager, so it re-applies
+    /// on every navigation, query-mode change and dirty-state change, the same
+    /// signals the status line and validation badge already refresh on.
+    /// </summary>
+    private void SyncVisualAttributes()
+    {
+        var va = _formsHost?.FormsManager?.VisualAttributes;
+        if (va is null) return;
+
+        // A single-record view shows the current record, so isCurrentRecord is
+        // true here; the changed/query flags come from the engine's block state.
+        var isChanged = _formsHost!.IsBlockDirty(ManagerBlockName);
+        foreach (var presenter in _presenters)
+        {
+            if (presenter is not WinFormFieldPresenterBase wp) continue;
+            var resolved = va.ResolveForItem(
+                ManagerBlockName, presenter.FieldName,
+                isCurrentRecord: true, isChangedRecord: isChanged, inQueryMode: _queryMode);
+            wp.ApplyVisualAttribute(resolved);
+        }
     }
 
     public void RefreshPresenters() => SyncFromManager();

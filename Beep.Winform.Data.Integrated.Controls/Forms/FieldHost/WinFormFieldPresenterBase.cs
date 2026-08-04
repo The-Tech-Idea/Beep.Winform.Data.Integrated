@@ -2,6 +2,7 @@ using System.Windows.Forms;
 using TheTechIdea.Beep.DataBase;
 using TheTechIdea.Beep.Editor.Forms.Hosts;
 using TheTechIdea.Beep.Editor.Forms.Models;
+using TheTechIdea.Beep.Editor.UOWManager.Models;
 using TheTechIdea.Beep.Vis.Modules;
 using TheTechIdea.Beep.Winform.Controls.Badges;
 using TheTechIdea.Beep.Winform.Controls.Badges.Builtin;
@@ -112,6 +113,60 @@ public abstract class WinFormFieldPresenterBase : IFieldPresenter, IDisposable
         _validationBadge = new BeepValidationBadge(ValidationState.Error)
             .SetMessage(_validationError!);
         Control.ShowBadge(_validationBadge);
+    }
+
+    // The border colour last applied by a visual attribute, so the effect can be
+    // asserted without reaching into the control's theme state. null = no VA.
+    private System.Drawing.Color? _visualAttributeBorderColor;
+
+    /// <summary>The border colour a visual attribute set on this field, or null.</summary>
+    public System.Drawing.Color? VisualAttributeBorderColor => _visualAttributeBorderColor;
+
+    /// <summary>
+    /// Applies a resolved <see cref="VisualAttribute"/> to this field's control:
+    /// border through the Beep component surface (<c>IBeepUIComponent.BorderColor</c>),
+    /// foreground / background / font through the control. Passing null clears the
+    /// attribute back to the control's theme default.
+    /// </summary>
+    public void ApplyVisualAttribute(VisualAttribute visualAttribute)
+    {
+        if (_disposed) return;
+
+        if (visualAttribute is null)
+        {
+            _visualAttributeBorderColor = null;
+            return;
+        }
+
+        if (TryParseHex(visualAttribute.BorderColorHex, out var border))
+        {
+            Editor.BorderColor = border;
+            _visualAttributeBorderColor = border;
+        }
+        if (TryParseHex(visualAttribute.ForeColorHex, out var fore))
+            Control.ForeColor = fore;
+        if (TryParseHex(visualAttribute.BackColorHex, out var back))
+            Control.BackColor = back;
+
+        if (!string.IsNullOrWhiteSpace(visualAttribute.FontFamily) || visualAttribute.FontSize.HasValue)
+        {
+            var family = string.IsNullOrWhiteSpace(visualAttribute.FontFamily)
+                ? Control.Font.FontFamily.Name : visualAttribute.FontFamily;
+            var size = visualAttribute.FontSize ?? Control.Font.Size;
+            var style = (System.Drawing.FontStyle)(visualAttribute.FontStyleMask ?? (int)Control.Font.Style);
+            try { Control.Font = new System.Drawing.Font(family, size, style); }
+            catch (Exception) { /* an unknown family or bad size falls back to the current font */ }
+        }
+
+        Control.Invalidate();
+    }
+
+    private static bool TryParseHex(string hex, out System.Drawing.Color color)
+    {
+        color = default;
+        if (string.IsNullOrWhiteSpace(hex)) return false;
+        try { color = System.Drawing.ColorTranslator.FromHtml(hex.Trim()); return true; }
+        catch (Exception) { return false; }
     }
 
     private void ControlOnParentChanged(object? sender, EventArgs e) => UpdateValidationBadge();
