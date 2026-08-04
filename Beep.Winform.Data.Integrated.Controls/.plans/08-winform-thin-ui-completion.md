@@ -1319,6 +1319,25 @@ proven; nothing here is a scaffold.
 
 ---
 
+### 8.33 — Menu Builder engine foundation — 🟡 DONE (engine); rendering + authoring remain (2026-08-04)
+
+The second new-engine-contract Oracle Forms capability. The coexistence decision
+was made first — own menu bar per form, opt-in shell merge, host-agnostic and
+faithful — which settled the manager surface; then the engine foundation was
+built: `FormMenuDefinition` + items + kinds, `FormDefinition.Menu`,
+`TriggerType.WhenMenuItem`, `IFormMenuManager`, and `IUnitofWorksManager.Menu` +
+`InvokeMenuItemAsync`. Dispatch is on `FormsManager` — a built-in runs the matching
+form op, a MenuItemTrigger fires `WhenMenuItem` with the item id, a CallForm goes
+through the multi-form path.
+
+Proven it does something (Integration): a built-in menu item moves the record
+pointer, a trigger item fires `WhenMenuItem` with its id. **Rendering** (a
+`BeepMenuBar` on both hosts + the opt-in shell-menu merge) and **IDE authoring**
+(a Menu Builder dialog + emitter + navigator node) remain — the behaviour they
+drive is built and verified.
+
+---
+
 ## 4. Sequencing
 
 | # | Item | Priority | Depends on |
@@ -1356,6 +1375,7 @@ proven; nothing here is a scaffold.
 | 8.30 | Author blocks onto WPF forms | ✅ done — drop gesture now works on both platforms | 8.29 |
 | 8.31 | WPF trigger firing proven + fresh-form auto-preparation | ✅ done — WPF authoring parity | 8.30 |
 | 8.32 | Visual Attributes: engine + both hosts + emitter + editor | ✅ done — authorable end to end, pixel-proven | 8.31 |
+| 8.33 | Menu Builder: engine foundation (model + fire point + dispatch) | 🟡 engine done — rendering + authoring remain | 8.32 |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
