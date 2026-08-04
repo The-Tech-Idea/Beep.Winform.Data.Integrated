@@ -9,6 +9,7 @@ public partial class WinFormFormHost
     private ITriggerManager? _subscribedTriggers;
     private IMessageQueueManager? _subscribedMessages;
     private ITimerManager? _subscribedTimers;
+    private IFormMenuManager? _subscribedMenu;
     private IUnitofWorksManager? _subscribedManager;
 
     private void AttachManagerEvents(IUnitofWorksManager manager)
@@ -60,6 +61,20 @@ public partial class WinFormFormHost
         {
             _subscribedTimers.TimerFired += ManagerTimerFired;
         }
+
+        try
+        {
+            _subscribedMenu = manager.Menu;
+        }
+        catch
+        {
+            _subscribedMenu = null;
+        }
+
+        if (_subscribedMenu is not null)
+        {
+            _subscribedMenu.MenuChanged += ManagerMenuChanged;
+        }
     }
 
     private void DetachManagerEvents(IUnitofWorksManager manager)
@@ -89,6 +104,12 @@ public partial class WinFormFormHost
         {
             _subscribedTimers.TimerFired -= ManagerTimerFired;
             _subscribedTimers = null;
+        }
+
+        if (_subscribedMenu is not null)
+        {
+            _subscribedMenu.MenuChanged -= ManagerMenuChanged;
+            _subscribedMenu = null;
         }
     }
 

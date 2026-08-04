@@ -35,6 +35,10 @@ namespace TheTechIdea.Beep.Winform.Data.Integrated.Forms.FormHost
         /// </summary>
         public void RefreshMenu() => RunOnUi(() => RenderMenu(_formsManager));
 
+        /// <summary>Re-renders when the engine's menu manager reports a change.</summary>
+        private void ManagerMenuChanged(object? sender, System.EventArgs e) =>
+            RunOnUi(() => RenderMenu(_formsManager));
+
         /// <summary>
         /// (Re)builds the top-docked menu bar from <c>Definition.Menu</c>. A null
         /// manager or an empty menu removes the bar, so a form without a menu
@@ -50,7 +54,9 @@ namespace TheTechIdea.Beep.Winform.Data.Integrated.Forms.FormHost
                 Padding = new Padding(Padding.Left, 0, Padding.Right, Padding.Bottom);
             }
 
-            var def = Definition?.Menu;
+            // The runtime menu the emitter registered wins; Definition.Menu is the
+            // design-time fallback for a host that has one set but not yet registered.
+            var def = manager?.Menu?.GetMenu() ?? Definition?.Menu;
             if (manager is null || def?.Items is null || def.Items.Count == 0)
                 return;
 
