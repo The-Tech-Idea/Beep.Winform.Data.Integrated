@@ -85,6 +85,7 @@ public partial class WinFormFormHost : UserControl, IBeepFormsHost
                     _formsManager = manager;
                     if (manager is null)
                     {
+                        RenderMenu(null);
                         return;
                     }
 
@@ -119,6 +120,11 @@ public partial class WinFormFormHost : UserControl, IBeepFormsHost
                     // sweep again and let them read it.
                     AutoWireSurfaces();
                     RefreshStatusSurfaces();
+
+                    // Render the form's menu bar (if any) against the newly-bound
+                    // manager. The tree comes from Definition.Menu; every click
+                    // dispatches through the engine's InvokeMenuItemAsync.
+                    RenderMenu(manager);
                 }
                 catch (Exception originalException)
                 {
@@ -213,6 +219,7 @@ public partial class WinFormFormHost : UserControl, IBeepFormsHost
                 }
 
                 _blocks.Clear();
+                RenderMenu(null);
                 _activeBlockName = null;
                 if (_formsManager is not null)
                 {
