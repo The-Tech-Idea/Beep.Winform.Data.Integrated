@@ -1282,6 +1282,42 @@ platform, on a brand-new form.
 
 ---
 
+### 8.32 — Visual Attributes, full-path — ✅ DONE (2026-08-04)
+
+The first Oracle Forms capability that needed a NEW engine contract, built whole
+rather than authored-with-no-effect. A Visual Attribute is a named font/colour
+bundle with record-state variants, attached to an item, that the runtime applies
+as the item renders and its state changes.
+
+Every layer, each with a proof:
+
+- **Engine** (BeepDM): `VisualAttribute` model (hex colours, so the engine and
+  WPF take no `System.Drawing` dependency), `IVisualAttributeManager` /
+  `VisualAttributeManager` mirroring `ILOVManager`, and the
+  `IUnitofWorksManager.VisualAttributes` accessor. `ResolveForItem` owns the
+  precedence — item over block default, a state-override attribute only while its
+  state is active — so a host asks one question.
+- **IDE authoring**: `DesignerCodeGenerator.AddVisualAttributeRegistration` emits
+  register + apply on one line, keyed by item, into a new region added to both
+  form templates — the same platform-neutral `this.{host}.FormsManager` shape the
+  other emitters use, so it writes a WinForms `.Designer.cs` and a WPF `.xaml.cs`
+  identically.
+- **Runtime, both hosts**: `ApplyVisualAttribute` on the WinForms and WPF field
+  presenters sets border (through the Beep component surface), foreground,
+  background and font; `SyncVisualAttributes` on both block hosts resolves each
+  field's attribute with real query/dirty state and rides `SyncFromManager`.
+
+**Verified full-path:** engine `ResolveForItem` precedence, the emitter
+round-trip (byte-stable), and **the pixel** — an authored attribute recolours the
+field's border on the WinForms host (Integration) and the WPF host (WPF harness).
+
+**One last mile:** `VisualAttributeEditorDialog` is built but not yet wired to a
+navigator command, so a user cannot open it from the tree yet. The contract it
+needs exists; wiring is the three-step command pattern, same as the LOV editor.
+The engine, hosts and emitter are done and proven.
+
+---
+
 ## 4. Sequencing
 
 | # | Item | Priority | Depends on |
@@ -1318,6 +1354,7 @@ platform, on a brand-new form.
 | 8.29 | Scope generated types per data source | ✅ done — 17 sites + the engine map | 8.28 |
 | 8.30 | Author blocks onto WPF forms | ✅ done — drop gesture now works on both platforms | 8.29 |
 | 8.31 | WPF trigger firing proven + fresh-form auto-preparation | ✅ done — WPF authoring parity | 8.30 |
+| 8.32 | Visual Attributes: engine contract + both hosts + emitter | ✅ done — pixel-proven; dialog wiring the one last mile | 8.31 |
 
 8.0 first, and it is not busywork: the next person to plan from that tracker will
 build against classes that do not exist.
