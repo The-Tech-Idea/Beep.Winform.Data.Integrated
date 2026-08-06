@@ -222,7 +222,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                 if (status?.Flag != Errors.Ok || map == null)
                 {
                     SetStatus($"Create map failed: {status?.Message}");
-                    BeepDialogManager.Instance.ShowError("Create Map Failed", status?.Message ?? "Unknown error.");
+                    BeepDialogManager.Instance.Error("Create Map Failed", status?.Message ?? "Unknown error.");
                     return;
                 }
 
@@ -343,13 +343,13 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                             (string.IsNullOrWhiteSpace(i.Recommendation) ? "" : $" → {i.Recommendation}"))
                         .ToList();
 
-                    BeepDialogManager.Instance.ShowWarning("Mapping Quality",
+                    BeepDialogManager.Instance.Warning("Mapping Quality",
                         summary + Environment.NewLine + Environment.NewLine +
                         string.Join(Environment.NewLine, lines));
                 }
                 else
                 {
-                    BeepDialogManager.Instance.ShowInfo("Mapping Quality", summary);
+                    BeepDialogManager.Instance.Info("Mapping Quality", summary);
                 }
             }
             catch (Exception ex)
@@ -404,7 +404,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             catch (Exception ex)
             {
                 SetStatus($"Save failed: {ex.Message}");
-                BeepDialogManager.Instance.ShowError("Save Failed", ex.Message);
+                BeepDialogManager.Instance.Error("Save Failed", ex.Message);
             }
             finally
             {

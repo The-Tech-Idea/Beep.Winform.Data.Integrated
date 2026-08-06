@@ -288,7 +288,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                 report.Add($"Warnings — unrecognised, but the engine will still try to resolve them:{Environment.NewLine}" +
                            string.Join(Environment.NewLine, warnings));
 
-            BeepDialogManager.Instance.ShowWarning(
+            BeepDialogManager.Instance.Warning(
                 "Validation Problems",
                 string.Join(Environment.NewLine + Environment.NewLine, report));
         }
@@ -338,7 +338,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
 
                 if (result?.Flag == Errors.Ok)
                 {
-                    BeepDialogManager.Instance.ShowInfo(
+                    BeepDialogManager.Instance.Info(
                         "Rule Result",
                         $"{selected.PropertyName}{Environment.NewLine}{Environment.NewLine}" +
                         $"Rule: {selected.Rule}{Environment.NewLine}Resolves to: {value ?? "(null)"}");
@@ -346,7 +346,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                 }
                 else
                 {
-                    BeepDialogManager.Instance.ShowError(
+                    BeepDialogManager.Instance.Error(
                         "Rule Failed",
                         $"{selected.PropertyName}{Environment.NewLine}{Environment.NewLine}" +
                         $"Rule: {selected.Rule}{Environment.NewLine}{Environment.NewLine}{result?.Message}");
@@ -407,7 +407,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
                     : $"Save failed: {result?.Message}");
 
                 if (!ok)
-                    BeepDialogManager.Instance.ShowError("Save Failed", result?.Message ?? "Unknown error.");
+                    BeepDialogManager.Instance.Error("Save Failed", result?.Message ?? "Unknown error.");
 
                 Completed?.Invoke(this, new WizardCompletedEventArgs
                 {
@@ -418,7 +418,7 @@ namespace TheTechIdea.Beep.Winform.Default.Views.Configuration
             catch (Exception ex)
             {
                 SetStatus($"Save threw: {ex.Message}");
-                BeepDialogManager.Instance.ShowError("Save Failed", ex.Message);
+                BeepDialogManager.Instance.Error("Save Failed", ex.Message);
             }
             finally
             {
